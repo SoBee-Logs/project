@@ -73,13 +73,15 @@ export default function LoadingPage() {
           if (res.ok) {
             const data = await res.json()
             diaries.push({
-              title:      data.title,
-              diaryLines: data.diaryLines,
-              tags:       data.tags,
-              roomId:     roomId,            
-              roomLabel: data.roomLabel,
-              imageUrls:  data.imageUrls ?? [],
-              imageUrl:   data.imageUrls?.[0] ?? imageUrl,
+              title:           data.title,
+              diaryLines:      data.diaryLines,
+              tags:            data.tags,
+              roomId:          data.roomId,
+              roomLabel:       data.roomLabel,
+              imageUrls:       data.imageUrls ?? [],
+              imageUrl:        data.imageUrls?.[0] ?? imageUrl,
+              photoIds:        data.photoIds ?? [],        // ← 추가
+              matchedPhotoIds: data.matchedPhotoIds ?? [], // ← 추가
             })
           }
         } catch {
