@@ -12,7 +12,7 @@ const getUserId = () => Number(localStorage.getItem("user_id")) || 1;
 
 const api = {
     search: (searchInput) =>
-        fetch(`${BASE_URL}/search`, {
+        fetch(`${BASE_URL}/api/search`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
