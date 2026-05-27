@@ -17,3 +17,6 @@ desktop.ini
 # 로그
 *.log
 logs/
+
+
+*.pem
