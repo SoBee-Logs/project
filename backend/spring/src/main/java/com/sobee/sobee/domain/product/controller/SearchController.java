@@ -14,12 +14,12 @@ public class SearchController {
 
     private final SearchService searchService;
 
-    @PostMapping("/search")
+    @PostMapping("/api/search")
     public ResponseEntity<SearchResponseDto> search(@RequestBody SearchRequestDto request) {
         return ResponseEntity.ok(searchService.search(request));
     }
 
-    @GetMapping("/search/recom_question")
+    @GetMapping("/api/search/recom_question")
     public ResponseEntity<List<String>> getRecomQuestion() {
         return ResponseEntity.ok(List.of(
                 "실적 채울 카드 추천해줘",
@@ -29,7 +29,7 @@ public class SearchController {
         ));
     }
 
-    @GetMapping("/search/recent_question")
+    @GetMapping("/api/search/recent_question")
     public ResponseEntity<List<String>> getRecentQuestion() {
         return ResponseEntity.ok(List.of(
                 "카페 혜택 좋은 카드는 뭐야?",
