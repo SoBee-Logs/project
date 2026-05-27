@@ -58,8 +58,12 @@ export default function DiaryResult() {
 
   const finishRoom = (include) => {
     const roomId = selectedRooms[roomIndex]
-    const nextIncluded = include ? [...includedRoomIds, roomId] : includedRoomIds
-
+    
+    // 이미 선택된 상태면 제거, 아니면 추가
+    const nextIncluded = include
+      ? [...includedRoomIds.filter(id => id !== roomId), roomId]
+      : includedRoomIds.filter(id => id !== roomId)  // ← 제외하기 시 해당 방 제거
+  
     if (roomIndex < selectedRooms.length - 1) {
       setIncludedRoomIds(nextIncluded)
       setRoomIndex((i) => i + 1)
