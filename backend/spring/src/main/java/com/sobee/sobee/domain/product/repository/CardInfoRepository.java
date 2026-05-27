@@ -26,4 +26,7 @@ public interface CardInfoRepository extends JpaRepository<CardInfo, Long> {
 
     @Query("SELECT DISTINCT c FROM CardInfo c LEFT JOIN FETCH c.topBenefits")
     List<CardInfo> findAllWithTopBenefits();
+
+    @Query("SELECT DISTINCT c FROM CardInfo c LEFT JOIN FETCH c.benefits WHERE c.cardInfoId IN :ids")
+    List<CardInfo> findAllWithBenefitsByIds(@Param("ids") List<Long> ids);
 }
