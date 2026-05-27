@@ -17,4 +17,7 @@ public interface InsuranceProductRepository extends JpaRepository<InsuranceProdu
 
     @Query("SELECT i FROM InsuranceProduct i WHERE i.situationTags LIKE %:keyword% OR i.description LIKE %:keyword% OR i.productName LIKE %:keyword%")
     List<InsuranceProduct> searchByKeyword(@Param("keyword") String keyword);
+
+    @Query("SELECT DISTINCT i FROM InsuranceProduct i LEFT JOIN FETCH i.coverages WHERE i.productId IN :ids")
+    List<InsuranceProduct> findAllWithCoveragesByIds(@Param("ids") List<String> ids);
 }
