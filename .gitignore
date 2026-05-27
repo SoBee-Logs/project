@@ -20,3 +20,7 @@ logs/
 
 
 *.pem
+
+# 가상 환경 폴더 무시
+venv/
+.venv/
