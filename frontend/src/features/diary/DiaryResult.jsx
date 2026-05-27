@@ -88,7 +88,6 @@ export default function DiaryResult() {
       try {
         const diaryContent = JSON.stringify({
           title:    d.title,
-          subtitle: d.subtitle,
           lines:    d.diaryLines,
         })
         await fetch('/api/diary/save', {

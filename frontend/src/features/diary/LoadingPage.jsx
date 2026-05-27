@@ -74,13 +74,11 @@ export default function LoadingPage() {
             const data = await res.json()
             diaries.push({
               title:      data.title,
-              subtitle:   data.subtitle,
               diaryLines: data.diaryLines,
               tags:       data.tags,
-              roomId:     data.roomId,
-              roomLabel:  data.roomLabel,
-              imageUrls:  data.imageUrls,
-              photoIds:   data.photoIds,
+              roomId:     roomId,            
+              rroomLabel: data.roomLabel,
+              imageUrls:  data.imageUrls ?? [],
               imageUrl:   data.imageUrls?.[0] ?? imageUrl,
             })
           }
