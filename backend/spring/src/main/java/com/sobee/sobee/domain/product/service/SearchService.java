@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -24,6 +25,25 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class SearchService {
+
+    // GPT 카테고리 → 실제 DB cate_name 매핑
+    private static final Map<String, List<String>> CATEGORY_MAP = Map.ofEntries(
+        Map.entry("음식점", List.of("푸드", "일반음식점", "패밀리레스토랑", "패스트푸드", "배달앱", "카페", "카페/디저트", "베이커리", "점심", "저녁")),
+        Map.entry("카페",   List.of("카페", "카페/디저트", "베이커리")),
+        Map.entry("교통",   List.of("교통", "대중교통", "택시", "기차", "고속버스", "자동차/하이패스", "하이패스")),
+        Map.entry("주유",   List.of("주유", "주유소", "충전소")),
+        Map.entry("쇼핑",   List.of("쇼핑", "온라인쇼핑", "백화점", "대형마트", "마트/편의점", "아울렛", "소셜커머스", "홈쇼핑")),
+        Map.entry("마트",   List.of("대형마트", "마트/편의점", "SSM")),
+        Map.entry("편의점", List.of("편의점", "마트/편의점")),
+        Map.entry("영화",   List.of("영화", "OTT/영화/문화", "공연/전시", "테마파크")),
+        Map.entry("통신",   List.of("통신", "SKT", "KT", "LGU+")),
+        Map.entry("여행",   List.of("여행/숙박", "여행사", "온라인 여행사", "호텔", "리조트", "항공권", "항공마일리지", "공항라운지", "면세점")),
+        Map.entry("해외",   List.of("해외", "해외이용", "공항라운지", "공항라운지/PP", "면세점", "해외직구")),
+        Map.entry("의료",   List.of("병원", "병원/약국", "약국", "동물병원")),
+        Map.entry("교육",   List.of("교육/육아", "학원", "학습지", "유치원", "어린이집")),
+        Map.entry("스포츠", List.of("레저/스포츠", "골프", "피트니스", "경기관람")),
+        Map.entry("온라인", List.of("온라인쇼핑", "소셜커머스", "홈쇼핑", "해외직구", "간편결제"))
+    );
 
     private final ProductSearchService productSearchService;
     private final RestTemplate restTemplate;
@@ -51,6 +71,19 @@ public class SearchService {
                 .keyword(keyword).totalCount(0)
                 .cards(List.of()).savings(List.of()).insurance(List.of())
                 .build());
+
+        // GPT category로 카드 재정렬 (해당 카테고리 혜택 비율 높은 카드 우선)
+        if (parsed != null && parsed.getCategory() != null && !result.getCards().isEmpty()) {
+            List<SearchResultDto.CardResult> sorted = new ArrayList<>(result.getCards());
+            String cat = parsed.getCategory();
+            sorted.sort((a, b) -> Double.compare(
+                    categoryMatchRatio(b, cat),
+                    categoryMatchRatio(a, cat)));
+            result = SearchResultDto.builder()
+                    .keyword(result.getKeyword()).totalCount(result.getTotalCount())
+                    .cards(sorted).savings(result.getSavings()).insurance(result.getInsurance())
+                    .build();
+        }
 
         List<SearchResponseDto.ProductDto> products = buildProducts(result);
 
@@ -101,24 +134,41 @@ public class SearchService {
 
         for (SearchResultDto.CardResult c : result.getCards()) {
             String cardUrl = c.getGorillaId() != null
-                    ? "https://www.card-gorilla.com/card/detail/" + c.getGorillaId()
-                    : "";
+                    ? "https://www.card-gorilla.com/card/detail/" + c.getGorillaId() : "";
 
             String header = (c.getTopBenefitTitles() != null && !c.getTopBenefitTitles().isEmpty())
-                    ? c.getTopBenefitTitles().get(0)
-                    : "";
+                    ? c.getTopBenefitTitles().get(0) : "";
 
             String middle = "";
-            if (c.getMinPerformance() != null && c.getMinPerformance() > 0) {
+            if (c.getMinPerformance() != null && c.getMinPerformance() > 0)
                 middle += "전월 실적 " + String.format("%,d", c.getMinPerformance()) + "원 이상";
-            }
-            if (c.getAnnualFeeBasic() != null && !c.getAnnualFeeBasic().isBlank()) {
-                middle += (middle.isEmpty() ? "" : " / ") + "연회비 " + c.getAnnualFeeBasic();
-            }
+            if (c.getAnnualFeeBasic() != null && !c.getAnnualFeeBasic().isBlank())
+                middle += (middle.isEmpty() ? "" : " · ") + "연회비 " + c.getAnnualFeeBasic();
 
             String small = (c.getTopBenefitTitles() != null && c.getTopBenefitTitles().size() > 1)
-                    ? String.join(", ", c.getTopBenefitTitles().subList(1, c.getTopBenefitTitles().size()))
-                    : "";
+                    ? String.join(", ", c.getTopBenefitTitles().subList(1, c.getTopBenefitTitles().size())) : "";
+
+            // 카테고리별 혜택 그룹핑
+            List<SearchResponseDto.BenefitGroup> benefitGroups = null;
+            if (c.getBenefits() != null && !c.getBenefits().isEmpty()) {
+                Map<String, List<SearchResultDto.BenefitItem>> grouped = new LinkedHashMap<>();
+                for (SearchResultDto.BenefitItem b : c.getBenefits()) {
+                    String key = b.getCateName() != null ? b.getCateName() : "기타";
+                    grouped.computeIfAbsent(key, k -> new ArrayList<>()).add(b);
+                }
+                benefitGroups = grouped.entrySet().stream()
+                        .map(e -> SearchResponseDto.BenefitGroup.builder()
+                                .cateName(e.getKey())
+                                .lines(e.getValue().stream()
+                                        .filter(b -> b.getTitle() != null)
+                                        .map(b -> SearchResponseDto.BenefitLine.builder()
+                                                .title(b.getTitle())
+                                                .comment(b.getComment())
+                                                .build())
+                                        .collect(Collectors.toList()))
+                                .build())
+                        .collect(Collectors.toList());
+            }
 
             products.add(SearchResponseDto.ProductDto.builder()
                     .product_name(c.getCardName())
@@ -128,26 +178,56 @@ public class SearchService {
                     .is_discontinued(Boolean.TRUE.equals(c.getIsDiscontinued()))
                     .content(SearchResponseDto.ContentDto.builder()
                             .header(header).middle(middle).small(small).url(cardUrl)
+                            .benefitGroups(benefitGroups)
+                            .annualFeeDetail(stripHtml(c.getAnnualFeeDetail()))
+                            .onlyOnline(c.getOnlyOnline())
+                            .isImpend(c.getIsImpend())
                             .build())
                     .build());
         }
 
         for (SearchResultDto.SavingsResult s : result.getSavings()) {
+            String intrRateStr = s.getIntrRate() != null ? s.getIntrRate().stripTrailingZeros().toPlainString() + "%" : null;
+            String intrMaxRateStr = s.getIntrMaxRate() != null ? s.getIntrMaxRate().stripTrailingZeros().toPlainString() + "%" : null;
+
             products.add(SearchResponseDto.ProductDto.builder()
                     .product_name(s.getFinPrdtNm())
                     .product_company(s.getKorCoNm())
                     .product_img_url(null)
                     .product_type("savings")
                     .content(SearchResponseDto.ContentDto.builder()
-                            .header(s.getIntrMaxRate() != null ? "우대금리 최대 " + s.getIntrMaxRate() + "%" : "")
+                            .header(intrMaxRateStr != null ? "우대금리 최대 " + intrMaxRateStr : "")
                             .middle(s.getSaveTrm() != null ? s.getSaveTrm() + "개월" : "")
                             .small(s.getSpclCnd() != null ? s.getSpclCnd() : "")
                             .url("")
+                            .intrRate(intrRateStr)
+                            .intrRateType(s.getIntrRateType())
+                            .joinWay(s.getJoinWay())
+                            .joinMember(s.getJoinMember())
+                            .etcNote(s.getEtcNote())
+                            .mtrtInt(s.getMtrtInt())
                             .build())
                     .build());
         }
 
         for (SearchResultDto.InsuranceResult i : result.getInsurance()) {
+            String ageRange = null;
+            if (i.getAgeMin() != null && i.getAgeMax() != null)
+                ageRange = "만 " + i.getAgeMin() + "~" + i.getAgeMax() + "세";
+            else if (i.getAgeMin() != null)
+                ageRange = "만 " + i.getAgeMin() + "세 이상";
+
+            List<SearchResponseDto.CoverageItem> coverages = null;
+            if (i.getCoverages() != null && !i.getCoverages().isEmpty()) {
+                coverages = i.getCoverages().stream()
+                        .map(c -> SearchResponseDto.CoverageItem.builder()
+                                .itemName(c.getItemName())
+                                .conditionText(c.getConditionText())
+                                .exclusionText(c.getExclusionText())
+                                .build())
+                        .collect(Collectors.toList());
+            }
+
             products.add(SearchResponseDto.ProductDto.builder()
                     .product_name(i.getProductName())
                     .product_company(i.getInsurer())
@@ -158,6 +238,11 @@ public class SearchService {
                             .middle(i.getSituationTags() != null ? i.getSituationTags() : "")
                             .small(i.getCoveragePeriodDays() != null ? "보장기간 " + i.getCoveragePeriodDays() + "일" : "")
                             .url(i.getProductUrl() != null ? i.getProductUrl() : "")
+                            .description(i.getDescription())
+                            .coverages(coverages)
+                            .ageRange(ageRange)
+                            .gender(i.getGender())
+                            .notes(i.getNotes())
                             .build())
                     .build());
         }
@@ -182,5 +267,31 @@ public class SearchService {
             log.warn("GPT 파싱 실패, ES 결과만 사용: {}", e.getMessage());
             return null;
         }
+    }
+
+    private double categoryMatchRatio(SearchResultDto.CardResult card, String gptCategory) {
+        if (card.getBenefits() == null || card.getBenefits().isEmpty()) return 0.0;
+        List<String> dbCategories = CATEGORY_MAP.getOrDefault(gptCategory, List.of(gptCategory));
+        long matched = card.getBenefits().stream()
+                .filter(b -> b.getCateName() != null && dbCategories.stream()
+                        .anyMatch(dbCat -> b.getCateName().contains(dbCat) || dbCat.contains(b.getCateName())))
+                .count();
+        return (double) matched / card.getBenefits().size();
+    }
+
+    private String stripHtml(String html) {
+        if (html == null || html.isBlank()) return null;
+        return html
+                .replaceAll("(?is)<style[^>]*>.*?</style>", "")
+                .replaceAll("<[^>]+>", "")
+                .replace("&nbsp;", " ")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replaceAll("(?i)Powered\\s+by\\s*[\\r\\n\\s]*Froala\\s+Editor", "")
+                .replaceAll("[ \t]+", " ")
+                .replaceAll("(\r?\n){3,}", "\n\n")
+                .trim();
     }
 }
