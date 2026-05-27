@@ -77,7 +77,7 @@ export default function LoadingPage() {
               diaryLines: data.diaryLines,
               tags:       data.tags,
               roomId:     roomId,            
-              rroomLabel: data.roomLabel,
+              roomLabel: data.roomLabel,
               imageUrls:  data.imageUrls ?? [],
               imageUrl:   data.imageUrls?.[0] ?? imageUrl,
             })
