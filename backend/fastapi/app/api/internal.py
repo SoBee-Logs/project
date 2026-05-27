@@ -1,0 +1,123 @@
+import asyncio
+
+from fastapi import APIRouter
+from app.models.schemas import (
+    SyncRequest, SyncResponse,
+    MappingRequest, MappingResponse,
+    PersonaGenerateRequest, AvatarResponse,
+    DiaryGenerateRequest, DiaryGenerateResponse,
+    RegisterAccountRequest, RegisterAccountResponse,
+    ParseSearchRequest, ParseSearchResponse,
+)
+from app.services.sync_service import sync_transactions, register_account, INITIAL_SYNC_DAYS
+from app.services.mapping_service import run_mapping
+from app.services.avatar_service import _generate_and_save_avatar
+from app.services.diary_service import generate_diary
+from app.db.user_repository import get_all_user_ids
+from app.services.search_parse_service import parse_search_query
+
+router = APIRouter(prefix="/internal", tags=["internal"])
+
+
+@router.get("/users")
+async def list_users():
+    """Airflow DAG에서 전체 유저 목록 조회용"""
+    return {"user_ids": await get_all_user_ids()}
+
+
+@router.post("/accounts/setup")
+async def accounts_setup():
+    """
+    .env의 CODEF_ACCOUNT_N 목록을 읽어 전체 계정을 일괄 등록.
+    connected_id를 발급받아 Secrets Manager에 저장.
+    """
+    from app.core.config import settings
+    accounts = settings.get_codef_accounts()
+    if not accounts:
+        return {"message": ".env에 CODEF_ACCOUNT_N 설정이 없습니다."}
+
+    results = []
+    registered_user_ids: set[int] = set()
+    for acct in accounts:
+        try:
+            await register_account(
+                user_id=acct["user_id"],
+                business_type=acct["business_type"],
+                org_code=acct["org_code"],
+                login_id=acct["login_id"],
+                login_pw=acct["login_pw"],
+            )
+            registered_user_ids.add(acct["user_id"])
+            results.append({"user_id": acct["user_id"], "org_code": acct["org_code"], "status": "ok"})
+        except Exception as e:
+            results.append({"user_id": acct["user_id"], "org_code": acct["org_code"], "status": "error", "error": str(e)})
+
+    # 등록 성공한 유저별로 초기 30일 sync 백그라운드 트리거 (유저당 1회)
+    for uid in registered_user_ids:
+        asyncio.create_task(sync_transactions(uid, days=INITIAL_SYNC_DAYS))
+
+    return {"results": results}
+
+
+@router.post("/accounts/register", response_model=RegisterAccountResponse)
+async def accounts_register(request: RegisterAccountRequest):
+    """
+    유저 금융기관 계정 등록 (최초 1회).
+    connected_id를 발급받아 Secrets Manager에 저장.
+    등록 완료 후 최근 30일 transactions 초기 sync를 백그라운드로 트리거.
+    login_id / login_pw는 CODEF에만 전달되며 저장되지 않음.
+    """
+    await register_account(
+        user_id=request.user_id,
+        business_type=request.business_type,
+        org_code=request.org_code,
+        login_id=request.login_id,
+        login_pw=request.login_pw,
+    )
+    asyncio.create_task(sync_transactions(request.user_id, days=INITIAL_SYNC_DAYS))
+    return RegisterAccountResponse(
+        user_id=request.user_id,
+        business_type=request.business_type,
+        org_code=request.org_code,
+        message="connected_id 발급 및 저장 완료. 초기 30일 sync 백그라운드 실행 중.",
+    )
+
+
+@router.post("/transactions/sync", response_model=SyncResponse)
+async def transactions_sync(request: SyncRequest):
+    from app.services.sync_service import DAILY_SYNC_DAYS
+    days = request.days if request.days is not None else DAILY_SYNC_DAYS
+    result = await sync_transactions(request.user_id, days=days)
+    msg = (
+        f"sync 완료 | 기간:{result['period']} "
+        f"계좌:{result['bank_saved']} 카드:{result['card_saved']} "
+        f"transactions:{result['transactions_merged']}"
+    )
+    return SyncResponse(message=msg)
+
+
+@router.post("/mapping/run", response_model=MappingResponse)
+async def mapping_run(request: MappingRequest):
+    result = await run_mapping(request.user_id)
+    return MappingResponse(message=result.get("message", "mapping complete"))
+
+
+@router.post("/persona/generate", response_model=AvatarResponse)
+async def persona_generate(request: PersonaGenerateRequest):
+    from app.services.avatar_service import _get_last_week_range
+    start, end = request.start_date, request.end_date
+    if not start or not end:
+        start, end = _get_last_week_range()
+    return await _generate_and_save_avatar(request.user_id, start, end)
+
+
+@router.post("/diary/generate", response_model=DiaryGenerateResponse)
+async def diary_generate(request: DiaryGenerateRequest):
+    result = await generate_diary(request.user_id)
+    return DiaryGenerateResponse(message=result.get("message", "diary generated"))
+
+
+@router.post("/parse-search", response_model=ParseSearchResponse)
+async def parse_search(request: ParseSearchRequest):
+    result = await parse_search_query(request.query)
+    return ParseSearchResponse(**result)
