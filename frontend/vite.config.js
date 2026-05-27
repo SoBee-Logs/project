@@ -31,7 +31,12 @@ export default defineConfig({
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
-      '/report': {
+      '/report/mydata': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        headers: { origin: 'http://localhost:5173' },
+      },
+      '/report/ai-insight': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
