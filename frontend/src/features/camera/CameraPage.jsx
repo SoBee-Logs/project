@@ -184,7 +184,7 @@ export default function CameraPage() {
           text,
           mood: MOOD_EMOJIS[selectedMood],
           imageUrl: result.imageUrl,
-          selectedRooms,
+          selectedRooms: [],  // ← 빈 배열로 변경 (LoadingPage에서 전체 그룹 조회)
           photoId: result.photoId,
           imageFile,
         },
