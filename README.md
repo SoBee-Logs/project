@@ -73,4 +73,3 @@ cd backend/fastapi && pip install -r requirements.txt && uvicorn app.main:app --
 - **CloudFront**: 프론트엔드 배포
 - **ALB**: Spring Boot 로드 밸런서
 - **ECS**: Spring Boot / FastAPI 컨테이너 실행
-# project
