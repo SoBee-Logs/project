@@ -28,3 +28,15 @@ async def ai_insight(
 
     # ✅ 집계된 category_price만 넘겨줌 — ai_insight_service는 DB 재조회 안 함
     return await get_ai_insight(user_id, tx_data.get("category_price", {}))
+
+
+@router.get("/report/recommend-questions")
+async def recommend_questions(user_id: int = Query(...)):
+    tx_data = get_transaction_report(user_id)
+    category_price = tx_data.get("category_price", {})
+
+    lifecycle_resp = await get_lifecycle(user_id)
+    lifecycle_label = lifecycle_resp.life_stage_code
+
+    questions = await generate_recommend_questions(category_price, lifecycle_label)
+    return {"questions": questions}

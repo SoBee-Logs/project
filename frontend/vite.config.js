@@ -26,11 +26,6 @@ export default defineConfig({
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
-      '/search': {
-        target: 'http://127.0.0.1:8080',
-        changeOrigin: true,
-        headers: { origin: 'http://localhost:5173' },
-      },
       '/report': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
