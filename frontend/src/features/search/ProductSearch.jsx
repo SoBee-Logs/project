@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const WOORI_NAVY = "#042C53";
 const WOORI_GREEN = "#1D9E75";
@@ -412,21 +412,27 @@ function DetailPage({ item, onBack }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function ProductSearch() {
     const navigate = useNavigate();
-    const [query, setQuery] = useState("");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [query, setQuery] = useState(searchParams.get("q") || "");
     const [isSearched, setIsSearched] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [activePage, setActivePage] = useState("search");
+    const [activePage, setActivePage] = useState(searchParams.get("detail") ? "detail" : "search");
+    const [selectedItem, setSelectedItem] = useState(() => {
+        if (searchParams.get("detail")) {
+            const saved = sessionStorage.getItem("searchSelectedItem");
+            return saved ? JSON.parse(saved) : null;
+        }
+        return null;
+    });
 
     const [suggestedQuestions, setSuggestedQuestions] = useState([]);
     const [questionsLoading, setQuestionsLoading] = useState(true);
-    // localStorage에서 최근 질문 불러오기 (없으면 빈 배열)
     const [recentQuestions, setRecentQuestions] = useState(
         () => JSON.parse(localStorage.getItem("recentQuestions") || "[]")
     );
     const [aiText, setAiText] = useState("");
     const [products, setProducts] = useState([]);
-    const [activeTab, setActiveTab] = useState("card");
+    const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "card");
     const [error, setError] = useState(null);
 
     useEffect(() => {
@@ -450,10 +456,16 @@ export default function ProductSearch() {
         return () => controller.abort();
     }, []);
 
+    useEffect(() => {
+        const initialQuery = searchParams.get("q");
+        if (initialQuery) handleSearch(initialQuery);
+    }, []);
+
     const handleSearch = async (q) => {
         const searchQuery = q || query;
         if (!searchQuery.trim()) return;
         setQuery(searchQuery);
+        setSearchParams({ q: searchQuery, tab: activeTab });
         setIsLoading(true);
         setError(null);
         setAiText("");
@@ -471,6 +483,7 @@ export default function ProductSearch() {
             setIsSearched(true);
             const firstTab = ["card", "savings", "insurance"].find(t => fetched.some(p => p.product_type === t)) || "card";
             setActiveTab(firstTab);
+            setSearchParams({ q: searchQuery, tab: firstTab });
         } catch (e) {
             setError("검색 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
         } finally {
@@ -481,11 +494,14 @@ export default function ProductSearch() {
     const handleBack = () => {
         if (activePage === "detail") {
             setActivePage("search");
+            sessionStorage.removeItem("searchSelectedItem");
+            setSearchParams({ q: query, tab: activeTab });
         } else if (isSearched) {
             setIsSearched(false);
             setQuery("");
             setProducts([]);
             setAiText("");
+            setSearchParams({});
         } else {
             navigate("/home");
         }
@@ -504,7 +520,11 @@ export default function ProductSearch() {
         typeof q === "string" ? q : q.question || q.text || q.content || "";
 
     if (activePage === "detail" && selectedItem) {
-        return <DetailPage item={selectedItem} onBack={() => setActivePage("search")} />;
+        return <DetailPage item={selectedItem} onBack={() => {
+            setActivePage("search");
+            sessionStorage.removeItem("searchSelectedItem");
+            setSearchParams({ q: query, tab: activeTab });
+        }} />;
     }
 
     return (
@@ -560,7 +580,7 @@ export default function ProductSearch() {
                         return (
                             <button
                                 key={key}
-                                onClick={() => setActiveTab(key)}
+                                onClick={() => { setActiveTab(key); setSearchParams({ q: query, tab: key }); }}
                                 style={{
                                     flex: 1, padding: "8px 0", borderRadius: 10,
                                     background: isActive ? WOORI_BLUE : "#fff",
@@ -616,7 +636,12 @@ export default function ProductSearch() {
                                 <ProductCard
                                     key={i}
                                     item={item}
-                                    onClick={(it) => { setSelectedItem(it); setActivePage("detail"); }}
+                                    onClick={(it) => {
+                        sessionStorage.setItem("searchSelectedItem", JSON.stringify(it));
+                        setSearchParams({ q: query, tab: activeTab, detail: "1" });
+                        setSelectedItem(it);
+                        setActivePage("detail");
+                    }}
                                 />
                             ))
                         ) : (
