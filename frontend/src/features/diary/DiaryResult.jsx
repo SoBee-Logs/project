@@ -151,6 +151,17 @@ export default function DiaryResult() {
     <main className="flex flex-col min-h-full bg-[#FAFAFA] relative">
       <StatusBar />
 
+      <header className="px-5 pt-1 pb-2 bg-[#FAFAFA] shrink-0">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="flex items-center justify-center w-8 h-8 -ml-1 text-gray-800"
+          aria-label="뒤로가기"
+        >
+          <span className="text-[22px] leading-none">‹</span>
+        </button>
+      </header>
+
       <nav
           ref={navRef}
           className={`flex overflow-x-auto scrollbar-hide gap-4 px-4 py-4 border-b border-gray-200 bg-white shrink-0 ${navDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
