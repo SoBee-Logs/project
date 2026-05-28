@@ -99,10 +99,10 @@ export default function LoadingPage() {
             const data = await res.json()
             diaries.push({
               title:           data.title,
-              diaryLines:      data.diary_lines ?? data.diaryLines,
+              diaryLines:      data.diaryLines,
               tags:            data.tags,
-              roomId:          roomId,
-              roomLabel:       roomMap[roomId] ?? `방${roomId}`,
+              roomId:          data.roomId ?? roomId,
+              roomLabel:       data.roomLabel,          // roomMap 제거, data에서만
               imageUrls:       data.imageUrls ?? [],
               imageUrl:        data.imageUrls?.[0] ?? imageUrl,
               photoIds:        data.photoIds ?? [],
