@@ -1,7 +1,8 @@
 from sqlalchemy import text
 import pandas as pd
+import re
 from app.services.lifecycle_service import engine
-from app.models.schemas import AiInsightContent, AiInsightItem, AiInsightResponse
+from app.models.schemas import AiInsightContent, AiInsightItem, AiInsightResponse, BenefitGroup, BenefitLine
 
 CATEGORY_TO_CATE = {
     '카페/음료': '카페',
@@ -46,13 +47,26 @@ CHILD_STAGES = {'TEEN', 'CHILD_BABY', 'CHILD_TEEN', 'CHILD_UNI'}
 CHILD_KEYWORDS = '키즈|아이|어린이|주니어|청소년|영유아|태아|baby|kids|junior'
 
 
+def _strip_html(html: str | None) -> str | None:
+    if not html:
+        return None
+    text_val = re.sub(r'(?is)<style[^>]*>.*?</style>', '', html)
+    text_val = re.sub(r'<[^>]+>', '', text_val)
+    text_val = text_val.replace('&nbsp;', ' ').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"')
+    text_val = re.sub(r'(?i)Powered\s+by\s*[\r\n\s]*Froala\s+Editor', '', text_val)
+    text_val = re.sub(r'[ \t]+', ' ', text_val)
+    text_val = re.sub(r'(\r?\n){3,}', '\n\n', text_val)
+    return text_val.strip() or None
+
+
 def _query_card(cate_name: str, top_category: str) -> AiInsightItem | None:
     df = pd.read_sql(text("""
-        SELECT ci.card_name, ci.corp_name, ci.card_img_url, ci.gorilla_id,
-               ci.annual_fee_basic, cb.title AS benefit_title, cb.comment AS benefit_comment
+        SELECT ci.card_info_id, ci.card_name, ci.corp_name, ci.card_img_url, ci.gorilla_id,
+               ci.annual_fee_basic, ci.annual_fee_detail, ci.only_online, ci.is_impend
         FROM card_info ci
-        JOIN card_benefits cb ON ci.card_info_id = cb.card_info_id
-        WHERE cb.cate_name = :cate_name
+        WHERE ci.card_info_id IN (
+            SELECT DISTINCT cb.card_info_id FROM card_benefits cb WHERE cb.cate_name = :cate_name
+        )
           AND ci.card_img_url IS NOT NULL
           AND ci.is_discontinued = 0
         ORDER BY RAND()
@@ -61,11 +75,12 @@ def _query_card(cate_name: str, top_category: str) -> AiInsightItem | None:
 
     if df.empty:
         df = pd.read_sql(text("""
-            SELECT ci.card_name, ci.corp_name, ci.card_img_url, ci.gorilla_id,
-                   ci.annual_fee_basic, cb.title AS benefit_title, cb.comment AS benefit_comment
+            SELECT ci.card_info_id, ci.card_name, ci.corp_name, ci.card_img_url, ci.gorilla_id,
+                   ci.annual_fee_basic, ci.annual_fee_detail, ci.only_online, ci.is_impend
             FROM card_info ci
-            JOIN card_benefits cb ON ci.card_info_id = cb.card_info_id
-            WHERE cb.cate_name = '모든가맹점'
+            WHERE ci.card_info_id IN (
+                SELECT DISTINCT cb.card_info_id FROM card_benefits cb WHERE cb.cate_name = '모든가맹점'
+            )
               AND ci.card_img_url IS NOT NULL
               AND ci.is_discontinued = 0
             ORDER BY RAND()
@@ -76,9 +91,34 @@ def _query_card(cate_name: str, top_category: str) -> AiInsightItem | None:
         return None
 
     r = df.iloc[0]
+    card_info_id = int(r['card_info_id'])
     gorilla_id = r['gorilla_id']
     card_url = f"https://www.card-gorilla.com/card/detail/{gorilla_id}" if gorilla_id else None
     reason = f"이번 달 {top_category} 지출이 많아 관련 혜택 카드를 추천해요"
+
+    benefits_df = pd.read_sql(text("""
+        SELECT cate_name, title, comment FROM card_benefits
+        WHERE card_info_id = :card_info_id AND (is_notice = 0 OR is_notice IS NULL)
+        ORDER BY card_ben_id
+    """), engine, params={"card_info_id": card_info_id})
+
+    benefit_groups = []
+    if not benefits_df.empty:
+        for cate, group in benefits_df.groupby('cate_name', sort=False):
+            lines = [
+                BenefitLine(
+                    title=row['title'] if pd.notna(row['title']) else None,
+                    comment=row['comment'] if pd.notna(row['comment']) else None,
+                )
+                for _, row in group.iterrows()
+                if pd.notna(row['title'])
+            ]
+            if lines:
+                benefit_groups.append(BenefitGroup(cateName=str(cate), lines=lines))
+
+    top_title = benefits_df.iloc[0]['title'] if not benefits_df.empty and pd.notna(benefits_df.iloc[0]['title']) else None
+    annual_fee_basic = r['annual_fee_basic'] if pd.notna(r['annual_fee_basic']) else None
+    annual_fee_detail = _strip_html(r['annual_fee_detail'] if pd.notna(r['annual_fee_detail']) else None)
 
     return AiInsightItem(
         product_name=r['card_name'],
@@ -87,42 +127,40 @@ def _query_card(cate_name: str, top_category: str) -> AiInsightItem | None:
         product_type='card',
         reason=reason,
         content=AiInsightContent(
-            header=r['benefit_title'],
-            middle=r['benefit_comment'],
-            small=f"연회비 {r['annual_fee_basic']}" if r['annual_fee_basic'] else None,
+            header=top_title,
+            middle=f"연회비 {annual_fee_basic}" if annual_fee_basic else None,
             url=card_url,
+            benefitGroups=benefit_groups if benefit_groups else None,
+            annualFeeDetail=annual_fee_detail,
+            onlyOnline=bool(r['only_online']) if pd.notna(r['only_online']) else None,
+            isImpend=bool(r['is_impend']) if pd.notna(r['is_impend']) else None,
         ),
     )
 
 
 def _query_savings(save_trm: int = 12, life_stage_code: str | None = None) -> AiInsightItem | None:
     is_child_stage = life_stage_code in CHILD_STAGES
+    cols = "fin_prdt_nm, kor_co_nm, intr_rate, intr_max_rate, save_trm, spcl_cnd, intr_rate_type, join_way, join_member, etc_note, mtrt_int"
     if is_child_stage:
-        df = pd.read_sql(text("""
-            SELECT fin_prdt_nm, kor_co_nm, intr_rate, intr_max_rate, save_trm, spcl_cnd
-            FROM (
-                SELECT fin_prdt_nm, kor_co_nm, intr_rate, intr_max_rate, save_trm, spcl_cnd
-                FROM savings_products
+        df = pd.read_sql(text(f"""
+            SELECT {cols} FROM (
+                SELECT {cols} FROM savings_products
                 WHERE save_trm = :save_trm
                 ORDER BY intr_max_rate DESC
                 LIMIT 5
             ) AS top5
-            ORDER BY RAND()
-            LIMIT 1
+            ORDER BY RAND() LIMIT 1
         """), engine, params={"save_trm": save_trm})
     else:
-        df = pd.read_sql(text("""
-            SELECT fin_prdt_nm, kor_co_nm, intr_rate, intr_max_rate, save_trm, spcl_cnd
-            FROM (
-                SELECT fin_prdt_nm, kor_co_nm, intr_rate, intr_max_rate, save_trm, spcl_cnd
-                FROM savings_products
+        df = pd.read_sql(text(f"""
+            SELECT {cols} FROM (
+                SELECT {cols} FROM savings_products
                 WHERE save_trm = :save_trm
                   AND fin_prdt_nm NOT REGEXP :child_kw
                 ORDER BY intr_max_rate DESC
                 LIMIT 5
             ) AS top5
-            ORDER BY RAND()
-            LIMIT 1
+            ORDER BY RAND() LIMIT 1
         """), engine, params={"save_trm": save_trm, "child_kw": CHILD_KEYWORDS})
 
     if df.empty:
@@ -132,6 +170,11 @@ def _query_savings(save_trm: int = 12, life_stage_code: str | None = None) -> Ai
     stage_ko = LIFE_STAGE_KO.get(life_stage_code, '회원')
     reason = f"{stage_ko}에게 맞는 {r['save_trm']}개월 적금 상품이에요 (최고 연 {r['intr_max_rate']}%)"
 
+    def _s(val): return str(val) if pd.notna(val) else None
+
+    intr_rate_str = f"{r['intr_rate']}%" if pd.notna(r['intr_rate']) else None
+    intr_max_rate_str = f"{r['intr_max_rate']}%" if pd.notna(r['intr_max_rate']) else None
+
     return AiInsightItem(
         product_name=r['fin_prdt_nm'],
         product_company=r['kor_co_nm'],
@@ -139,8 +182,15 @@ def _query_savings(save_trm: int = 12, life_stage_code: str | None = None) -> Ai
         product_type='savings',
         reason=reason,
         content=AiInsightContent(
-            header=f"최고 연 {r['intr_max_rate']}% (기본 {r['intr_rate']}%)",
-            middle=f"{r['save_trm']}개월 정기적금",
+            header=f"우대금리 최대 {intr_max_rate_str}" if intr_max_rate_str else None,
+            middle=f"{r['save_trm']}개월" if pd.notna(r['save_trm']) else None,
+            small=_s(r['spcl_cnd']),
+            intrRate=intr_rate_str,
+            intrRateType=_s(r['intr_rate_type']),
+            joinWay=_s(r['join_way']),
+            joinMember=_s(r['join_member']),
+            etcNote=_s(r['etc_note']),
+            mtrtInt=_s(r['mtrt_int']),
         ),
     )
 
@@ -150,7 +200,6 @@ async def get_ai_insight(user_id: int, category_price: dict) -> AiInsightRespons
     ✅ report_service에서 이미 계산된 category_price를 받아서 사용
        — DB 트랜잭션 중복 조회 없음
     """
-    # 유저 생애주기 조회 (users 테이블만 한 번 조회)
     df_user = pd.read_sql(text("""
         SELECT life_stage_code FROM users WHERE user_id = :user_id
     """), engine, params={"user_id": user_id})
@@ -158,7 +207,6 @@ async def get_ai_insight(user_id: int, category_price: dict) -> AiInsightRespons
     if pd.isna(life_stage_code) if life_stage_code is not None else True:
         life_stage_code = None
 
-    # ✅ category_price dict에서 top 카테고리 바로 추출
     top_category = '기타'
     cate_name = '모든가맹점'
     if category_price:
