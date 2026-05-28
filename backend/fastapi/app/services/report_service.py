@@ -31,7 +31,7 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
     last_day  = datetime(
         target_year,
         target_month,
-        calendar.monthrange(target_year, target_month)[1]  # ✅ 해당 달의 마지막 날 정확히 계산
+        calendar.monthrange(target_year, target_month)[1]
     ).strftime("%Y-%m-%d")
 
     # payment_category_id → category_master.category_name JOIN
@@ -62,6 +62,8 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
             "weekly_categories": [],
         }
 
+    # ✅ 5시간씩 균등 분할
+    # 새벽 0~5시 / 아침 5~10시 / 점심 10~15시 / 저녁 15~20시 / 심야 20~24시
     def classify_time(t):
         if t is None:
             return '기타'
@@ -72,26 +74,27 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
                 hour = int(str(t)[:2])
             except (ValueError, TypeError):
                 return '기타'
-        if 0 <= hour < 6:      return '새벽'
-        elif 6 <= hour < 11:   return '아침'
-        elif 11 <= hour < 14:  return '점심'
-        elif 14 <= hour < 20:  return '저녁'
+        if 0 <= hour < 5:      return '새벽'
+        elif 5 <= hour < 10:   return '아침'
+        elif 10 <= hour < 15:  return '점심'
+        elif 15 <= hour < 20:  return '저녁'
         else:                  return '심야'
 
+    # ✅ 달력 기준 주차 계산
+    # 해당 달 1일의 요일을 기준으로 실제 달력과 동일하게 주차 분류
     def classify_week(d):
         if d is None:
             return '기타'
-        if hasattr(d, 'day'):
-            day = d.day
-        else:
+        if not hasattr(d, 'day'):
             try:
-                day = int(str(d)[8:10])
+                d = datetime.strptime(str(d)[:10], "%Y-%m-%d")
             except (ValueError, TypeError):
                 return '기타'
-        if day <= 7:    return '1주'
-        elif day <= 14: return '2주'
-        elif day <= 21: return '3주'
-        else:           return '4주'
+        # 해당 달 1일의 요일 (0=월요일 ~ 6=일요일)
+        first_weekday = datetime(d.year, d.month, 1).weekday()
+        # 달력 기준 주차 (1일이 수요일이면 1~4일이 1주, 5일부터 2주 시작)
+        week_num = (d.day + first_weekday - 1) // 7 + 1
+        return f'{week_num}주'
 
     df['time_label'] = df['payment_time'].apply(classify_time)
     df['week_label'] = df['payment_date'].apply(classify_week)
@@ -109,7 +112,12 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         .sum().astype(int).unstack(fill_value=0)
     )
 
-    week_order = ['1주', '2주', '3주', '4주']
+    # ✅ 해당 달의 실제 주차 수 동적 계산
+    first_weekday = datetime(target_year, target_month, 1).weekday()
+    last_day_num  = calendar.monthrange(target_year, target_month)[1]
+    total_weeks   = (last_day_num + first_weekday - 1) // 7 + 1
+    week_order    = [f'{i}주' for i in range(1, total_weeks + 1)]
+
     weekly_price = []
     for week in week_order:
         if week in weekly_pivot.index:
@@ -119,12 +127,12 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
             weekly_price.append(row)
 
     return {
-        "payment_out": int(df['payment_out'].sum()),
+        "payment_out":       int(df['payment_out'].sum()),
         "payment_total_num": len(df),
-        "payment_days": df['payment_date'].nunique(),
-        "category_price": df.groupby('payment_category')['payment_out'].sum().astype(int).to_dict(),
+        "payment_days":      df['payment_date'].nunique(),
+        "category_price":    df.groupby('payment_category')['payment_out'].sum().astype(int).to_dict(),
         "timepattern_price": df.groupby('time_label')['payment_out'].sum().astype(int).to_dict(),
-        "weekly_price": weekly_price,
+        "weekly_price":      weekly_price,
         "weekly_categories": top3_categories,
-        "category_colors": CATEGORY_COLORS,
+        "category_colors":   CATEGORY_COLORS,
     }
