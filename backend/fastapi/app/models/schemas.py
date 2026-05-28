@@ -74,7 +74,7 @@ class CategoryResolveRequest(BaseModel):
     payment_place: Optional[str] = None    
 
 class CategoryResolveResponse(BaseModel):
-    payment_payment_category_id: int                     
+    payment_category_id: int                     
     category_name: str                    
     matched_by: Literal["tier2", "tier1", "etc"]
     # tier2 = (유형+가맹점명) 매칭 / tier1 = 유형만 매칭 / etc = 매핑 실패

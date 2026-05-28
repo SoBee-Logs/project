@@ -47,34 +47,43 @@ async def resolve_category(
 
 
 async def resolve_and_update_all_unmapped() -> dict:
-    """transactions 중 payment_category_id가 NULL인 것들 일괄 룰베이스 매핑."""
+    """transactions 중 payment_category_id가 NULL인 것들 일괄 룰베이스 매핑.
+    룰베이스로 못 잡은 기타(16) 건은 자동으로 LLM 파이프라인으로 넘김.
+    """
     unmapped = await repo.get_unmapped_transactions()
-    
+
     matched_count = 0
     etc_count = 0
     pair_cache: dict[tuple, dict] = {}
-    
+
     for tx in unmapped:
         pair = (tx["payment_category"], tx["payment_place"])
-        
+
         if pair not in pair_cache:
             pair_cache[pair] = await repo.find_mapping(
                 tx["payment_category"], tx["payment_place"]
             )
-        
+
         result = pair_cache[pair]
-        
+
         if result:
             await repo.update_transaction_category(tx["payment_id"], result["payment_category_id"])
             matched_count += 1
         else:
             await repo.update_transaction_category(tx["payment_id"], ETC_payment_category_id)
             etc_count += 1
-    
+
+    # Fix: 기타로 떨어진 건이 있으면 LLM 파이프라인 자동 실행
+    llm_result = {}
+    if etc_count > 0:
+        logger.info(f"룰베이스 미매핑 {etc_count}건 → LLM 분류 시작")
+        llm_result = await process_llm_for_etc_transactions(batch_size=etc_count + 10)
+
     return {
         "total": len(unmapped),
         "matched": matched_count,
         "etc": etc_count,
+        "llm": llm_result,
     }
 
 
@@ -85,7 +94,7 @@ def _build_llm_prompt(items: list[dict]) -> str:
         f'  {i+1}. payment_category="{item["payment_category"]}", payment_place="{item["payment_place"] or ""}"'
         for i, item in enumerate(items)
     ])
-    
+
     return f"""다음은 카드사 결제 데이터의 (카테고리 유형, 가맹점명) 페어 목록입니다.
 각 페어를 아래 16개 표준 카테고리 중 가장 적합한 것으로 분류해주세요.
 
@@ -123,10 +132,10 @@ async def _call_openai_classify(items: list[dict]) -> list[dict]:
 async def process_llm_for_etc_transactions(batch_size: int = 50) -> dict:
     """transactions에서 payment_category_id=16인 페어 추출 → OpenAI 분류 → 백필."""
     pairs = await repo.get_pending_llm_pairs(limit=batch_size)
-    
+
     if not pairs:
         return {"message": "처리할 페어 없음", "processed": 0, "transactions_backfilled": 0}
-    
+
     try:
         llm_results = await _call_openai_classify(pairs)
     except Exception as e:
@@ -136,29 +145,29 @@ async def process_llm_for_etc_transactions(batch_size: int = 50) -> dict:
             "processed": 0,
             "transactions_backfilled": 0,
         }
-    
+
     result_by_index = {r["index"]: r for r in llm_results}
     total_backfilled = 0
     processed = 0
-    
+
     for i, pair in enumerate(pairs):
         idx = i + 1
         if idx not in result_by_index:
             logger.warning(f"LLM이 index={idx} 누락")
             continue
-        
+
         payment_category_id = result_by_index[idx]["payment_category_id"]
-        
+
         if not (1 <= payment_category_id <= 16):
             logger.warning(f"잘못된 payment_category_id={payment_category_id}, 16으로 fallback")
             payment_category_id = ETC_payment_category_id
-        
+
         await repo.insert_llm_mapping(
             payment_category=pair["payment_category"],
             payment_place=pair["payment_place"],
             payment_category_id=payment_category_id,
         )
-        
+
         backfilled = await repo.backfill_transactions_by_pair(
             payment_category=pair["payment_category"],
             payment_place=pair["payment_place"],
@@ -166,7 +175,7 @@ async def process_llm_for_etc_transactions(batch_size: int = 50) -> dict:
         )
         total_backfilled += backfilled
         processed += 1
-    
+
     return {
         "message": "처리 완료",
         "processed": processed,
