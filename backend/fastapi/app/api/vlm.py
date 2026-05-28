@@ -40,6 +40,20 @@ def _get_client() -> AsyncOpenAI:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY가 설정되지 않았습니다.")
     return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
+def _convert_to_jpeg_if_needed(filename: str, image_bytes: bytes) -> tuple[bytes, str]:
+    ext = filename.lower().rsplit(".", 1)[-1]
+    if ext in ("heic", "heif"):
+        try:
+            import pillow_heif
+            pillow_heif.register_heif_opener()
+            img = Image.open(io.BytesIO(image_bytes))
+            buf = io.BytesIO()
+            img.convert("RGB").save(buf, format="JPEG")
+            return buf.getvalue(), "converted.jpg"
+        except Exception:
+            raise HTTPException(status_code=400, detail="HEIC 변환 실패. JPEG/PNG로 다시 시도해주세요.")
+    return image_bytes, filename
+
 
 def _convert_gps_to_decimal(coords, ref) -> float | None:
     if not coords or not ref:
@@ -162,6 +176,7 @@ async def analyze_image(filename: str, image_bytes: bytes) -> dict:
 # POST /api/vlm/analyze — 이미지 파일을 받아 GPT-4o로 소비 정보를 분석하는 엔드포인트
 @router.post("/analyze")
 async def analyze_image_endpoint(image: UploadFile = File(...)):
-    # 업로드된 이미지 파일을 바이트로 읽어서 분석 함수에 전달
     image_bytes = await image.read()
-    return await analyze_image(image.filename or "image.jpg", image_bytes)
+    filename = image.filename or "image.jpg"
+    image_bytes, filename = _convert_to_jpeg_if_needed(filename, image_bytes)
+    return await analyze_image(filename, image_bytes)

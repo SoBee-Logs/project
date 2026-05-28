@@ -23,12 +23,12 @@ export default defineConfig({
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
-      '/api/diary/generate': {
+      '/api/avatar': {
         target: FASTAPI,
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
-      '/api/avatar': {
+      '/report': {
         target: FASTAPI,
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
