@@ -23,11 +23,6 @@ export default defineConfig({
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
-      '/api/diary/generate': {
-        target: FASTAPI,
-        changeOrigin: true,
-        headers: { origin: 'http://localhost:5173' },
-      },
       '/api/avatar': {
         target: FASTAPI,
         changeOrigin: true,
@@ -35,6 +30,9 @@ export default defineConfig({
       },
       '/report': {
         target: FASTAPI,
+        changeOrigin: true,
+        headers: { origin: 'http://localhost:5173' },
+      },
       '/search': {
         target: 'http://127.0.0.1:8080',
         changeOrigin: true,
