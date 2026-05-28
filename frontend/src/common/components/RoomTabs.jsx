@@ -1,7 +1,4 @@
 import { useState, useEffect } from 'react'
-import { ROOMS } from '../utils/rooms'
-
-const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase()
 
 export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
   const [rooms, setRooms] = useState([])
@@ -20,9 +17,7 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
         const token = localStorage.getItem("token")
         if (!token) return
         const res = await fetch('/api/groups', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Authorization': `Bearer ${token}` },
         })
         const data = await res.json()
         if (data && data.length > 0) {
@@ -35,14 +30,16 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
             code: group.groupCode,
           }))
           setRooms(fetchedRooms)
-          onChange?.(fetchedRooms[0].id)
+          if (!activeRoom) {
+            onChange?.(fetchedRooms[0].id)
+          }
         }
       } catch (err) {
         console.error('모임 목록 조회 실패', err)
       }
     }
     fetchMyGroups()
-  }, [])
+  }, [activeRoom])
 
   const handleTabClick = (roomId) => {
     if (activeRoom === roomId) {
@@ -97,9 +94,7 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
       const token = localStorage.getItem("token")
       const res = await fetch(`/api/groups/join?code=${joinCode}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       })
       if (!res.ok) throw new Error('참여 실패')
       const data = await res.json()
@@ -155,6 +150,7 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
           display: 'flex',
           overflowX: 'auto',
           flex: 1,
+          minWidth: 0,
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
         }}
@@ -209,13 +205,11 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
         )}
       </nav>
 
-      {/* 모임 만들기 팝업 */}
       {showCreatePopup && (
         <div style={popupStyle}>
           <div style={cardStyle}>
             <h3 style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '4px' }}>모임 만들기</h3>
             <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>함께 소비를 기록해봐요!</p>
-
             <input
               placeholder="모임 이름 (5자 이내)"
               value={newRoomName}
@@ -227,7 +221,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
             <p style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '12px', textAlign: 'right' }}>
               {newRoomName.length}/5
             </p>
-
             <input
               placeholder="모임 소개 (15자 이내)"
               value={newRoomDesc}
@@ -239,7 +232,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
             <p style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '16px', textAlign: 'right' }}>
               {newRoomDesc.length}/15
             </p>
-
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={() => { setShowCreatePopup(false); setNewRoomName(''); setNewRoomDesc('') }}
@@ -254,7 +246,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
         </div>
       )}
 
-      {/* 모임 참여하기 팝업 */}
       {showJoinPopup && (
         <div style={popupStyle}>
           <div style={cardStyle}>
@@ -280,7 +271,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
         </div>
       )}
 
-      {/* 초대코드 팝업 */}
       {showCodePopup && (
         <div style={popupStyle}>
           <div style={{ ...cardStyle, textAlign: 'center' }}>

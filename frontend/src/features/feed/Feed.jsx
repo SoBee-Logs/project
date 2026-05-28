@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import RoomTabs from '../../common/components/RoomTabs'
 import StatusBar from '../../common/components/StatusBar'
 
@@ -21,7 +22,6 @@ const mapDiaryToPost = (item) => ({
   liked: false,
   likes: item.likes ?? 0,
   roomId: `room_${item.roomId}`,
-  // 매핑 배지용 — 슬라이드 인덱스와 1:1 대응
   photoIds: item.photoIds || [],
   matchedPhotoIds: item.matchedPhotoIds || [],
 })
@@ -49,7 +49,6 @@ function FeedPost({ post, onToggleLike }) {
           <img src={images[currentIndex]} alt="" className="w-full h-full object-cover" />
         )}
 
-        {/* 현재 슬라이드 사진의 결제 매핑 여부 배지 */}
         {post.photoIds?.[currentIndex] != null && (
           post.matchedPhotoIds?.includes(post.photoIds[currentIndex]) ? (
             <span className="absolute top-2 left-2 flex items-center gap-1 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
@@ -123,7 +122,12 @@ function FeedPost({ post, onToggleLike }) {
 }
 
 export default function Feed() {
-  const [activeRoom, setActiveRoom] = useState(null)
+  const location = useLocation()
+  const initialRoomId = location.state?.roomId
+    ? `room_${location.state.roomId}`
+    : null
+
+  const [activeRoom, setActiveRoom] = useState(initialRoomId)
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(false)
 
