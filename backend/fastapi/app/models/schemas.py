@@ -138,6 +138,5 @@ class DiaryRequest(BaseModel):
 
 class DiaryResponse(BaseModel):
     title: str
-    subtitle: str
     diary_lines: List[str]
     tags: List[str]

@@ -52,11 +52,12 @@ public class DiaryService {
 
         List<PhotoGroups> pgList = photoGroupsRepository.findByIdGroupId(req.getGroupId());
 
-        // 오늘 날짜 + 본인 사진 필터 (매핑 여부 상관없이)
-        // 오늘 날짜 + 본인 사진 필터 (날짜 제한 없이)
+        // 오늘 날짜 + 본인 사진 필터 
         List<Photo> todayPhotos = pgList.stream()
                 .map(PhotoGroups::getPhoto)
                 .filter(photo -> photo.getUserId().equals(userId))
+                .filter(photo -> photo.getCreatedAt() != null 
+                        && photo.getCreatedAt().toLocalDate().equals(targetDate))  // 날짜 필터 추가
                 .collect(Collectors.toList());
 
         // 사진 없으면 일기 생성 차단
@@ -82,29 +83,44 @@ public class DiaryService {
                 .map(Photo::getPhotoId)
                 .collect(Collectors.toList());
 
-        // VLM 결과 수집 (매핑된 사진 기준)
-        PhotoVlmResult bestVlm = photosForDiary.stream()
-                .map(p -> photoVlmResultRepository
-                        .findFirstByPhotoIdOrderByVlmIdDesc(p.getPhotoId())
-                        .orElse(null))
-                .filter(vlm -> vlm != null && vlm.getVlmCategory() != null)
-                .findFirst()
-                .orElse(
-                        photosForDiary.stream()
-                                .map(p -> photoVlmResultRepository
-                                        .findFirstByPhotoIdOrderByVlmIdDesc(p.getPhotoId())
-                                        .orElse(null))
-                                .filter(Objects::nonNull)
-                                .findFirst()
-                                .orElse(null)
-                );
+        // VLM 결과 수집 (매핑된 사진 전체)
+        List<PhotoVlmResult> allVlms = photosForDiary.stream()
+        .map(p -> photoVlmResultRepository
+                .findFirstByPhotoIdOrderByVlmIdDesc(p.getPhotoId())
+                .orElse(null))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
 
-        // 감정 데이터 (오늘 사진 기준)
-        EmotionsText latestEmotion = todayPhotos.stream()
-                .map(p -> emotionsTextRepository.findByPhoto(p).orElse(null))
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(null);
+        // 대표값은 category 있는 것 우선으로 첫 번째 (기존 로직 유지)
+        PhotoVlmResult bestVlm = allVlms.stream()
+        .filter(vlm -> vlm.getVlmCategory() != null)
+        .findFirst()
+        .orElse(allVlms.isEmpty() ? null : allVlms.get(0));
+
+        // 여러 사진의 item_name, description 합치기
+        String combinedItemName = allVlms.stream()
+        .map(PhotoVlmResult::getVlmItemName)
+        .filter(Objects::nonNull)
+        .collect(Collectors.joining(", "));
+
+        String combinedDescription = allVlms.stream()
+        .map(PhotoVlmResult::getVlmDescription)
+        .filter(Objects::nonNull)
+        .collect(Collectors.joining(" / "));
+                        
+
+        // 감정 데이터 — 전체 수집 후 텍스트 합치기
+        List<EmotionsText> allEmotions = todayPhotos.stream()
+        .map(p -> emotionsTextRepository.findByPhoto(p).orElse(null))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
+
+        EmotionsText latestEmotion = allEmotions.isEmpty() ? null : allEmotions.get(0);
+
+        String combinedEmotionText = allEmotions.stream()
+        .map(EmotionsText::getText)
+        .filter(Objects::nonNull)
+        .collect(Collectors.joining(", "));
 
         String moodEmoji = latestEmotion != null && latestEmotion.getEmoji() != null
                 ? latestEmotion.getEmoji().getEmoji()
@@ -112,19 +128,20 @@ public class DiaryService {
 
         boolean matched = !matchedPhotoIds.isEmpty();
 
+        // FastApiDiaryRequest 빌드 부분 수정
         FastApiDiaryRequest faReq = FastApiDiaryRequest.builder()
-                .item_name(bestVlm != null ? bestVlm.getVlmItemName() : null)
-                .category(bestVlm != null ? bestVlm.getVlmCategory() : null)
-                .price(bestVlm != null && bestVlm.getVlmPriceEstimate() != null
-                        ? bestVlm.getVlmPriceEstimate().intValue() : null)
-                .store_name(bestVlm != null ? bestVlm.getVlmStoreName() : null)
-                .description(bestVlm != null ? bestVlm.getVlmDescription() : null)
-                .matched(matched)
-                .mood(moodEmoji)
-                .emotion_text(latestEmotion != null ? latestEmotion.getText() : null)
-                .tags(Collections.singletonList("#" + group.getGroupName()))
-                .group_description(group.getGroupDescription())
-                .build();
+        .item_name(combinedItemName.isEmpty() ? null : combinedItemName)  // 전체
+        .category(bestVlm != null ? bestVlm.getVlmCategory() : null)
+        .price(bestVlm != null && bestVlm.getVlmPriceEstimate() != null
+                ? bestVlm.getVlmPriceEstimate().intValue() : null)
+        .store_name(bestVlm != null ? bestVlm.getVlmStoreName() : null)
+        .description(combinedDescription.isEmpty() ? null : combinedDescription)  // 전체
+        .matched(matched)
+        .mood(moodEmoji)
+        .emotion_text(combinedEmotionText.isEmpty() ? null : combinedEmotionText)  // 전체
+        .tags(Collections.singletonList("#" + group.getGroupName()))
+        .group_description(group.getGroupDescription())
+        .build();
 
         FastApiDiaryResponse faRes;
         try {
