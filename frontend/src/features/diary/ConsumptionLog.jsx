@@ -129,14 +129,14 @@ export default function ConsumptionLog() {
 
       {showCalendar && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-6"
           onClick={() => setShowCalendar(false)}
         >
           <div
-            className="bg-white rounded-2xl p-5 w-[320px]"
+            className="bg-white rounded-3xl p-6 w-full max-w-[340px] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-[14px] font-bold text-gray-900 mb-4 text-center">날짜 선택</p>
+            <p className="text-[15px] font-bold text-gray-900 mb-4 text-center">📅 날짜 선택</p>
             <Calendar
               onChange={handleDateChange}
               value={new Date(selectedDate + 'T00:00:00')}
@@ -147,7 +147,7 @@ export default function ConsumptionLog() {
             <button
               type="button"
               onClick={() => setShowCalendar(false)}
-              className="w-full mt-3 py-2.5 rounded-xl bg-gray-100 text-[13px] text-gray-600 font-medium"
+              className="w-full mt-4 py-3 rounded-2xl bg-gray-100 text-[13px] text-gray-600 font-semibold"
             >
               취소
             </button>
