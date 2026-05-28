@@ -110,14 +110,35 @@ export default function CameraPage() {
     vlmPromiseRef.current = promise  // Promise 보존
   }
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    setImageFile(file)
-    setPreviewUrl(URL.createObjectURL(file))
-    // 사진 선택과 동시에 VLM 분석 시작
-    runVlmAnalysis(file)
+  
+    const ext = file.name.toLowerCase().split('.').pop()
+    if (ext === 'heic' || ext === 'heif') {
+      try {
+        const heic2any = (await import('heic2any')).default
+        const blob = await heic2any({ blob: file, toType: 'image/jpeg' })
+        const convertedFile = new File(
+          [blob],
+          file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+          { type: 'image/jpeg' }
+        )
+        setImageFile(convertedFile)  // ← 변환된 JPEG 파일로 교체
+        setPreviewUrl(URL.createObjectURL(blob))
+        runVlmAnalysis(convertedFile)  // ← 변환된 파일로 분석
+      } catch {
+        setImageFile(file)
+        setPreviewUrl(null)
+        runVlmAnalysis(file)
+      }
+    } else {
+      setImageFile(file)
+      setPreviewUrl(URL.createObjectURL(file))
+      runVlmAnalysis(file)
+    }
   }
+  
 
   const handleNext = async () => {
     if (selectedRooms.length === 0 || !imageFile) return

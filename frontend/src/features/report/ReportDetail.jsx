@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { getUserId } from '../../common/hooks/useAuth' // ✅ Report.jsx와 동일하게 수정
 
 const CATEGORY_COLORS = {
   '교통':        '#60a5fa',
@@ -20,28 +21,40 @@ const TIME_ICONS = {
 }
 const TIME_ORDER = ['새벽', '아침', '점심', '저녁', '심야']
 
-const API_BASE = 'http://localhost:8000'
-
-const getUserId = () => Number(localStorage.getItem('user_id')) || 1
-
 export default function ReportDetail() {
-  const navigate = useNavigate()
-  const location = useLocation()
+  const navigate  = useNavigate()
+  const location  = useLocation()
+
+  // ✅ getUserId를 공통 훅에서 가져오기
+  const USER_ID = getUserId() ?? 1
+
+  // ✅ Report.jsx 더보기 버튼에서 넘겨준 year/month 받기 (없으면 현재 날짜)
+  const today = new Date()
+  const year  = location.state?.year  ?? today.getFullYear()
+  const month = location.state?.month ?? today.getMonth() + 1
+
   const [txData,  setTxData]  = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(null)
 
   // 각 섹션 ref
   const categoryRef = useRef(null)
-  const weeklyRef = useRef(null)
-  const timeRef = useRef(null)
+  const weeklyRef   = useRef(null)
+  const timeRef     = useRef(null)
 
+  // ✅ API 경로 /api/report/... 로 통일, user_id + year + month 쿼리 파라미터 추가
   useEffect(() => {
-    const userId = getUserId()
-    fetch(`${API_BASE}/report/mydata/transaction?user_id=${userId}`)
-      .then(r => r.json())
+    setLoading(true)
+    setError(null)
+    fetch(`/api/report/mydata/transaction?user_id=${USER_ID}&year=${year}&month=${month}`)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then(setTxData)
+      .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [year, month])
 
   // 로딩 끝나고 ref 마운트된 뒤 해당 섹션으로 스크롤
   useEffect(() => {
@@ -51,24 +64,80 @@ export default function ReportDetail() {
 
     const refMap = {
       category: categoryRef,
-      weekly: weeklyRef,
-      time: timeRef,
+      weekly:   weeklyRef,
+      time:     timeRef,
     }
     const targetRef = refMap[target]
     if (targetRef?.current) {
-      // DOM 렌더링 후 부드럽게 스크롤
       setTimeout(() => {
         targetRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }, 200)
     }
   }, [loading, location.state])
 
+  // ─── 로딩 스켈레톤 ───────────────────────────────────────────────
   if (loading) return (
-    <div className="flex flex-col items-center justify-center h-64 gap-3">
-      <span className="animate-spin text-2xl">⏳</span>
-      <p className="text-sm text-gray-400">불러오는 중...</p>
+    <div className="flex flex-col gap-4 pt-4 px-4 pb-24 animate-pulse">
+      {/* 카테고리 스켈레톤 */}
+      <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
+        <div className="h-2.5 bg-gray-200 rounded-full w-1/3 mb-4" />
+        {[0,1,2,3,4].map(i => (
+          <div key={i} className="mb-3">
+            <div className="flex justify-between mb-1">
+              <div className="h-2.5 bg-gray-200 rounded-full w-1/4" />
+              <div className="h-2.5 bg-gray-200 rounded-full w-1/5" />
+            </div>
+            <div className="w-full h-2 rounded-full bg-gray-100" />
+          </div>
+        ))}
+      </div>
+      {/* 주간 스켈레톤 */}
+      <div className="flex flex-col gap-3">
+        <div className="h-2.5 bg-gray-200 rounded-full w-1/4" />
+        {[0,1,2].map(i => (
+          <div key={i} className="rounded-2xl border border-gray-100 p-4 shadow-sm">
+            <div className="flex justify-between mb-2">
+              <div className="h-3 bg-gray-200 rounded-full w-1/5" />
+              <div className="h-3 bg-gray-200 rounded-full w-1/4" />
+            </div>
+            <div className="w-full h-2.5 rounded-full bg-gray-100" />
+          </div>
+        ))}
+      </div>
+      {/* 시간대 스켈레톤 */}
+      <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
+        <div className="h-2.5 bg-gray-200 rounded-full w-1/3 mb-4" />
+        {[0,1,2,3,4].map(i => (
+          <div key={i} className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded-full bg-gray-200 shrink-0" />
+            <div className="flex-1">
+              <div className="flex justify-between mb-1">
+                <div className="h-2.5 bg-gray-200 rounded-full w-1/6" />
+                <div className="h-2.5 bg-gray-200 rounded-full w-1/4" />
+              </div>
+              <div className="w-full h-2 rounded-full bg-gray-100" />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
+
+  // ─── 에러 처리 ────────────────────────────────────────────────────
+  if (error) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 px-4">
+      <p className="text-2xl">😢</p>
+      <p className="text-sm text-gray-500 text-center">데이터를 불러올 수 없어요.<br />{error}</p>
+      <button
+        onClick={() => navigate('/report')}
+        className="mt-2 px-5 py-2 rounded-xl bg-[#1e73be] text-white text-sm font-semibold"
+      >
+        돌아가기
+      </button>
+    </div>
+  )
+
+  // ─── 데이터 가공 ──────────────────────────────────────────────────
 
   // 월 누적 카테고리 배열 (금액 내림차순)
   const categoryList = txData
@@ -86,8 +155,8 @@ export default function ReportDetail() {
   const thisWeekList = txData?.weekly_price?.length > 0
     ? (() => {
         const lastWeek = txData.weekly_price[txData.weekly_price.length - 1]
-        const weekNum = lastWeek.week
-        const maxWeek = Math.max(...categoryList.map(c => lastWeek[c.name] ?? 0), 1)
+        const weekNum  = lastWeek.week
+        const maxWeek  = Math.max(...categoryList.map(c => lastWeek[c.name] ?? 0), 1)
         return { lastWeek, weekNum, maxWeek }
       })()
     : null
@@ -106,37 +175,48 @@ export default function ReportDetail() {
       })()
     : []
 
+  // ─── 렌더 ─────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-4 pt-4 px-4 pb-24 overflow-y-auto">
 
-      {/* 이번 달 카테고리별 소비 - categoryRef */}
-      <div ref={categoryRef} className="rounded-2xl border border-gray-100 p-4 shadow-sm scroll-mt-4">
-        <p className="text-xs text-gray-500 font-semibold mb-4">📊 이번 달 카테고리별 소비</p>
-        <div className="flex flex-col gap-3">
-          {categoryList.map((cat) => (
-            <div key={cat.name}>
-              <div className="flex justify-between items-center mb-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat.color }} />
-                  <span className="text-xs font-semibold text-gray-700">{cat.name}</span>
-                </div>
-                <span className="text-xs text-gray-500">{cat.total.toLocaleString()}원</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-gray-100">
-                <div
-                  className="h-2 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${(cat.total / maxTotal) * 100}%`,
-                    background: cat.color,
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* 헤더: 조회 월 표시 */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-bold text-gray-700">{year}년 {month}월 상세 리포트</span>
       </div>
 
-      {/* 이번주 소비 - weeklyRef */}
+      {/* 이번 달 카테고리별 소비 */}
+      <div ref={categoryRef} className="rounded-2xl border border-gray-100 p-4 shadow-sm scroll-mt-4">
+        <p className="text-xs text-gray-500 font-semibold mb-4">📊 카테고리별 소비</p>
+        {categoryList.length === 0
+          ? <p className="text-xs text-gray-300 text-center py-4">데이터가 없어요</p>
+          : (
+            <div className="flex flex-col gap-3">
+              {categoryList.map((cat) => (
+                <div key={cat.name}>
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat.color }} />
+                      <span className="text-xs font-semibold text-gray-700">{cat.name}</span>
+                    </div>
+                    <span className="text-xs text-gray-500">{cat.total.toLocaleString()}원</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-gray-100">
+                    <div
+                      className="h-2 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${(cat.total / maxTotal) * 100}%`,
+                        background: cat.color,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        }
+      </div>
+
+      {/* 이번주 소비 */}
       {thisWeekList && (
         <div ref={weeklyRef} className="flex flex-col gap-3 scroll-mt-4">
           <div className="flex items-center justify-between">
@@ -179,7 +259,7 @@ export default function ReportDetail() {
         </div>
       )}
 
-      {/* 시간대별 소비 금액 - timeRef */}
+      {/* 시간대별 소비 금액 */}
       {timeList.length > 0 && (
         <div ref={timeRef} className="rounded-2xl border border-gray-100 p-4 shadow-sm scroll-mt-4">
           <p className="text-xs text-gray-500 font-semibold mb-3">⏰ 시간대별 소비 금액</p>
