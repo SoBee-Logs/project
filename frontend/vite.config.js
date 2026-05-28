@@ -28,22 +28,12 @@ export default defineConfig({
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
-      '/report': {
+      '/api/lifecycle': {
         target: FASTAPI,
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
-      '/report/mydata': {
-        target: FASTAPI,
-        changeOrigin: true,
-        headers: { origin: 'http://localhost:5173' },
-      },
-      '/report/ai-insight': {
-        target: FASTAPI,
-        changeOrigin: true,
-        headers: { origin: 'http://localhost:5173' },
-      },
-      '/report': {
+      '/api/report': {
         target: FASTAPI,
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
