@@ -2,7 +2,6 @@ package com.sobee.sobee.domain.b_log.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "transactions")
@@ -34,23 +33,5 @@ public class Transaction {
 
     @Column(name = "payment_address", length = 500)
     private String paymentAddress;
-
-    @Column(name = "source", length = 10)
-    private String source;
-
-    @Column(name = "source_id")
-    private Long sourceId;
-
-    @Column(name = "approval_no", length = 50)
-    private String approvalNo;
-
-    @Column(name = "card_no", length = 50)
-    private String cardNo;
-
-    @Column(name = "organization", length = 10)
-    private String organization;
-
-    @Column(name = "fetched_at")
-    private LocalDateTime fetchedAt;
 
 }
