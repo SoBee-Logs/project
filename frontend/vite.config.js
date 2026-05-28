@@ -48,11 +48,6 @@ export default defineConfig({
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
-      '/search': {
-        target: SPRING,
-        changeOrigin: true,
-        headers: { origin: 'http://localhost:5173' },
-      },
       '/api': {
         target: SPRING,
         changeOrigin: true,
