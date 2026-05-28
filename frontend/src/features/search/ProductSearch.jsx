@@ -95,6 +95,7 @@ function ProductCard({ item, onClick }) {
                     borderRadius: 8,
                     overflow: "hidden",
                     flexShrink: 0,
+                    alignSelf: "center",
                     background: typeStyle.bg,
                     boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
                 }}
@@ -114,24 +115,22 @@ function ProductCard({ item, onClick }) {
             </div>
 
             <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 4 }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: WOORI_NAVY }}>{product_name}</span>
-                    <span style={{ fontSize: 12, color: "#8494A8" }}>{product_company}</span>
-                </div>
-                {content?.header && (
-                    <p style={{ fontSize: 13, fontWeight: 600, color: WOORI_BLUE, margin: "0 0 4px" }}>
-                        {content.header}
-                    </p>
-                )}
-                {content?.middle && (
-                    <p style={{ fontSize: 12, color: "#3D5166", margin: "0 0 3px", lineHeight: 1.5 }}>
-                        {content.middle}
-                    </p>
-                )}
-                {content?.small && (
-                    <p style={{ fontSize: 11, color: "#8494A8", margin: 0, lineHeight: 1.4 }}>
-                        {content.small}
-                    </p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: WOORI_NAVY, margin: "0 0 2px" }}>{product_name}</p>
+                <p style={{ fontSize: 12, color: "#8494A8", margin: "0 0 4px" }}>{product_company}</p>
+                {product_type === "savings" ? (
+                    (content?.header || content?.middle) && (
+                        <p style={{ fontSize: 13, fontWeight: 600, color: WOORI_BLUE, margin: 0 }}>
+                            {[content.header, content.middle].filter(Boolean).join(" / ")}
+                        </p>
+                    )
+                ) : (
+                    <>
+                        {content?.header && (
+                            <p style={{ fontSize: 13, fontWeight: 600, color: WOORI_BLUE, margin: 0 }}>
+                                {content.header}
+                            </p>
+                        )}
+                    </>
                 )}
             </div>
         </div>
