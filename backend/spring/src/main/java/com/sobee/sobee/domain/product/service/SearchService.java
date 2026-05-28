@@ -27,19 +27,22 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SearchService {
 
-    // GPT 카테고리 → 실제 DB cate_name 매핑
+    private static final List<String> FINANCIAL_COMPANIES =
+        List.of("신한", "삼성", "롯데", "현대", "KB", "우리", "하나", "NH", "BC", "씨티", "카카오", "토스", "IBK", "기업", "국민", "농협", "수협");
+
+    // GPT 카테고리 → 실제 DB cate_name 매핑 (카테고리 간 중복 최소화)
     private static final Map<String, List<String>> CATEGORY_MAP = Map.ofEntries(
-        Map.entry("음식점", List.of("푸드", "일반음식점", "패밀리레스토랑", "패스트푸드", "배달앱", "카페", "카페/디저트", "베이커리", "점심", "저녁")),
+        Map.entry("음식점", List.of("푸드", "일반음식점", "패밀리레스토랑", "패스트푸드", "배달앱", "점심", "저녁")),
         Map.entry("카페",   List.of("카페", "카페/디저트", "베이커리")),
         Map.entry("교통",   List.of("교통", "대중교통", "택시", "기차", "고속버스", "자동차/하이패스", "하이패스")),
         Map.entry("주유",   List.of("주유", "주유소", "충전소")),
-        Map.entry("쇼핑",   List.of("쇼핑", "온라인쇼핑", "백화점", "대형마트", "마트/편의점", "아울렛", "소셜커머스", "홈쇼핑")),
+        Map.entry("쇼핑",   List.of("쇼핑", "백화점", "아울렛")),
         Map.entry("마트",   List.of("대형마트", "마트/편의점", "SSM")),
-        Map.entry("편의점", List.of("편의점", "마트/편의점")),
+        Map.entry("편의점", List.of("편의점")),
         Map.entry("영화",   List.of("영화", "OTT/영화/문화", "공연/전시", "테마파크")),
         Map.entry("통신",   List.of("통신", "SKT", "KT", "LGU+")),
-        Map.entry("여행",   List.of("여행/숙박", "여행사", "온라인 여행사", "호텔", "리조트", "항공권", "항공마일리지", "공항라운지", "면세점")),
-        Map.entry("해외",   List.of("해외", "해외이용", "공항라운지", "공항라운지/PP", "면세점", "해외직구")),
+        Map.entry("여행",   List.of("여행/숙박", "여행사", "온라인 여행사", "호텔", "리조트", "항공권", "항공마일리지")),
+        Map.entry("해외",   List.of("해외", "해외이용", "공항라운지", "공항라운지/PP", "면세점")),
         Map.entry("의료",   List.of("병원", "병원/약국", "약국", "동물병원")),
         Map.entry("교육",   List.of("교육/육아", "학원", "학습지", "유치원", "어린이집")),
         Map.entry("스포츠", List.of("레저/스포츠", "골프", "피트니스", "경기관람")),
@@ -127,13 +130,14 @@ public class SearchService {
                     .collect(Collectors.toList());
         }
 
-        // 회사명 필터 ("롯데카드 추천해줘" → company: "롯데")
-        if (parsed.getCompany() != null && !parsed.getCompany().isBlank()) {
+        // 회사명 필터 — 금융기관 브랜드일 때만 적용 ("롯데카드 추천해줘" → company: "롯데")
+        String company = parsed.getCompany();
+        if (company != null && !company.isBlank()
+                && FINANCIAL_COMPANIES.stream().anyMatch(fc -> fc.equalsIgnoreCase(company))) {
             List<SearchResponseDto.ProductDto> companyFiltered = filtered.stream()
                     .filter(p -> p.getProduct_company() != null
-                            && p.getProduct_company().contains(parsed.getCompany()))
+                            && p.getProduct_company().contains(company))
                     .collect(Collectors.toList());
-            // 필터 후 결과가 있을 때만 적용 (없으면 원본 유지)
             if (!companyFiltered.isEmpty()) {
                 filtered = companyFiltered;
             }
