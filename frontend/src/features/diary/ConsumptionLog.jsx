@@ -21,6 +21,7 @@ export default function ConsumptionLog() {
   const [showCalendar, setShowCalendar] = useState(false)
   const [selectedDate, setSelectedDate] = useState(toLocalDateStr(new Date()))
   const [myGroups, setMyGroups] = useState([])
+  const isToday = selectedDate === toLocalDateStr(new Date())
 
   const today = new Date()
   today.setHours(23, 59, 59, 999)
@@ -218,10 +219,18 @@ export default function ConsumptionLog() {
       </div>
 
       <footer className="fixed bottom-[72px] left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 py-3 bg-white border-t border-gray-100 z-10">
+        {!isToday && (
+          <p className="text-center text-[11px] text-gray-400 mb-2">
+            과거 날짜의 일기는 생성할 수 없어요
+          </p>
+        )}
         <button
           type="button"
           onClick={handleGenerate}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-[#00BFFF] text-white text-[14px] font-bold"
+          disabled={!isToday}
+          className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white text-[14px] font-bold ${
+            isToday ? 'bg-[#00BFFF]' : 'bg-gray-300 cursor-not-allowed'
+          }`}
         >
           <span className="text-[11px]">▶</span> LLM 일기 생성
         </button>
