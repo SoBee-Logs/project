@@ -173,8 +173,16 @@ function buildDetailSections(productType, content) {
 export default function ProductDetail() {
     const navigate = useNavigate()
     const { state } = useLocation()
-    const item = state?.item
     const [expanded, setExpanded] = useState(null)
+
+    const item = (() => {
+        if (state?.item) {
+            sessionStorage.setItem('productDetail', JSON.stringify(state.item))
+            return state.item
+        }
+        const saved = sessionStorage.getItem('productDetail')
+        return saved ? JSON.parse(saved) : null
+    })()
 
     if (!item) {
         navigate(-1)
