@@ -13,6 +13,7 @@ import com.sobee.sobee.domain.group.repository.GroupRepository;
 import com.sobee.sobee.domain.user.entity.User;
 import com.sobee.sobee.domain.user.repository.UserRepository;
 import lombok.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +40,8 @@ public class DiaryService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
-    private static final String FASTAPI_DIARY_URL = "http://localhost:8000/api/diary/generate";
+    @Value("${fastapi.base-url}/api/diary/generate")
+    private String fastapiDiaryUrl;
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Transactional(readOnly = true)
@@ -162,7 +164,6 @@ public class DiaryService {
 
         return DiaryGenerateResponse.builder()
                 .title(faRes.getTitle())
-                .subtitle(faRes.getSubtitle())
                 .diaryLines(faRes.getDiary_lines())
                 .tags(faRes.getTags())
                 .roomId(req.getGroupId())
@@ -274,7 +275,7 @@ public class DiaryService {
         HttpEntity<FastApiDiaryRequest> entity = new HttpEntity<>(req, headers);
 
         ResponseEntity<FastApiDiaryResponse> response = restTemplate.exchange(
-                FASTAPI_DIARY_URL,
+                fastapiDiaryUrl,
                 HttpMethod.POST,
                 entity,
                 FastApiDiaryResponse.class
@@ -308,7 +309,6 @@ public class DiaryService {
     @NoArgsConstructor
     static class FastApiDiaryResponse {
         private String title;
-        private String subtitle;
         private List<String> diary_lines;
         private List<String> tags;
     }
