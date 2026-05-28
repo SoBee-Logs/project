@@ -32,14 +32,10 @@ class Settings(BaseSettings):
         형식: user_id,business_type,org_code,login_id,login_pw
         예시: CODEF_ACCOUNT_1=1,BK,0020,myid,mypw
         """
-        from dotenv import dotenv_values
-        import pathlib
-        env_path = pathlib.Path(__file__).parent.parent.parent / ".env"
-        env_vars = dotenv_values(env_path)
-
+        import os
         accounts = []
         for i in range(1, 100):
-            raw = env_vars.get(f"CODEF_ACCOUNT_{i}")
+            raw = os.environ.get(f"CODEF_ACCOUNT_{i}")
             if not raw:
                 break
             parts = [p.strip() for p in raw.split(",")]
