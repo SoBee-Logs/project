@@ -54,4 +54,14 @@ public class GroupController {
         List<GroupResponseDto> response = groupService.getMyGroups(userId);
         return ResponseEntity.ok(response);
     }
+
+    @DeleteMapping("/{groupId}/leave")
+    public ResponseEntity<Void> leaveGroup(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable Long groupId
+    ) {
+        Long userId = extractUserId(authHeader);
+        groupService.leaveGroup(groupId, userId);
+        return ResponseEntity.ok().build();
+    }
 }

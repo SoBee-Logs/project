@@ -16,6 +16,7 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
   const [newRoomDesc, setNewRoomDesc] = useState('')
   const [joinCode, setJoinCode] = useState('')
   const [currentCode, setCurrentCode] = useState('')
+  const [currentRoomId, setCurrentRoomId] = useState(null)
 
   useEffect(() => {
     const fetchMyGroups = async () => {
@@ -51,12 +52,12 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
     if (activeRoom === roomId) {
       const room = rooms.find((r) => r.id === roomId)
       setCurrentCode(room.code)
+      setCurrentRoomId(room.id)  // ← 추가
       setShowCodePopup(true)
     } else {
       onChange?.(roomId)
     }
   }
-
   const handleCreate = async () => {
     if (!newRoomName.trim()) return alert('모임 이름을 입력해주세요!')
     try {
@@ -120,6 +121,26 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
       onChange?.(newRoom.id)
     } catch (err) {
       alert('존재하지 않는 코드예요.')
+      console.error(err)
+    }
+  }
+
+  const handleLeaveRoom = async () => {
+    if (!window.confirm('정말 이 모임에서 나가시겠어요?')) return
+    try {
+      const token = localStorage.getItem('token')
+      const groupId = currentRoomId.replace('room_', '')
+      const res = await fetch(`/api/groups/${groupId}/leave`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error('나가기 실패')
+      const updatedRooms = rooms.filter((r) => r.id !== currentRoomId)
+      setRooms(updatedRooms)
+      setShowCodePopup(false)
+      onChange?.(updatedRooms[0]?.id ?? null)
+    } catch (err) {
+      alert('모임 나가기에 실패했어요.')
       console.error(err)
     }
   }
@@ -302,8 +323,12 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
               style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: '#0083CA', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}
             >코드 복사</button>
             <button
+              onClick={handleLeaveRoom}
+              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: '#ef4444', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+            >모임 나가기</button>
+            <button
               onClick={() => setShowCodePopup(false)}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: '14px' }}
+              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: '14px', marginBottom: '8px' }}
             >닫기</button>
           </div>
         </div>
