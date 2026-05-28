@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ROOMS } from '../utils/rooms'
+import { useDragScroll } from '../hooks/useDragScroll'
 
 const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase()
 
@@ -9,6 +10,8 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
   const [showJoinPopup, setShowJoinPopup] = useState(false)
   const [showCodePopup, setShowCodePopup] = useState(false)
   const [showAddMenu, setShowAddMenu] = useState(false)
+
+  const { ref: scrollRef, dragging, onMouseDown, onMouseMove, onMouseUp, onMouseLeave } = useDragScroll()
   const [newRoomName, setNewRoomName] = useState('')
   const [newRoomDesc, setNewRoomDesc] = useState('')
   const [joinCode, setJoinCode] = useState('')
@@ -151,16 +154,14 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
   return (
     <>
       <nav className="flex items-center bg-white border-b border-gray-100">
-        <div style={{
-          display: 'flex',
-          overflowX: 'auto',
-          flex: 1,
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-        }}
-          className="hide-scrollbar"
+        <div
+          ref={scrollRef}
+          className={`flex flex-1 overflow-x-auto scrollbar-hide ${dragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseLeave}
         >
-          <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
           {rooms.map((room) => {
             const active = activeRoom === room.id
             return (
@@ -168,8 +169,7 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
                 key={room.id}
                 type="button"
                 onClick={() => handleTabClick(room.id)}
-                style={{ flexShrink: 0, padding: '10px 16px' }}
-                className={`text-sm font-medium relative ${
+                className={`shrink-0 px-4 py-2.5 text-sm font-medium relative ${
                   active ? 'text-[#0083CA]' : 'text-gray-400'
                 }`}
               >
@@ -182,7 +182,7 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
           })}
         </div>
         {showAdd && (
-          <div style={{ position: 'relative', flexShrink: 0, paddingRight: '8px' }}>
+          <div className="relative shrink-0 pr-2">
             <button
               type="button"
               onClick={() => setShowAddMenu(!showAddMenu)}
