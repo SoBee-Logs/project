@@ -99,7 +99,7 @@ const TIME_ICONS = {
   '새벽': '🌙', '아침': '🌅', '점심': '☀️', '저녁': '🍽️', '심야': '🌃',
 }
 const TIME_RANGES = {
-  '새벽': '0~5시', '아침': '5~10시', '점심': '10~15시', '저녁': '15~20시', '심야': '20~24시',
+  '새벽': '0~6시', '아침': '6~11시', '점심': '11~14시', '저녁': '14~20시', '심야': '20~24시',
 }
 const TIME_ORDER = ['새벽', '아침', '점심', '저녁', '심야']
 
@@ -471,7 +471,7 @@ export default function Report() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                     <XAxis dataKey="week" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis hide />
-                    <Tooltip formatter={(v) => [`${v.toLocaleString()}원`, '소비금액']} labelFormatter={(l) => `${l}`} contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e5e7eb' }} />
+                    <Tooltip formatter={(v) => [`${v.toLocaleString()}원`, '소비금액']} labelFormatter={(l) => `${l}주차`} contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e5e7eb' }} />
                     <ReferenceLine y={avg} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1.5}
                       label={({ viewBox }) => {
                         const { x, y, width } = viewBox
@@ -484,21 +484,17 @@ export default function Report() {
                     />
                     <Bar dataKey="total" radius={[6, 6, 0, 0]} barSize={28}>
                       {weeklyTotals.map((entry, idx) => <Cell key={`cell-${idx}`} fill={getBarColor(entry.total)} opacity={0.85} />)}
-                      {/* ✅ 첫/마지막 막대 라벨 정렬 동적 처리 + 흰 배경으로 평균선 겹침 방지 */}
+                      {/* ✅ 흰 배경으로 평균선 겹침 방지 */}
                       <LabelList dataKey="total" position="top"
-                        content={({ x, y, width, value, index }) => {
+                        content={({ x, y, width, value }) => {
                           if (!value) return null
-                          const isFirst = index === 0
-                          const isLast = index === weeklyTotals.length - 1
-                          const anchor = isFirst ? 'start' : isLast ? 'end' : 'middle'
-                          const offsetX = isFirst ? x : isLast ? x + width : x + width / 2
                           const label = getAmountLabel(value)
                           const labelWidth = label.length * 7 + 6
-                          const rectX = anchor === 'start' ? offsetX - 2 : anchor === 'end' ? offsetX - labelWidth + 2 : offsetX - labelWidth / 2
+                          const offsetX = x + width / 2
                           return (
                             <g>
-                              <rect x={rectX} y={y - 15} width={labelWidth} height={13} fill="white" rx={2} />
-                              <text x={offsetX} y={y - 5} textAnchor={anchor}>
+                              <rect x={offsetX - labelWidth / 2} y={y - 15} width={labelWidth} height={13} fill="white" rx={2} />
+                              <text x={offsetX} y={y - 5} textAnchor="middle">
                                 <tspan fontSize={10} fill="#374151" fontWeight={600}>{label}</tspan>
                               </text>
                             </g>
