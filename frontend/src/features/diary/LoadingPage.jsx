@@ -13,6 +13,7 @@ export default function LoadingPage() {
   const location = useLocation()
   const [messageIndex, setMessageIndex] = useState(0)
   const [userPhotos, setUserPhotos] = useState([])
+  const [personaImage, setPersonaImage] = useState(CURRENT_USER.personaImage)
 
   const imageUrl = location.state?.imageUrl ?? null
   const selectedRooms =
@@ -28,6 +29,22 @@ export default function LoadingPage() {
       try {
         const token = localStorage.getItem('token')
         const today = new Date().toISOString().slice(0, 10)
+
+        // 페르소나 이미지 가져오기
+        try {
+          const decoded = JSON.parse(atob(token.split('.')[1]))
+          const userId = decoded.sub
+          const avatarRes = await fetch(`/api/avatar/${userId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (avatarRes.ok) {
+            const avatarData = await avatarRes.json()
+            if (avatarData.avatarImgUrl) setPersonaImage(avatarData.avatarImgUrl)
+          }
+        } catch {
+          // 실패 시 기본 이미지 유지
+        }
+
         const res = await fetch(`/api/photos?date=${today}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -159,7 +176,7 @@ export default function LoadingPage() {
               >
                 {i % 2 === 0 ? (
                   <img
-                    src={CURRENT_USER.personaImage}
+                    src={personaImage}
                     alt=""
                     className="w-full h-full object-cover"
                   />
@@ -178,7 +195,7 @@ export default function LoadingPage() {
           <span className="absolute inset-0 rounded-full border-4 border-transparent border-t-indigo-500 animate-spin" />
           <span className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-full">
             <img
-              src={CURRENT_USER.personaImage}
+              src={personaImage}
               alt=""
               className="w-12 h-12 object-cover"
             />
