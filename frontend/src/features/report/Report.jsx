@@ -99,7 +99,7 @@ const TIME_ICONS = {
   '새벽': '🌙', '아침': '🌅', '점심': '☀️', '저녁': '🍽️', '심야': '🌃',
 }
 const TIME_RANGES = {
-  '새벽': '0~6시', '아침': '6~11시', '점심': '11~14시', '저녁': '14~20시', '심야': '20~24시',
+  '새벽': '0~5시', '아침': '5~10시', '점심': '10~15시', '저녁': '15~20시', '심야': '20~24시',
 }
 const TIME_ORDER = ['새벽', '아침', '점심', '저녁', '심야']
 
@@ -471,7 +471,7 @@ export default function Report() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                     <XAxis dataKey="week" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis hide />
-                    <Tooltip formatter={(v) => [`${v.toLocaleString()}원`, '소비금액']} labelFormatter={(l) => `${l}주차`} contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e5e7eb' }} />
+                    <Tooltip formatter={(v) => [`${v.toLocaleString()}원`, '소비금액']} labelFormatter={(l) => `${l}`} contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e5e7eb' }} />
                     <ReferenceLine y={avg} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1.5}
                       label={({ viewBox }) => {
                         const { x, y, width } = viewBox
