@@ -54,9 +54,25 @@ export default function LoadingPage() {
     const runPipeline = async () => {
       const token = localStorage.getItem('token')
       const today = new Date().toISOString().slice(0, 10)
-
+    
+      // selectedRooms가 비어있으면 내 전체 그룹 가져오기
+      let roomIds = selectedRooms
+      if (roomIds.length === 0) {
+        try {
+          const res = await fetch('/api/groups', {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (res.ok) {
+            const groups = await res.json()
+            roomIds = groups.map((g) => g.groupId)
+          }
+        } catch {
+          // 실패 시 빈 배열로 진행
+        }
+      }
+    
       const diaries = []
-      for (const roomId of selectedRooms) {
+      for (const roomId of roomIds) {
         try {
           const res = await fetch('/api/diary/generate', {
             method: 'POST',
@@ -73,26 +89,26 @@ export default function LoadingPage() {
           if (res.ok) {
             const data = await res.json()
             diaries.push({
-              title:      data.title,
-              subtitle:   data.subtitle,
-              diaryLines: data.diaryLines,
-              tags:       data.tags,
-              roomId:     data.roomId,
-              roomLabel:  data.roomLabel,
-              imageUrls:  data.imageUrls,
-              photoIds:   data.photoIds,
-              imageUrl:   data.imageUrls?.[0] ?? imageUrl,
+              title:           data.title,
+              diaryLines:      data.diaryLines,
+              tags:            data.tags,
+              roomId:          data.roomId,
+              roomLabel:       data.roomLabel,
+              imageUrls:       data.imageUrls ?? [],
+              imageUrl:        data.imageUrls?.[0] ?? imageUrl,
+              photoIds:        data.photoIds ?? [],
+              matchedPhotoIds: data.matchedPhotoIds ?? [],
             })
           }
         } catch {
           // 특정 방 일기 생성 실패 시 해당 방만 skip
         }
       }
-
+    
       clearInterval(messageTimer)
       navigate('/diary-result', {
         replace: true,
-        state: { diaries, selectedRooms, roomIndex: 0 },
+        state: { diaries, selectedRooms: roomIds, roomIndex: 0 },
       })
     }
 
