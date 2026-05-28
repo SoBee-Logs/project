@@ -438,7 +438,7 @@ export default function ProductSearch() {
     useEffect(() => {
         const controller = new AbortController();
         const userId = getUserId();
-        fetch(`${FASTAPI_BASE}/report/recommend-questions?user_id=${userId}`, { signal: controller.signal })
+        fetch(`/api/report/recommend-questions?user_id=${userId}`, { signal: controller.signal })
             .then((r) => r.json())
             .then((data) => {
                 if (Array.isArray(data?.questions) && data.questions.length > 0) {
