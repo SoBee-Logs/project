@@ -80,11 +80,31 @@ class CategoryResolveResponse(BaseModel):
     # tier2 = (유형+가맹점명) 매칭 / tier1 = 유형만 매칭 / etc = 매핑 실패
 
 # AI 상품 추천
+class BenefitLine(BaseModel):
+    title: Optional[str] = None
+    comment: Optional[str] = None
+
+class BenefitGroup(BaseModel):
+    cateName: str
+    lines: List[BenefitLine]
+
 class AiInsightContent(BaseModel):
     header: Optional[str] = None
     middle: Optional[str] = None
     small: Optional[str] = None
     url: Optional[str] = None
+    # 카드 rich fields
+    benefitGroups: Optional[List[BenefitGroup]] = None
+    annualFeeDetail: Optional[str] = None
+    onlyOnline: Optional[bool] = None
+    isImpend: Optional[bool] = None
+    # 예적금 rich fields
+    intrRate: Optional[str] = None
+    intrRateType: Optional[str] = None
+    joinWay: Optional[str] = None
+    joinMember: Optional[str] = None
+    etcNote: Optional[str] = None
+    mtrtInt: Optional[str] = None
 
 class AiInsightItem(BaseModel):
     product_name: str
