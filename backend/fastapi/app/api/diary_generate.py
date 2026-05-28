@@ -27,19 +27,18 @@ DIARY_PROMPT_TEMPLATE = """[분량 제한 — 절대 준수]
 일기의 톤과 내용은 반드시 아래 '모임방 특징'에 맞게 맞춰야 해.
 
 소비 정보:
-- 품목: {item_name}
+- 품목 (여러 개일 수 있음): {item_name}
 - 카테고리: {category}
 - 금액: {price}원
 - 가게: {store_name}
-- AI 분석 설명: {description}
+- AI 분석 설명 (사진별): {description}
 - 소비 기분: {mood_label} ({mood})
-- 사용자 메모: {emotion_text}
+- 사용자 메모 (사진별): {emotion_text}
 - 모임방 특징: {group_description}
 
 반드시 아래 JSON 형식으로만 응답해. 다른 텍스트는 절대 포함하지 마.
 {{
   "title": "일기 제목 (10자 이내)",
-  "subtitle": "한 줄 요약 (20자 이내)",
   "diary_lines": ["짧은 한 줄1", "짧은 한 줄2", "짧은 한 줄3", "짧은 한 줄4"]
 }}
 
@@ -88,7 +87,6 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
         data = json.loads(content)
         return DiaryResponse(
             title=data["title"],
-            subtitle=data["subtitle"],
             diary_lines=data["diary_lines"],
             # 프론트에서 보내준 방 번호 태그를 그대로 응답에 실어서 돌려줌
             tags=req.tags or [],
