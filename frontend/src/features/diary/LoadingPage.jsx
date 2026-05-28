@@ -14,19 +14,15 @@ export default function LoadingPage() {
   const [messageIndex, setMessageIndex] = useState(0)
   const [userPhotos, setUserPhotos] = useState([])
 
-  const imageUrl =
-    location.state?.imageUrl ?? null
-
+  const imageUrl = location.state?.imageUrl ?? null
   const selectedRooms =
     location.state?.selectedRooms?.length > 0
       ? location.state.selectedRooms
       : []
-
   const imageFile = location.state?.imageFile ?? null
   const photoId   = location.state?.photoId   ?? null
   const mood      = location.state?.mood       ?? null
 
-  // 유저 사진 불러오기
   useEffect(() => {
     const fetchUserPhotos = async () => {
       try {
@@ -37,7 +33,8 @@ export default function LoadingPage() {
         })
         if (!res.ok) return
         const data = await res.json()
-        const urls = data.map((p) => p.imageUrl ?? p.url).filter(Boolean)
+        const photoList = data.photos ?? data
+        const urls = photoList.map((p) => p.imageUrl ?? p.url).filter(Boolean)
         if (urls.length > 0) setUserPhotos(urls)
       } catch {
         // 실패해도 fallback으로 진행
@@ -54,9 +51,10 @@ export default function LoadingPage() {
     const runPipeline = async () => {
       const token = localStorage.getItem('token')
       const today = new Date().toISOString().slice(0, 10)
-    
-      // selectedRooms가 비어있으면 내 전체 그룹 가져오기
+
       let roomIds = selectedRooms
+      let roomMap = {}
+
       if (roomIds.length === 0) {
         try {
           const res = await fetch('/api/groups', {
@@ -65,12 +63,23 @@ export default function LoadingPage() {
           if (res.ok) {
             const groups = await res.json()
             roomIds = groups.map((g) => g.groupId)
+            groups.forEach((g) => { roomMap[g.groupId] = g.groupName })
           }
         } catch {
           // 실패 시 빈 배열로 진행
         }
+      } else {
+        try {
+          const res = await fetch('/api/groups', {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (res.ok) {
+            const groups = await res.json()
+            groups.forEach((g) => { roomMap[g.groupId] = g.groupName })
+          }
+        } catch {}
       }
-    
+
       const diaries = []
       for (const roomId of roomIds) {
         try {
@@ -90,10 +99,10 @@ export default function LoadingPage() {
             const data = await res.json()
             diaries.push({
               title:           data.title,
-              diaryLines:      data.diaryLines,
+              diaryLines:      data.diary_lines ?? data.diaryLines,
               tags:            data.tags,
-              roomId:          data.roomId,
-              roomLabel:       data.roomLabel,
+              roomId:          roomId,
+              roomLabel:       roomMap[roomId] ?? `방${roomId}`,
               imageUrls:       data.imageUrls ?? [],
               imageUrl:        data.imageUrls?.[0] ?? imageUrl,
               photoIds:        data.photoIds ?? [],
@@ -104,7 +113,7 @@ export default function LoadingPage() {
           // 특정 방 일기 생성 실패 시 해당 방만 skip
         }
       }
-    
+
       clearInterval(messageTimer)
       navigate('/diary-result', {
         replace: true,
@@ -117,7 +126,6 @@ export default function LoadingPage() {
     return () => clearInterval(messageTimer)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 마퀴에 표시할 사진 — 유저 사진 우선, 없으면 imageUrl fallback
   const marqueePhotos = userPhotos.length > 0
     ? [...userPhotos, ...userPhotos]
     : imageUrl
