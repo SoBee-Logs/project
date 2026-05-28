@@ -65,9 +65,9 @@ export default function Home() {
 
   useEffect(() => {
     if (!userId) return
-    fetch(`/api/avatar/${userId}`)
-      .then(r => r.json())
-      .then(setPersona)
+    fetch(`/api/users/${userId}/persona`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setPersona(data) })
       .catch(() => {})
   }, [userId])
 

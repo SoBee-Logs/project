@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { getUserId } from '../../common/hooks/useAuth'
 import {
   PieChart, Pie, Cell, Tooltip,
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
@@ -105,7 +106,6 @@ const TIME_RANGES = {
 const TIME_ORDER = ['새벽', '아침', '점심', '저녁', '심야']
 
 const API_BASE = import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8000'
-const getUserId = () => Number(localStorage.getItem('user_id')) || 1
 
 function MonthNavigator({ year, month, isCurrentMonth, onPrev, onNext }) {
   return (
@@ -160,7 +160,7 @@ export default function Report() {
   const navigate = useNavigate()
   const location = useLocation()
   const aiRecommendRef = useRef(null)
-  const USER_ID = getUserId()
+  const USER_ID = getUserId() ?? 1
   const [persona,        setPersona]        = useState(null)
   const [lifecycle,      setLifecycle]      = useState(null)
   const [txData,         setTxData]         = useState(null)
@@ -209,9 +209,9 @@ export default function Report() {
         setTxData(null)
         setRecommendData(null)
 
-        fetch(`/api/avatar/${USER_ID}`)
-          .then(r => r.json())
-          .then(setPersona)
+        fetch(`/api/users/${USER_ID}/persona`)
+          .then(r => r.ok ? r.json() : null)
+          .then(data => { if (data) setPersona(data) })
           .catch(() => {})
 
         const [lcRes, txRes] = await Promise.allSettled([
@@ -399,7 +399,7 @@ export default function Report() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-base leading-tight">{persona?.avatarName ?? '분석 중...'}</p>
-          <p className="text-xs text-blue-100 mt-0.5 truncate">{persona?.avatarExplane ?? ''}</p>
+          <p className="text-xs text-blue-100 mt-0.5 leading-relaxed">{persona?.avatarExplane ?? ''}</p>
         </div>
       </div>
 
