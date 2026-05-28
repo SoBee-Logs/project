@@ -19,6 +19,7 @@ import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -56,6 +57,38 @@ public class ProductSearchService {
                 .keyword(query).totalCount(total)
                 .cards(cards).savings(savings).insurance(insurance)
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SearchResultDto.CardResult> searchAndEnrichCardsByCateNames(List<String> cateNames) {
+        if (cateNames == null || cateNames.isEmpty()) return List.of();
+
+        NativeQuery query = NativeQuery.builder()
+                .withQuery(q -> q.bool(b -> {
+                    cateNames.forEach(cate -> b.should(s -> s.match(m -> m
+                            .field("cateNames").query(cate))));
+                    return b.minimumShouldMatch("1");
+                }))
+                .withPageable(PageRequest.of(0, 20))
+                .build();
+
+        List<SearchResultDto.CardResult> raw = elasticsearchOperations.search(query, CardDocument.class).stream()
+                .map(SearchHit::getContent)
+                .map(doc -> SearchResultDto.CardResult.builder()
+                        .cardInfoId(Long.valueOf(doc.getId()))
+                        .gorillaId(doc.getGorillaId())
+                        .cardName(doc.getCardName())
+                        .corpName(doc.getCorpName())
+                        .cardType(doc.getCardType())
+                        .annualFeeBasic(doc.getAnnualFeeBasic())
+                        .minPerformance(doc.getMinPerformance())
+                        .cardImgUrl(doc.getCardImgUrl())
+                        .isDiscontinued(doc.getIsDiscontinued())
+                        .topBenefitTitles(doc.getTopBenefitTitles())
+                        .build())
+                .collect(Collectors.toList());
+
+        return enrichCards(raw);
     }
 
     private List<SearchResultDto.CardResult> searchCards(String keyword) {
