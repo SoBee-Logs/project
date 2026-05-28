@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -72,17 +73,29 @@ public class SearchService {
                 .cards(List.of()).savings(List.of()).insurance(List.of())
                 .build());
 
-        // GPT category로 카드 재정렬 (해당 카테고리 혜택 비율 높은 카드 우선)
-        if (parsed != null && parsed.getCategory() != null && !result.getCards().isEmpty()) {
-            List<SearchResultDto.CardResult> sorted = new ArrayList<>(result.getCards());
-            String cat = parsed.getCategory();
-            sorted.sort((a, b) -> Double.compare(
-                    categoryMatchRatio(b, cat),
-                    categoryMatchRatio(a, cat)));
-            result = SearchResultDto.builder()
-                    .keyword(result.getKeyword()).totalCount(result.getTotalCount())
-                    .cards(sorted).savings(result.getSavings()).insurance(result.getInsurance())
-                    .build();
+        // GPT category → 카테고리 기반 ES 검색 결과를 앞에 병합
+        if (parsed != null && parsed.getCategory() != null) {
+            List<String> dbCateNames = CATEGORY_MAP.getOrDefault(parsed.getCategory(), List.of());
+            if (!dbCateNames.isEmpty()) {
+                List<SearchResultDto.CardResult> catCards =
+                        productSearchService.searchAndEnrichCardsByCateNames(dbCateNames);
+
+                // 카테고리 카드 우선, 텍스트 검색 카드 중 중복 제거 후 뒤에 붙임
+                Set<Long> catIds = catCards.stream()
+                        .map(SearchResultDto.CardResult::getCardInfoId)
+                        .collect(Collectors.toSet());
+                List<SearchResultDto.CardResult> deduped = result.getCards().stream()
+                        .filter(c -> !catIds.contains(c.getCardInfoId()))
+                        .collect(Collectors.toList());
+
+                List<SearchResultDto.CardResult> merged = new ArrayList<>(catCards);
+                merged.addAll(deduped);
+
+                result = SearchResultDto.builder()
+                        .keyword(result.getKeyword()).totalCount(result.getTotalCount())
+                        .cards(merged).savings(result.getSavings()).insurance(result.getInsurance())
+                        .build();
+            }
         }
 
         List<SearchResponseDto.ProductDto> products = buildProducts(result);
@@ -267,16 +280,6 @@ public class SearchService {
             log.warn("GPT 파싱 실패, ES 결과만 사용: {}", e.getMessage());
             return null;
         }
-    }
-
-    private double categoryMatchRatio(SearchResultDto.CardResult card, String gptCategory) {
-        if (card.getBenefits() == null || card.getBenefits().isEmpty()) return 0.0;
-        List<String> dbCategories = CATEGORY_MAP.getOrDefault(gptCategory, List.of(gptCategory));
-        long matched = card.getBenefits().stream()
-                .filter(b -> b.getCateName() != null && dbCategories.stream()
-                        .anyMatch(dbCat -> b.getCateName().contains(dbCat) || dbCat.contains(b.getCateName())))
-                .count();
-        return (double) matched / card.getBenefits().size();
     }
 
     private String stripHtml(String html) {
