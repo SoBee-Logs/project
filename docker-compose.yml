@@ -40,18 +40,21 @@ services:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 3306 || exit 1"]
       interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 15s
+      retries: 20
+      start_period: 30s
 
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend/src:/app/src
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_BASE_URL=
-      - VITE_FASTAPI_BASE_URL=http://fastapi:8000
+      - SPRING_PROXY_TARGET=http://spring:8080
+      - FASTAPI_PROXY_TARGET=http://fastapi:8000
+      - VITE_FASTAPI_BASE_URL=http://localhost:8000
     depends_on:
       - spring
       - fastapi
@@ -73,6 +76,7 @@ services:
       - FASTAPI_BASE_URL=http://fastapi:8000
       - ES_URI=http://elasticsearch:9200
       - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+    restart: on-failure
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -84,7 +88,9 @@ services:
   fastapi:
     build:
       context: ./backend/fastapi
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./backend/fastapi/app:/app/app
     ports:
       - "8000:8000"
     env_file:
@@ -93,9 +99,94 @@ services:
     environment:
       - DB_HOST=ssh-tunnel
       - DB_PORT=3306
+    restart: on-failure
     depends_on:
       ssh-tunnel:
         condition: service_healthy
+    networks:
+      - sobee-net
+
+  postgres-airflow:
+    image: postgres:15
+    container_name: sobee-postgres-airflow
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+    networks:
+      - sobee-net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  airflow-init:
+    image: apache/airflow:3.0.0
+    env_file: airflow/.env
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      SOBEE_FASTAPI_URL: http://fastapi:8000
+    command: airflow db migrate
+    restart: on-failure
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+    networks:
+      - sobee-net
+
+  airflow-api-server:
+    image: apache/airflow:3.0.0
+    container_name: sobee-airflow
+    env_file: airflow/.env
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: 'true'
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-api-server:8080/execution/
+      SOBEE_FASTAPI_URL: http://fastapi:8000
+    command: api-server
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - sobee-net
+
+  airflow-scheduler:
+    image: apache/airflow:3.0.0
+    env_file: airflow/.env
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: 'true'
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-api-server:8080/execution/
+      SOBEE_FASTAPI_URL: http://fastapi:8000
+    command: scheduler
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
     networks:
       - sobee-net
 
@@ -105,4 +196,6 @@ networks:
 
 volumes:
   es_data:
+    driver: local
+  postgres_airflow_data:
     driver: local
