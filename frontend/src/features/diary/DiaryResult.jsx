@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import StatusBar from '../../common/components/StatusBar'
 import { ROOMS, SKY_BLUE } from '../../common/utils/rooms'
+import { useDragScroll } from '../../common/hooks/useDragScroll'
 
 export default function DiaryResult() {
   const navigate = useNavigate()
@@ -17,6 +18,8 @@ export default function DiaryResult() {
   const [includedRoomIds, setIncludedRoomIds] = useState([])
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [isRegenerating, setIsRegenerating] = useState(false)
+
+  const { ref: navRef, dragging: navDragging, onMouseDown, onMouseMove, onMouseUp, onMouseLeave } = useDragScroll()
 
   const diary = diaries[roomIndex]
   const bodyText = diary
@@ -148,7 +151,14 @@ export default function DiaryResult() {
     <main className="flex flex-col min-h-full bg-[#FAFAFA] relative">
       <StatusBar />
 
-      <nav className="flex justify-center gap-6 px-5 py-4 border-b border-gray-200 bg-white shrink-0">
+      <nav
+          ref={navRef}
+          className={`flex overflow-x-auto scrollbar-hide gap-4 px-4 py-4 border-b border-gray-200 bg-white shrink-0 ${navDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseLeave}
+        >
         {selectedRooms.map((roomId, i) => {
           const active = i === roomIndex
           const label = diaries[i]?.roomLabel ?? ROOMS.find((r) => r.id === roomId)?.label ?? `방${i + 1}`
@@ -165,7 +175,7 @@ export default function DiaryResult() {
                   setImageSlide(0)
                 }
               }}
-              className="flex flex-col items-center gap-1.5"
+              className="flex flex-col items-center gap-1.5 shrink-0"
             >
               <span
                 className={`w-12 h-12 rounded-full border-[3px] flex items-center justify-center text-[11px] font-bold ${

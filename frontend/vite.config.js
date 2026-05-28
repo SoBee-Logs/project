@@ -23,33 +23,18 @@ export default defineConfig({
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
-      '/api/diary/generate': {
-        target: FASTAPI,
-        changeOrigin: true,
-        headers: { origin: 'http://localhost:5173' },
-      },
       '/api/avatar': {
         target: FASTAPI,
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
-      '/report/mydata': {
+      '/api/lifecycle': {
         target: FASTAPI,
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
-      '/report/ai-insight': {
+      '/api/report': {
         target: FASTAPI,
-        changeOrigin: true,
-        headers: { origin: 'http://localhost:5173' },
-      },
-      '/report': {
-        target: FASTAPI,
-        changeOrigin: true,
-        headers: { origin: 'http://localhost:5173' },
-      },
-      '/search': {
-        target: SPRING,
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },

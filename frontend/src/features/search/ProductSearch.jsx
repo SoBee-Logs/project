@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const WOORI_NAVY = "#042C53";
 const WOORI_GREEN = "#1D9E75";
@@ -95,6 +95,7 @@ function ProductCard({ item, onClick }) {
                     borderRadius: 8,
                     overflow: "hidden",
                     flexShrink: 0,
+                    alignSelf: "center",
                     background: typeStyle.bg,
                     boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
                 }}
@@ -114,24 +115,22 @@ function ProductCard({ item, onClick }) {
             </div>
 
             <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 4 }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: WOORI_NAVY }}>{product_name}</span>
-                    <span style={{ fontSize: 12, color: "#8494A8" }}>{product_company}</span>
-                </div>
-                {content?.header && (
-                    <p style={{ fontSize: 13, fontWeight: 600, color: WOORI_BLUE, margin: "0 0 4px" }}>
-                        {content.header}
-                    </p>
-                )}
-                {content?.middle && (
-                    <p style={{ fontSize: 12, color: "#3D5166", margin: "0 0 3px", lineHeight: 1.5 }}>
-                        {content.middle}
-                    </p>
-                )}
-                {content?.small && (
-                    <p style={{ fontSize: 11, color: "#8494A8", margin: 0, lineHeight: 1.4 }}>
-                        {content.small}
-                    </p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: WOORI_NAVY, margin: "0 0 2px" }}>{product_name}</p>
+                <p style={{ fontSize: 12, color: "#8494A8", margin: "0 0 4px" }}>{product_company}</p>
+                {product_type === "savings" ? (
+                    (content?.header || content?.middle) && (
+                        <p style={{ fontSize: 13, fontWeight: 600, color: WOORI_BLUE, margin: 0 }}>
+                            {[content.header, content.middle].filter(Boolean).join(" / ")}
+                        </p>
+                    )
+                ) : (
+                    <>
+                        {content?.header && (
+                            <p style={{ fontSize: 13, fontWeight: 600, color: WOORI_BLUE, margin: 0 }}>
+                                {content.header}
+                            </p>
+                        )}
+                    </>
                 )}
             </div>
         </div>
@@ -412,27 +411,33 @@ function DetailPage({ item, onBack }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function ProductSearch() {
     const navigate = useNavigate();
-    const [query, setQuery] = useState("");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [query, setQuery] = useState(searchParams.get("q") || "");
     const [isSearched, setIsSearched] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [activePage, setActivePage] = useState("search");
+    const [activePage, setActivePage] = useState(searchParams.get("detail") ? "detail" : "search");
+    const [selectedItem, setSelectedItem] = useState(() => {
+        if (searchParams.get("detail")) {
+            const saved = sessionStorage.getItem("searchSelectedItem");
+            return saved ? JSON.parse(saved) : null;
+        }
+        return null;
+    });
 
     const [suggestedQuestions, setSuggestedQuestions] = useState([]);
     const [questionsLoading, setQuestionsLoading] = useState(true);
-    // localStorage에서 최근 질문 불러오기 (없으면 빈 배열)
     const [recentQuestions, setRecentQuestions] = useState(
         () => JSON.parse(localStorage.getItem("recentQuestions") || "[]")
     );
     const [aiText, setAiText] = useState("");
     const [products, setProducts] = useState([]);
-    const [activeTab, setActiveTab] = useState("card");
+    const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "card");
     const [error, setError] = useState(null);
 
     useEffect(() => {
         const controller = new AbortController();
         const userId = getUserId();
-        fetch(`${FASTAPI_BASE}/report/recommend-questions?user_id=${userId}`, { signal: controller.signal })
+        fetch(`/api/report/recommend-questions?user_id=${userId}`, { signal: controller.signal })
             .then((r) => r.json())
             .then((data) => {
                 if (Array.isArray(data?.questions) && data.questions.length > 0) {
@@ -450,10 +455,16 @@ export default function ProductSearch() {
         return () => controller.abort();
     }, []);
 
+    useEffect(() => {
+        const initialQuery = searchParams.get("q");
+        if (initialQuery) handleSearch(initialQuery);
+    }, []);
+
     const handleSearch = async (q) => {
         const searchQuery = q || query;
         if (!searchQuery.trim()) return;
         setQuery(searchQuery);
+        setSearchParams({ q: searchQuery, tab: activeTab });
         setIsLoading(true);
         setError(null);
         setAiText("");
@@ -471,6 +482,7 @@ export default function ProductSearch() {
             setIsSearched(true);
             const firstTab = ["card", "savings", "insurance"].find(t => fetched.some(p => p.product_type === t)) || "card";
             setActiveTab(firstTab);
+            setSearchParams({ q: searchQuery, tab: firstTab });
         } catch (e) {
             setError("검색 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
         } finally {
@@ -481,11 +493,14 @@ export default function ProductSearch() {
     const handleBack = () => {
         if (activePage === "detail") {
             setActivePage("search");
+            sessionStorage.removeItem("searchSelectedItem");
+            setSearchParams({ q: query, tab: activeTab });
         } else if (isSearched) {
             setIsSearched(false);
             setQuery("");
             setProducts([]);
             setAiText("");
+            setSearchParams({});
         } else {
             navigate("/home");
         }
@@ -504,7 +519,11 @@ export default function ProductSearch() {
         typeof q === "string" ? q : q.question || q.text || q.content || "";
 
     if (activePage === "detail" && selectedItem) {
-        return <DetailPage item={selectedItem} onBack={() => setActivePage("search")} />;
+        return <DetailPage item={selectedItem} onBack={() => {
+            setActivePage("search");
+            sessionStorage.removeItem("searchSelectedItem");
+            setSearchParams({ q: query, tab: activeTab });
+        }} />;
     }
 
     return (
@@ -560,7 +579,7 @@ export default function ProductSearch() {
                         return (
                             <button
                                 key={key}
-                                onClick={() => setActiveTab(key)}
+                                onClick={() => { setActiveTab(key); setSearchParams({ q: query, tab: key }); }}
                                 style={{
                                     flex: 1, padding: "8px 0", borderRadius: 10,
                                     background: isActive ? WOORI_BLUE : "#fff",
@@ -616,7 +635,12 @@ export default function ProductSearch() {
                                 <ProductCard
                                     key={i}
                                     item={item}
-                                    onClick={(it) => { setSelectedItem(it); setActivePage("detail"); }}
+                                    onClick={(it) => {
+                        sessionStorage.setItem("searchSelectedItem", JSON.stringify(it));
+                        setSearchParams({ q: query, tab: activeTab, detail: "1" });
+                        setSelectedItem(it);
+                        setActivePage("detail");
+                    }}
                                 />
                             ))
                         ) : (

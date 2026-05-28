@@ -13,7 +13,7 @@ connected_id 저장소: AWS Secrets Manager
 
 일별 동기화:
   sync_transactions(user_id) → Secrets Manager에서 connected_id 조회
-  → 기관별 병렬 호출 → DB 저장 → transactions 병합
+  → 기관별 병렬 호출 → DB 저장 → transactions 병합 → 카테고리 매핑
 """
 import asyncio
 import json
@@ -33,6 +33,7 @@ from app.services.codef_client import (
     fetch_bank_transactions,
     fetch_card_transactions,
 )
+from app.services.category_mapping_service import resolve_and_update_all_unmapped  # ✅ 추가
 
 log = logging.getLogger(__name__)
 
@@ -140,7 +141,6 @@ async def _upsert_bank_account(pool, user_id: int, org_code: str, acct: dict) ->
                 _to_date(acct.get("resAccountStartDate", "")),
                 _to_date(acct.get("resLastTranDate", "")),
             ))
-            # UPSERT 후 id 조회
             await cur.execute(
                 "SELECT id FROM bank_accounts WHERE user_id=%s AND res_account=%s",
                 (user_id, acct.get("resAccount", "")),
@@ -356,7 +356,6 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
     ]
 
     # ── 계좌: 자기 이체 제거 ─────────────────────────────────
-    # 같은 날짜·시간에 amount_out == 상대방 amount_in 이고 둘 중 하나의 desc3에 사용자 이름 포함
     self_transfer_ids: set[int] = set()
     if user_name:
         out_index: dict[tuple, list[dict]] = {}
@@ -380,12 +379,11 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
     bank_valid = [bt for bt in bank_raw if bt["id"] not in self_transfer_ids]
 
     # ── 체크카드 매칭: 카드·계좌 날짜·시간·금액 일치 ────────────
-    # 계좌 출금 인덱스 (date, time, amount_out) → bank row
     bank_out_index: dict[tuple, dict] = {}
     for bt in bank_valid:
         if bt["amount_out"] > 0:
             key = (bt["tr_date"], bt["tr_time"], bt["amount_out"])
-            bank_out_index.setdefault(key, bt)  # 첫 번째 매칭만 사용
+            bank_out_index.setdefault(key, bt)
 
     debit_card: list[dict] = []
     credit_card: list[dict] = []
@@ -430,13 +428,12 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
             bt["tr_time"],
             bt["amount_out"],
             bt["amount_in"],
-            bt.get("desc3"),   # payment_place
-            bt.get("desc2"),   # payment_category
-            None,              # payment_address
+            bt.get("desc3"),
+            bt.get("desc2"),
+            None,
         ))
 
     # ── DELETE → INSERT (해당 기간만, 멱등 보장) ────────────
-    # autocommit 풀이어도 begin()으로 단일 트랜잭션 보장
     async with pool.acquire() as conn:
         await conn.begin()
         try:
@@ -470,8 +467,8 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
 # 메인 동기화
 # ════════════════════════════════════════
 
-DAILY_SYNC_DAYS = 3    # 일별 동기화 기간 (주말 포함 안전 마진)
-INITIAL_SYNC_DAYS = 30 # 최초 가입 시 기간
+DAILY_SYNC_DAYS = 3
+INITIAL_SYNC_DAYS = 30
 
 
 def _sync_date_range(days: int) -> tuple[str, str]:
@@ -487,6 +484,7 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
     2. 은행/카드 기관별 병렬 API 호출
     3. bank_accounts → bank_transactions, cards → card_transactions 저장
     4. transactions 병합 (해당 기간만 DELETE → INSERT, 멱등 보장)
+    5. 카테고리 매핑 (룰베이스 → LLM 체이닝)  ✅ 추가
 
     days=DAILY_SYNC_DAYS : 일별 동기화 (Airflow)
     days=INITIAL_SYNC_DAYS: 최초 가입 시 30일 전체 fetch
@@ -504,8 +502,7 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
     async with new_session() as session:
         token = await get_access_token(session)
 
-        # 은행/카드 기관 병렬 조회
-        bank_orgs = list(connected_ids.get("BK", {}).items())  # [(org, cid), ...]
+        bank_orgs = list(connected_ids.get("BK", {}).items())
         card_orgs  = list(connected_ids.get("CD", {}).items())
 
         bank_tasks = [
@@ -522,21 +519,16 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
     bank_results = results[:len(bank_tasks)]
     card_results = results[len(bank_tasks):]
 
-    # 은행 저장: 계좌 먼저 upsert → 거래내역 저장
+    # 은행 저장
     for (org, _), result in zip(bank_orgs, bank_results):
         if isinstance(result, Exception):
             log.error(f"은행 조회 실패 {org}: {result}")
             continue
-        # result의 각 tx에 _account, _org 메타 있음 (codef_client에서 추가)
-        # 계좌별로 그룹핑
         acct_map: dict[str, list] = {}
         for tx in result:
             acct_map.setdefault(tx.get("_account", ""), []).append(tx)
 
         for acc_num, txs in acct_map.items():
-            # 계좌 정보 upsert (첫 번째 tx의 계좌 정보 사용)
-            # 계좌 메타는 fetch_bank_transactions에서 별도로 가져와야 함
-            # 여기서는 tx에서 추출 가능한 정보만 사용
             bank_account_id = await _upsert_bank_account(pool, user_id, org, {
                 "resAccount": acc_num,
                 "resAccountDisplay": acc_num,
@@ -549,12 +541,11 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
                 saved = await _upsert_bank_txs(pool, bank_account_id, txs)
                 bank_saved += saved
 
-    # 카드 저장: 카드 먼저 upsert → 거래내역 저장
+    # 카드 저장
     for (org, _), result in zip(card_orgs, card_results):
         if isinstance(result, Exception):
             log.error(f"카드 조회 실패 {org}: {result}")
             continue
-        # 카드번호별 그룹핑
         card_map: dict[str, list] = {}
         for tx in result:
             card_map.setdefault(tx.get("resCardNo", ""), []).append(tx)
@@ -571,10 +562,19 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
     # transactions 병합
     merged = await _merge_to_transactions(pool, user_id, start_date, end_date)
 
+    # ✅ 카테고리 매핑 — 룰베이스 → 기타 남은 건 LLM 자동 체이닝
+    mapping_result = {}
+    try:
+        mapping_result = await resolve_and_update_all_unmapped()
+        log.info(f"카테고리 매핑 완료: {mapping_result}")
+    except Exception as e:
+        log.error(f"카테고리 매핑 실패 (sync는 정상 완료): {e}")
+
     return {
         "user_id": user_id,
         "period": f"{start_date}~{end_date}",
         "bank_saved": bank_saved,
         "card_saved": card_saved,
         "transactions_merged": merged,
+        "mapping": mapping_result,  # ✅ 추가
     }
