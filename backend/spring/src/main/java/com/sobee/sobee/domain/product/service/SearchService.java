@@ -152,14 +152,11 @@ public class SearchService {
             String header = (c.getTopBenefitTitles() != null && !c.getTopBenefitTitles().isEmpty())
                     ? c.getTopBenefitTitles().get(0) : "";
 
-            String middle = "";
-            if (c.getMinPerformance() != null && c.getMinPerformance() > 0)
-                middle += "전월 실적 " + String.format("%,d", c.getMinPerformance()) + "원 이상";
-            if (c.getAnnualFeeBasic() != null && !c.getAnnualFeeBasic().isBlank())
-                middle += (middle.isEmpty() ? "" : " · ") + "연회비 " + c.getAnnualFeeBasic();
+            String middle = (c.getTopBenefitTitles() != null && c.getTopBenefitTitles().size() > 1)
+                    ? c.getTopBenefitTitles().get(1) : "";
 
-            String small = (c.getTopBenefitTitles() != null && c.getTopBenefitTitles().size() > 1)
-                    ? String.join(", ", c.getTopBenefitTitles().subList(1, c.getTopBenefitTitles().size())) : "";
+            String small = (c.getTopBenefitTitles() != null && c.getTopBenefitTitles().size() > 2)
+                    ? String.join(", ", c.getTopBenefitTitles().subList(2, c.getTopBenefitTitles().size())) : "";
 
             // 카테고리별 혜택 그룹핑
             List<SearchResponseDto.BenefitGroup> benefitGroups = null;
