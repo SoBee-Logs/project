@@ -4,17 +4,24 @@ import re
 from app.services.lifecycle_service import engine
 from app.models.schemas import AiInsightContent, AiInsightItem, AiInsightResponse, BenefitGroup, BenefitLine
 
-CATEGORY_TO_CATE = {
-    '카페/음료': '카페',
-    '식사': '일반음식점',
-    '편의점': '편의점',
-    '쇼핑/온라인': '온라인쇼핑',
-    '교통': '교통',
-    '의료/약국': '약국',
-    '제과/베이커리': '베이커리',
-    '선물/상품권': '쇼핑',
-    '서적': '도서',
-    '기타': '모든가맹점',
+# category_master.category_name → card_benefits.cate_name 매핑
+CATEGORY_TO_CATE: dict[str, list[str]] = {
+    '식비':       ['일반음식점', '푸드', '패밀리레스토랑', '패스트푸드', '배달앱'],
+    '카페/간식':  ['카페', '카페/디저트', '베이커리'],
+    '온라인쇼핑': ['온라인쇼핑', '소셜커머스', '간편결제'],
+    '패션/쇼핑':  ['쇼핑', '백화점', '아울렛'],
+    '교통':       ['교통', '대중교통', '택시', '기차', '고속버스', '자동차/하이패스', '하이패스'],
+    '여행/숙박':  ['여행/숙박', '항공권', '호텔', '면세점', '항공마일리지', '리조트'],
+    '문화/여가':  ['영화', 'OTT/영화/문화', '공연/전시', '테마파크', '경기관람', '레저/스포츠'],
+    '술/유흥':    ['푸드', '생활'],
+    '의료/건강':  ['병원/약국', '병원', '약국', '드럭스토어'],
+    '뷰티/미용':  ['뷰티/피트니스', '헤어', '화장품'],
+    '주거/통신':  ['통신', 'KT', 'SKT', 'LGU+', '공과금/렌탈'],
+    '교육/학습':  ['교육/육아', '학원', '학습지', '어린이집', '유치원'],
+    '금융':       ['금융', '은행사', '증권사', '보험사'],
+    '경조/선물':  ['쇼핑', '생활'],
+    '생활':       ['대형마트', '마트/편의점', '편의점', 'SSM'],
+    '기타':       ['모든가맹점'],
 }
 
 LIFE_STAGE_KO = {
@@ -59,19 +66,21 @@ def _strip_html(html: str | None) -> str | None:
     return text_val.strip() or None
 
 
-def _query_card(cate_name: str, top_category: str) -> AiInsightItem | None:
-    df = pd.read_sql(text("""
+def _query_card(cate_names: list[str], top_category: str) -> AiInsightItem | None:
+    placeholders = ', '.join(f':c{i}' for i in range(len(cate_names)))
+    params = {f'c{i}': v for i, v in enumerate(cate_names)}
+    df = pd.read_sql(text(f"""
         SELECT ci.card_info_id, ci.card_name, ci.corp_name, ci.card_img_url, ci.gorilla_id,
                ci.annual_fee_basic, ci.annual_fee_detail, ci.only_online, ci.is_impend
         FROM card_info ci
         WHERE ci.card_info_id IN (
-            SELECT DISTINCT cb.card_info_id FROM card_benefits cb WHERE cb.cate_name = :cate_name
+            SELECT DISTINCT cb.card_info_id FROM card_benefits cb WHERE cb.cate_name IN ({placeholders})
         )
           AND ci.card_img_url IS NOT NULL
           AND ci.is_discontinued = 0
         ORDER BY RAND()
         LIMIT 1
-    """), engine, params={"cate_name": cate_name})
+    """), engine, params=params)
 
     if df.empty:
         df = pd.read_sql(text("""
@@ -208,12 +217,12 @@ async def get_ai_insight(user_id: int, category_price: dict) -> AiInsightRespons
         life_stage_code = None
 
     top_category = '기타'
-    cate_name = '모든가맹점'
+    cate_names = ['모든가맹점']
     if category_price:
         top_category = max(category_price, key=category_price.get)
-        cate_name = CATEGORY_TO_CATE.get(top_category, '모든가맹점')
+        cate_names = CATEGORY_TO_CATE.get(top_category, ['모든가맹점'])
 
-    card_item = _query_card(cate_name, top_category)
+    card_item = _query_card(cate_names, top_category)
 
     save_trm = LIFE_STAGE_SAVE_TRM.get(life_stage_code, 12)
     savings_item = _query_savings(save_trm, life_stage_code)
