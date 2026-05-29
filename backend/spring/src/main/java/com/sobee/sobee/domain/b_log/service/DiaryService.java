@@ -39,12 +39,13 @@ public class DiaryService {
     private final PhotoRepository photoRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final PhotoService photoService;
 
     @Value("${fastapi.base-url}/api/diary/generate")
     private String fastapiDiaryUrl;
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @Transactional(readOnly = true)
+    @Transactional
     public DiaryGenerateResponse generateDiary(DiaryGenerateRequest req, Long userId) {
 
         Group group = groupRepository.findById(req.getGroupId())
@@ -66,6 +67,17 @@ public class DiaryService {
                 if (todayPhotos.isEmpty()) {
                     throw new IllegalArgumentException("이 모임방에 등록된 사진이 없어 일기를 생성할 수 없습니다.");
                 }
+
+        // 미매핑 사진 일괄 매핑 (결제 동기화 완료 시점 보장)
+        for (Photo photo : todayPhotos) {
+            if (!personaTransactionRepository.existsByPhotoId(photo.getPhotoId())) {
+                try {
+                    photoService.performMatchingForPhoto(photo.getPhotoId(), userId);
+                } catch (Exception ignored) {
+                    // 개별 사진 매핑 실패해도 일기 생성 계속 진행
+                }
+            }
+        }
 
         // 매핑된 사진만 따로 필터링 (LLM 일기 생성용)
         List<Photo> matchedPhotos = todayPhotos.stream()

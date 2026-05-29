@@ -57,6 +57,10 @@ public class PhotoController {
                     .collect(Collectors.toList());
         }
 
+        if (text != null && text.length() > 50) {
+            return ResponseEntity.badRequest().build();
+        }
+
         PhotoUploadRequest request = PhotoUploadRequest.builder()
                 .image(image)
                 .takenAt(takenAt)
