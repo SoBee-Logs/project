@@ -189,7 +189,7 @@ export default function DiaryResult() {
               className="flex flex-col items-center gap-1.5 shrink-0"
             >
               <span
-                className={`w-12 h-12 rounded-full border-[3px] flex items-center justify-center text-[11px] font-bold ${
+                className={`w-12 h-12 rounded-full border-[3px] flex items-center justify-center font-bold ${
                   active
                     ? 'border-[#38BDF8] text-[#38BDF8] bg-sky-50'
                     : done
@@ -198,8 +198,12 @@ export default function DiaryResult() {
                         : 'border-red-400 text-red-400 bg-red-50'
                       : 'border-gray-200 text-gray-400 bg-gray-50'
                 }`}
+                style={{ fontSize: '10px', lineHeight: '1.25', textAlign: 'center', padding: '0 3px', wordBreak: 'keep-all' }}
               >
-                {label.slice(0, 2)}
+                {label.length > 3
+                  ? <>{label.slice(0, Math.ceil(label.length / 2))}<br />{label.slice(Math.ceil(label.length / 2))}</>
+                  : label
+                }
               </span>
               <span
                 className={`text-[12px] font-medium ${
