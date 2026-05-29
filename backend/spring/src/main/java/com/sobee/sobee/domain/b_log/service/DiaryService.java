@@ -246,6 +246,12 @@ public class DiaryService {
                     .diaryLines(lines)
                     .date(diary.getCreatedAt() != null
                             ? diary.getCreatedAt().toLocalDate().toString() : "")
+                    .time(diary.getCreatedAt() != null                          // 여기 추가
+                            ? diary.getCreatedAt()
+                                .atZone(java.time.ZoneOffset.UTC)
+                                .withZoneSameInstant(java.time.ZoneId.of("Asia/Seoul"))
+                                .toLocalTime()
+                                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) : "")
                     .authorName(authorName)
                     .authorId(diary.getUserId())
                     .imageUrls(imageUrls)

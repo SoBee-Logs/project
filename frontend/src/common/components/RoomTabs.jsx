@@ -216,12 +216,12 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
               }}>
                 <button
                   onClick={() => { setShowCreatePopup(true); setShowAddMenu(false) }}
-                  style={{ width: '100%', padding: '10px', textAlign: 'left', fontSize: '13px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px' }}
-                >✨ 모임 만들기</button>
+                  style={{ width: '100%', padding: '8px', textAlign: 'left', fontSize: '11px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px' }}
+                >✨모임 만들기</button>
                 <button
                   onClick={() => { setShowJoinPopup(true); setShowAddMenu(false) }}
-                  style={{ width: '100%', padding: '10px', textAlign: 'left', fontSize: '13px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px' }}
-                >🔗 모임 참여하기</button>
+                  style={{ width: '100%', padding: '8px', textAlign: 'left', fontSize: '11px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px' }}
+                >🔗모임 참여하기</button>
               </div>
             )}
           </div>
