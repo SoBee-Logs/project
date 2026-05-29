@@ -437,6 +437,7 @@ export default function ProductSearch() {
     const [isSearched, setIsSearched] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const searchAbortRef = useRef(null);
+    const scrollRef = useRef(null);
     const [activePage, setActivePage] = useState(searchParams.get("detail") ? "detail" : "search");
     const [selectedItem, setSelectedItem] = useState(() => {
         if (searchParams.get("detail")) {
@@ -536,6 +537,11 @@ export default function ProductSearch() {
     useEffect(() => {
         return () => { if (searchAbortRef.current) searchAbortRef.current.abort(); };
     }, []);
+
+    // 탭 전환 시 스크롤 초기화
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    }, [activeTab]);
 
     const handleBack = () => {
         if (activePage === "detail") {
@@ -658,7 +664,7 @@ export default function ProductSearch() {
             )}
 
             {/* Body */}
-            <div className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", paddingBottom: isSearched && aiText ? "90px" : "16px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+            <div ref={scrollRef} className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", paddingBottom: isSearched && aiText ? "90px" : "16px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 {isLoading ? (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12 }}>
                         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
