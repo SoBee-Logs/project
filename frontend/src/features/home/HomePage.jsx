@@ -82,19 +82,25 @@ export default function Home() {
         })
         if (!groupsRes.ok) return
         const groups = await groupsRes.json()
-        const previews = await Promise.all(
-          groups.map(async (g) => {
-            try {
-              const photoRes = await fetch(`/api/photos/group/${g.groupId}/latest`, {
-                headers: { Authorization: `Bearer ${token}` },
-              })
-              const photoData = await photoRes.json()
-              return { groupId: g.groupId, groupName: g.groupName, imageUrl: photoData?.imageUrl ?? null }
-            } catch {
-              return { groupId: g.groupId, groupName: g.groupName, imageUrl: null }
+       const previews = await Promise.all(
+        groups.map(async (g) => {
+          try {
+            const diaryRes = await fetch(`/api/diary/list?groupId=${g.groupId}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            const diaries = await diaryRes.json()
+            // 가장 최신 일기의 첫 번째 이미지
+            const latestImage = diaries?.[0]?.imageUrls?.[0] ?? diaries?.[0]?.imageUrl ?? null
+            return {
+              groupId: g.groupId,
+              groupName: g.groupName,
+              imageUrl: latestImage,
             }
-          })
-        )
+          } catch {
+            return { groupId: g.groupId, groupName: g.groupName, imageUrl: null }
+          }
+        })
+      )
         setFeedPreviews(previews)
       } catch (err) {
         console.error('피드 미리보기 로딩 실패', err)
@@ -193,11 +199,11 @@ export default function Home() {
         <StatusBar />
 
         {/* 검색바 */}
-        <header className="px-4 pt-1 pb-2 flex items-center gap-2">
+        <header className="px-3 pt-1 pb-2 flex items-center gap-2">
           <button
             type="button"
             onClick={() => navigate('/search')}
-            className="flex-1 flex items-center gap-2 rounded-full px-4 py-1.5 text-left cursor-pointer"
+            className="flex-1 flex items-center gap-2 rounded-2xl px-4 py-1.5 text-left cursor-pointer"
             style={{ background: '#F0F6FF' }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#21BCEA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
@@ -206,7 +212,7 @@ export default function Home() {
             </svg>
             <span className="text-[11px] flex-1" style={{ color: '#0073BC' }}>궁금한 걸 자유롭게 물어보세요!</span>
           </button>
-          <button type="button" className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 cursor-pointer border-0" style={{ background: '#F0F6FF' }}>
+          <button type="button" className="w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer border-0" style={{ background: '#F0F6FF' }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0073BC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -215,54 +221,56 @@ export default function Home() {
         </header>
 
         {/* 페르소나 이미지 */}
-        <figure className="relative w-full mt-1 mb-0 m-0">
+        <figure className="relative w-full mt-1 mb-0 m-0 px-3">
           <img
             src={persona?.avatarImgUrl ?? '/persona-bee.png'}
             alt="페르소나 꿀벌 아바타"
-            className="w-full h-auto block"
+            className="w-full h-auto block rounded-2xl"
           />
-          <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/40 to-transparent" />
-          <div className="absolute bottom-3 left-4 text-white">
+          <div className="absolute bottom-0 left-3 right-3 h-20 bg-gradient-to-t from-black/40 to-transparent rounded-b-2xl" />
+          <div className="absolute bottom-3 left-6 text-white">
             <span className="block text-[10px] font-light opacity-80">나의 소비 페르소나</span>
             <span className="block text-[16px] font-extrabold leading-tight">{persona?.avatarName ?? '분석 중...'}</span>
           </div>
         </figure>
 
         {/* 금융상품 추천 버튼 */}
-        <button
-          type="button"
-          onClick={() => navigate('/report', { state: { scrollTo: 'aiRecommend' } })}
-          style={{
-            width: 'calc(100% - 32px)',
-            height: '48px',
-            margin: '10px auto 12px',
-            padding: '0 24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            border: 'none',
-            borderRadius: '14px',
-            background: '#0073BC',
-            color: '#ffffff',
-            boxShadow: '0 8px 18px rgba(0,115,188,0.24)',
-            cursor: 'pointer',
-          }}
-        >
-          <span style={{
-            width: '28px', height: '28px', flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            borderRadius: '50%', background: 'rgba(255,255,255,0.18)', fontSize: '15px',
-          }}>💰</span>
-          <span style={{
-            fontSize: '12px', fontWeight: 700,
-            letterSpacing: '-0.3px', textAlign: 'left', whiteSpace: 'nowrap',
-          }}>페르소나 기반 금융 상품 추천 바로가기</span>
-        </button>
+        <div className="px-3">
+          <button
+            type="button"
+            onClick={() => navigate('/report', { state: { scrollTo: 'aiRecommend' } })}
+            style={{
+              width: '100%',
+              height: '48px',
+              margin: '10px 0 12px',
+              padding: '0 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              border: 'none',
+              borderRadius: '14px',
+              background: '#0073BC',
+              color: '#ffffff',
+              boxShadow: '0 8px 18px rgba(0,115,188,0.24)',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{
+              width: '28px', height: '28px', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: '50%', background: 'rgba(255,255,255,0.18)', fontSize: '15px',
+            }}>💰</span>
+            <span style={{
+              fontSize: '12px', fontWeight: 700,
+              letterSpacing: '-0.3px', textAlign: 'left', whiteSpace: 'nowrap',
+            }}>페르소나 기반 금융 상품 추천 바로가기</span>
+          </button>
+        </div>
       </section>
 
       {/* 기능 카드 */}
-      <section className="px-2 mt-1">
+      <section className="px-3 mt-1">
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
@@ -296,7 +304,7 @@ export default function Home() {
             }}
             className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
             style={{
-              background: 'radial-gradient(circle at 50% 48%, rgba(0,115,188,0.08) 0%, rgba(0,115,188,0.04) 45%, rgba(255,255,255,0) 68%), linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%)',
+              background: 'radial-gradient(circle at 50% 48%, rgba(33,188,234,0.12) 0%, rgba(33,188,234,0.08) 42%, rgba(255,255,255,0) 68%), linear-gradient(180deg, #F4FAFF 0%, #EEF7FF 100%)',
               boxShadow: '0 18px 35px rgba(0,32,80,0.08), inset 0 1px 0 rgba(255,255,255,0.8)',
               border: '1px solid rgba(0,72,145,0.08)'
             }}
@@ -305,7 +313,7 @@ export default function Home() {
               <img src={receiptHalo} alt="receipt" className="w-16 h-16 object-contain block" />
             </div>
             <div className="px-2 pb-2 -mt-3">
-              <span className="block text-[9px] mb-0.5" style={{ color: '#0073BC' }}>오늘의 소비 사진을 확인해보세요</span>
+              <span className="block text-[9px] mb-0.5" style={{ color: '#21BCEA' }}>오늘의 소비 사진을 확인해보세요</span>
               <span className="block text-[12px] font-bold leading-tight" style={{ color: '#003B72' }}>나의 소비 로그</span>
             </div>
           </button>
@@ -313,7 +321,7 @@ export default function Home() {
       </section>
 
       {/* 피드 */}
-      <section className="px-4 pt-5 pb-24">
+      <section className="px-3 pt-5 pb-24">
         <h2 className="text-[17px] font-bold mb-3" style={{ color: '#003B72' }}>피드</h2>
         {feedPreviews.length === 0 ? (
           <p className="text-[13px] text-gray-400 text-center py-6">
