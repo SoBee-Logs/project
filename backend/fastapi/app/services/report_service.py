@@ -23,7 +23,6 @@ CATEGORY_COLORS = {
 def get_transaction_report(user_id: int, year: int = None, month: int = None):
     now = datetime.now()
 
-    # ✅ year/month 파라미터 없으면 현재 달로 fallback
     target_year  = year  if year  else now.year
     target_month = month if month else now.month
 
@@ -34,13 +33,14 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         calendar.monthrange(target_year, target_month)[1]
     ).strftime("%Y-%m-%d")
 
-    # payment_category_id → category_master.category_name JOIN
+    # ✅ payment_place 추가
     df = pd.read_sql(text("""
         SELECT
             COALESCE(cm.category_name, '기타') AS payment_category,
             t.payment_time,
             t.payment_date,
-            t.payment_out
+            t.payment_out,
+            t.payment_place
         FROM transactions t
         LEFT JOIN category_master cm
             ON t.payment_category_id = cm.payment_category_id
@@ -54,17 +54,17 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
 
     if df.empty:
         return {
-            "payment_out": 0,
-            "payment_total_num": 0,
-            "payment_days": 0,   # ✅ 추가
-            "category_price": {},
-            "timepattern_price": {},
-            "weekly_price": [],
-            "weekly_categories": [],
+            "payment_out":           0,
+            "payment_total_num":     0,
+            "payment_days":          0,
+            "category_price":        {},
+            "category_transactions": {},  # ✅ 추가
+            "timepattern_price":     {},
+            "weekly_price":          [],
+            "weekly_categories":     [],
         }
 
-    # ✅ 5시간씩 균등 분할
-    # 새벽 0~5시 / 아침 5~10시 / 점심 10~15시 / 저녁 15~20시 / 심야 20~24시
+    # 5시간씩 균등 분할
     def classify_time(t):
         if t is None:
             return '기타'
@@ -75,16 +75,15 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
                 hour = int(str(t)[:2])
             except (ValueError, TypeError):
                 return '기타'
-        if 0 <= hour < 5:      return '새벽'
-        elif 5 <= hour < 10:   return '아침'
-        elif 10 <= hour < 15:  return '점심'
-        elif 15 <= hour < 20:  return '저녁'
-        else:                  return '심야'
+        if 0 <= hour < 5:    return '새벽'
+        elif 5 <= hour < 10: return '아침'
+        elif 10 <= hour < 15: return '점심'
+        elif 15 <= hour < 20: return '저녁'
+        else:                 return '심야'
 
-    # ✅ 달력 기준 주차 계산 (일요일 시작 기준으로 수정)
-    # adjusted_first: 달 1일을 일요일(0) 기준으로 보정
-    first_weekday = datetime(target_year, target_month, 1).weekday()  # 0=월 ~ 6=일
-    adjusted_first = (first_weekday + 1) % 7  # 일요일=0, 월요일=1, ..., 토요일=6
+    # 달력 기준 주차 계산 (일요일 시작)
+    first_weekday  = datetime(target_year, target_month, 1).weekday()
+    adjusted_first = (first_weekday + 1) % 7
 
     def classify_week(d):
         if d is None:
@@ -113,7 +112,6 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         .sum().astype(int).unstack(fill_value=0)
     )
 
-    # ✅ 해당 달의 실제 주차 수 동적 계산 (일요일 시작 기준)
     last_day_num = calendar.monthrange(target_year, target_month)[1]
     total_weeks  = (last_day_num + adjusted_first - 1) // 7 + 1
     week_order   = [f'{i}주' for i in range(1, total_weeks + 1)]
@@ -126,13 +124,31 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
                 row[cat] = int(weekly_pivot.loc[week, cat]) if cat in weekly_pivot.columns else 0
             weekly_price.append(row)
 
+    # ✅ 카테고리별 상세 거래 내역 생성
+    category_transactions = {}
+    for cat_name, group in df.groupby('payment_category'):
+        records = (
+            group[['payment_date', 'payment_time', 'payment_place', 'payment_out']]
+            .sort_values('payment_date', ascending=False)
+            .assign(
+                payment_date=lambda d: d['payment_date'].astype(str),
+                payment_time=lambda d: d['payment_time'].apply(
+                    lambda t: str(t)[:5] if t is not None else None
+                ),
+                payment_place=lambda d: d['payment_place'].fillna('-'),
+            )
+            .to_dict('records')
+        )
+        category_transactions[cat_name] = records
+
     return {
-        "payment_out":       int(df['payment_out'].sum()),
-        "payment_total_num": len(df),
-        "payment_days":      df['payment_date'].nunique(),
-        "category_price":    df.groupby('payment_category')['payment_out'].sum().astype(int).to_dict(),
-        "timepattern_price": df.groupby('time_label')['payment_out'].sum().astype(int).to_dict(),
-        "weekly_price":      weekly_price,
-        "weekly_categories": top3_categories,
-        "category_colors":   CATEGORY_COLORS,
+        "payment_out":           int(df['payment_out'].sum()),
+        "payment_total_num":     len(df),
+        "payment_days":          df['payment_date'].nunique(),
+        "category_price":        df.groupby('payment_category')['payment_out'].sum().astype(int).to_dict(),
+        "category_transactions": category_transactions,  # ✅ 추가
+        "timepattern_price":     df.groupby('time_label')['payment_out'].sum().astype(int).to_dict(),
+        "weekly_price":          weekly_price,
+        "weekly_categories":     top3_categories,
+        "category_colors":       CATEGORY_COLORS,
     }
