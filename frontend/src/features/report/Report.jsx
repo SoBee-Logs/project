@@ -183,39 +183,29 @@ export default function Report() {
   const [selectedYear,  setSelectedYear]  = useState(today.getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1)
 
-  // 이동 전 달 기억 (빈 달 모달 확인 시 복귀용)
-  const [prevYear,  setPrevYear]  = useState(null)
-  const [prevMonth, setPrevMonth] = useState(null)
+  // 이동 예정 달 (실제 이동 전 데이터 먼저 확인)
+  const [pendingYear,   setPendingYear]   = useState(null)
+  const [pendingMonth,  setPendingMonth]  = useState(null)
+  const [checkPending,  setCheckPending]  = useState(false)
 
   const isCurrentMonth =
     selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
 
   const goPrev = () => {
-    setPrevYear(selectedYear)
-    setPrevMonth(selectedMonth)
-    if (selectedMonth === 1) { setSelectedYear(y => y - 1); setSelectedMonth(12) }
-    else setSelectedMonth(m => m - 1)
+    const newYear  = selectedMonth === 1 ? selectedYear - 1 : selectedYear
+    const newMonth = selectedMonth === 1 ? 12 : selectedMonth - 1
+    setPendingYear(newYear)
+    setPendingMonth(newMonth)
+    setCheckPending(true)
   }
 
   const goNext = () => {
     if (isCurrentMonth) return
-    setPrevYear(selectedYear)
-    setPrevMonth(selectedMonth)
-    if (selectedMonth === 12) { setSelectedYear(y => y + 1); setSelectedMonth(1) }
-    else setSelectedMonth(m => m + 1)
-  }
-
-  const handleEmptyModalClose = () => {
-    setIsEmptyMonth(false)
-    if (prevYear !== null && prevMonth !== null) {
-      // 이전에 보던 달로 복귀
-      setSelectedYear(prevYear)
-      setSelectedMonth(prevMonth)
-    } else {
-      // 첫 진입부터 빈 달인 경우 → 이번 달로 복귀
-      setSelectedYear(today.getFullYear())
-      setSelectedMonth(today.getMonth() + 1)
-    }
+    const newYear  = selectedMonth === 12 ? selectedYear + 1 : selectedYear
+    const newMonth = selectedMonth === 12 ? 1 : selectedMonth + 1
+    setPendingYear(newYear)
+    setPendingMonth(newMonth)
+    setCheckPending(true)
   }
 
   useEffect(() => {
@@ -226,13 +216,38 @@ export default function Report() {
     }
   }, [loading, location.state])
 
+  // 이동 예정 달 데이터 미리 확인 — 데이터 없으면 이동 막고 모달만 띄우기
+  useEffect(() => {
+    if (!checkPending || pendingYear === null || pendingMonth === null) return
+
+    const checkData = async () => {
+      try {
+        const res = await fetch(`/api/report/mydata/transaction?user_id=${USER_ID}&year=${pendingYear}&month=${pendingMonth}`)
+        const tx = await res.json()
+        if (!tx || (tx.payment_total_num === 0 && tx.payment_out === 0 && Object.keys(tx.category_price ?? {}).length === 0)) {
+          // 데이터 없음 → 이동 막고 모달만 띄우기
+          setIsEmptyMonth(true)
+        } else {
+          // 데이터 있음 → 실제 이동
+          setSelectedYear(pendingYear)
+          setSelectedMonth(pendingMonth)
+        }
+      } catch {
+        setIsEmptyMonth(true)
+      } finally {
+        setCheckPending(false)
+      }
+    }
+    checkData()
+  }, [checkPending])
+
+  // 선택된 달 데이터 fetch
   useEffect(() => {
     const fetchAll = async () => {
       try {
         setLoading(true)
         setTxData(null)
         setRecommendData(null)
-        setIsEmptyMonth(false)
 
         fetch(`/api/users/${USER_ID}/persona`)
           .then(r => r.ok ? r.json() : null)
@@ -247,15 +262,7 @@ export default function Report() {
         if (lcRes.status === 'fulfilled') setLifecycle(lcRes.value)
         else setLifecycle({ lifecycle_stage: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' })
 
-        if (txRes.status === 'fulfilled') {
-          const tx = txRes.value
-          setTxData(tx)
-          if (!tx || (tx.payment_total_num === 0 && tx.payment_out === 0)) {
-            setIsEmptyMonth(true)
-          } else {
-            setIsEmptyMonth(false)
-          }
-        }
+        if (txRes.status === 'fulfilled') setTxData(txRes.value)
 
         try {
           const recRes = await fetch(`/api/report/ai-insight?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`)
@@ -389,12 +396,16 @@ export default function Report() {
   return (
     <div className="flex flex-col h-full">
 
-      {/* 빈 달 모달 */}
+      {/* 빈 달 모달 — selectedYear/Month는 그대로, pendingYear/Month를 모달에 표시 */}
       {isEmptyMonth && (
         <EmptyMonthModal
-          year={selectedYear}
-          month={selectedMonth}
-          onClose={handleEmptyModalClose}
+          year={pendingYear}
+          month={pendingMonth}
+          onClose={() => {
+            setIsEmptyMonth(false)
+            setPendingYear(null)
+            setPendingMonth(null)
+          }}
         />
       )}
 
