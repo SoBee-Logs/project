@@ -28,7 +28,7 @@ public class Diary {
     private Long groupId;
 
     // LLM 생성 일기 내용 — JSON 직렬화 저장 (title/subtitle/lines)
-    @Column(name = "diary_content", length = 200)
+    @Column(name = "diary_content", columnDefinition = "TEXT")
     private String diaryContent;
 
     // 일기 생성 시각 (자동 설정)

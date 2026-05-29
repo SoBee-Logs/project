@@ -3,6 +3,7 @@ package com.sobee.sobee.domain.b_log.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -24,6 +25,7 @@ public class PhotoMetadata {
     private Photo photo;
 
     @Column(name = "taken_at")
+    @Setter
     private LocalDateTime takenAt;
 
     @Column(name = "latitude", precision = 10, scale = 6)
