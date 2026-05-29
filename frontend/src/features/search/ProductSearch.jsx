@@ -731,16 +731,38 @@ export default function ProductSearch() {
                         {/* 최근 질문 - 있을 때만 표시 */}
                         {recentQuestions.length > 0 && (
                             <div>
-                                <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 700, color: WOORI_NAVY }}>최근 질문</p>
-                                {recentQuestions.map((q, i) => (
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: WOORI_NAVY }}>최근 질문</p>
                                     <button
-                                        key={i}
-                                        onClick={() => handleSearch(q)}
-                                        style={{ width: "100%", background: "#fff", border: "1.5px solid #EEF1F5", borderRadius: 12, padding: "12px 14px", textAlign: "left", fontSize: 13, color: WOORI_NAVY, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
+                                        onClick={() => {
+                                            setRecentQuestions([]);
+                                            localStorage.removeItem("recentQuestions");
+                                        }}
+                                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#8494A8", padding: 0 }}
                                     >
-                                        <span style={{ fontSize: 14, color: "#8494A8" }}>🕐</span>
-                                        {q}
+                                        전체 삭제
                                     </button>
+                                </div>
+                                {recentQuestions.map((q, i) => (
+                                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                                        <button
+                                            onClick={() => handleSearch(q)}
+                                            style={{ flex: 1, background: "#fff", border: "1.5px solid #EEF1F5", borderRadius: 12, padding: "12px 14px", textAlign: "left", fontSize: 13, color: WOORI_NAVY, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8 }}
+                                        >
+                                            <span style={{ fontSize: 14, color: "#8494A8" }}>🕐</span>
+                                            {q}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const updated = recentQuestions.filter((_, idx) => idx !== i);
+                                                setRecentQuestions(updated);
+                                                localStorage.setItem("recentQuestions", JSON.stringify(updated));
+                                            }}
+                                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#B0BEC5", padding: "4px", flexShrink: 0 }}
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
                         )}
