@@ -6,7 +6,7 @@ const CATEGORY_PALETTE = [
   '#1e73be', '#38BDF8', '#60a5fa', '#93c5fd', '#0ea5e9',
   '#3b82f6', '#7dd3fc', '#2563eb', '#6366f1', '#bfdbfe',
 ]
-
+  
 function groupByDate(transactions) {
   const map = {}
   transactions.forEach(tx => {
@@ -46,9 +46,7 @@ export default function ReportDetail() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
   const [openCat, setOpenCat] = useState(null)
- 
-  const categoryRef  = useRef(null)
-  const catItemRefs  = useRef({}) // ✅ 각 카테고리 div ref
+  const catItemRefs = useRef({}) // 각 카테고리 div ref
  
   useEffect(() => {
     setLoading(true)
@@ -60,12 +58,6 @@ export default function ReportDetail() {
       .finally(() => setLoading(false))
   }, [year, month])
  
-  useEffect(() => {
-    if (loading) return
-    if (location.state?.scrollTo === 'category' && categoryRef.current) {
-      setTimeout(() => categoryRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200)
-    }
-  }, [loading, location.state])
  
   if (loading) return (
     <div className="flex flex-col gap-4 pt-4 px-4 pb-24 animate-pulse">
@@ -107,13 +99,14 @@ export default function ReportDetail() {
   const maxTotal = Math.max(...categoryList.map(c => c.total), 1)
  
   return (
+    // ✅ 스크롤 컨테이너에 ref 부착
     <div className="flex flex-col gap-4 pt-4 px-4 pb-24 overflow-y-auto">
  
       <div className="flex items-center gap-2">
         <span className="text-sm font-bold text-gray-700">{year}년 {month}월 상세 리포트</span>
       </div>
  
-      <div ref={categoryRef} className="rounded-2xl border border-gray-100 p-4 shadow-sm scroll-mt-4">
+      <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
         <p className="text-xs text-gray-500 font-semibold mb-4">📊 카테고리별 소비</p>
         {categoryList.length === 0
           ? <p className="text-xs text-gray-300 text-center py-4">데이터가 없어요</p>
@@ -128,17 +121,18 @@ export default function ReportDetail() {
                 return (
                   <div
                     key={cat.name}
-                    ref={el => catItemRefs.current[cat.name] = el} // ✅ ref 등록
+                    ref={el => catItemRefs.current[cat.name] = el}
                   >
                     <button
                       className="w-full text-left py-2.5 active:bg-gray-50 rounded-xl px-1 transition-colors"
                       onClick={() => {
                         const next = isOpen ? null : cat.name
                         setOpenCat(next)
-                        // ✅ 열릴 때만 해당 카테고리 상단으로 스크롤
+                        // 열릴 때만 해당 카테고리로 스크롤
                         if (next) {
                           setTimeout(() => {
-                            catItemRefs.current[cat.name]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                            const el = catItemRefs.current[cat.name]
+                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
                           }, 50)
                         }
                       }}
@@ -170,14 +164,14 @@ export default function ReportDetail() {
                           ? <p className="text-xs text-gray-300 text-center py-3">거래 내역이 없어요</p>
                           : grouped.map(({ date, items }) => (
                             <div key={date}>
-                              {/* ✅ 날짜 헤더 — 소계 제거, 날짜 더 선명하게 */}
+                              {/* 날짜 헤더 */}
                               <div className="px-3 pt-2.5 pb-0.5 flex items-center gap-2">
                                 <span className="text-[11px] font-bold text-gray-400 shrink-0">
                                   {formatDateLabel(date)}
                                 </span>
                                 <div className="flex-1 h-px bg-gray-200" />
                               </div>
-                              {/* ✅ 거래 행 — 가맹점명 + 오른쪽에 금액/시간 세로 배치 */}
+                              {/* 거래 행 */}
                               {items.map((tx, i) => (
                                 <div
                                   key={i}
@@ -192,9 +186,9 @@ export default function ReportDetail() {
                                       {Number(tx.payment_out).toLocaleString()}원
                                     </span>
                                   </div>
-                                  {/* 둘째 줄: 시간 오른쪽 정렬로 작게 */}
+                                  {/* 둘째 줄: 시간 오른쪽 작게 */}
                                   {tx.payment_time && (
-                                    <div className="flex justify-end mt-0.5">
+                                    <div className="flex justify-end mt-0">
                                       <span className="text-[9px] text-gray-300">
                                         {String(tx.payment_time).slice(0, 5)}
                                       </span>
