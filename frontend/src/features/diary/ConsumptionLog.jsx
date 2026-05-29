@@ -206,7 +206,7 @@ export default function ConsumptionLog() {
                       )}
                     </figure>
                     {photo.text && (
-                      <p className="text-[11px] text-gray-500 mt-1.5 mb-0 leading-relaxed line-clamp-2">
+                      <p className="text-[11px] text-gray-500 mt-1.5 mb-0 leading-relaxed line-clamp-2 whitespace-pre-wrap break-words break-keep">
                         {photo.text}
                       </p>
                     )}

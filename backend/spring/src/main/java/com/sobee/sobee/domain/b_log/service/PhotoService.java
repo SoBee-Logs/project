@@ -207,15 +207,35 @@ public class PhotoService {
                 .build();
         photoVlmResultRepository.save(vlmResult);
 
-        // 결제 내역 매핑 시도 — VLM의 실제 촬영 일시를 함께 전달
-        String matchedPaymentId = matchTransaction(photoId, userId, vlmResult, request.getTaken_at());
+        // VLM이 EXIF에서 추출한 실제 촬영 시각이 있으면 photo_metadata.taken_at 업데이트
+        if (request.getTaken_at() != null && !request.getTaken_at().isBlank()) {
+            photoMetadataRepository.findByPhotoPhotoId(photoId).ifPresent(metadata -> {
+                try {
+                    String normalized = request.getTaken_at().trim().substring(0, 19);
+                    LocalDateTime exifTime = LocalDateTime.parse(normalized,
+                            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                    metadata.setTakenAt(exifTime);
+                    photoMetadataRepository.save(metadata);
+                } catch (Exception ignored) {}
+            });
+        }
 
+        // 매핑은 일기 생성 시점으로 지연 (결제 데이터 동기화 완료 후 매핑)
         return PhotoVlmResultResponse.builder()
                 .vlmId(vlmResult.getVlmId())
                 .photoId(photoId)
-                .matched(matchedPaymentId != null)
-                .matchedPaymentId(matchedPaymentId)
                 .build();
+    }
+
+    // DiaryService가 일기 생성 시점에 호출 — 미매핑 사진 1건 매핑 시도
+    public void performMatchingForPhoto(Long photoId, Long userId) {
+        PhotoVlmResult vlm = photoVlmResultRepository
+                .findFirstByPhotoIdOrderByVlmIdDesc(photoId)
+                .orElse(null);
+        if (vlm == null) return;
+        // photo_metadata.taken_at이 saveVlmResult에서 EXIF 시간으로 이미 업데이트됨
+        // taken_at null이면 matchTransaction 내부에서 created_at으로 폴백
+        matchTransaction(photoId, userId, vlm, null);
     }
 
     // VLM의 실제 촬영 일시(EXIF) 또는 photo_metadata.taken_at 기준으로 결제 내역을 찾아 persona_transaction에 저장
@@ -239,8 +259,12 @@ public class PhotoService {
         if (takenDateTime == null) {
             PhotoMetadata metadata = photoMetadataRepository
                     .findByPhotoPhotoId(photoId).orElse(null);
-            if (metadata == null || metadata.getTakenAt() == null) return null;
-            takenDateTime = metadata.getTakenAt();
+            if (metadata == null) return null;
+            // 1순위: taken_at (EXIF 촬영 시간), 2순위: created_at (업로드 시간)
+            takenDateTime = metadata.getTakenAt() != null
+                    ? metadata.getTakenAt()
+                    : metadata.getCreatedAt();
+            if (takenDateTime == null) return null;
             takenDate = takenDateTime.toLocalDate();
         }
 
