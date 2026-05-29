@@ -3,11 +3,6 @@ import { useLocation } from 'react-router-dom'
 import RoomTabs from '../../common/components/RoomTabs'
 import StatusBar from '../../common/components/StatusBar'
 
-const CURRENT_USER = {
-  nickname: '사용자',
-  avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&q=80',
-}
-
 const mapDiaryToPost = (item) => ({
   id: item.diaryId,
   title: item.title || '무제',
@@ -15,8 +10,8 @@ const mapDiaryToPost = (item) => ({
     ? item.diaryLines
     : [item.subtitle].filter(Boolean),
   date: item.date || '',
+  time: item.time || '',
   authorNickname: item.authorName || '익명',
-  avatarUrl: CURRENT_USER.avatarUrl,
   personaTitle: item.roomLabel || '',
   imageUrls: item.imageUrls?.length > 0 ? item.imageUrls : [item.imageUrl].filter(Boolean),
   liked: false,
@@ -26,7 +21,7 @@ const mapDiaryToPost = (item) => ({
   matchedPhotoIds: item.matchedPhotoIds || [],
 })
 
-function FeedPost({ post, onToggleLike }) {
+function FeedPost({ post, onToggleLike, personaImage }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const images = post.imageUrls || []
 
@@ -34,7 +29,7 @@ function FeedPost({ post, onToggleLike }) {
     <article className="bg-white mb-3 rounded-2xl overflow-hidden shadow-sm mx-4">
       <header className="flex items-center gap-3 px-4 py-3">
         <img
-          src={post.avatarUrl}
+          src={personaImage ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&q=80'}
           alt={post.authorNickname}
           className="w-9 h-9 rounded-full object-cover"
         />
@@ -49,29 +44,17 @@ function FeedPost({ post, onToggleLike }) {
           <img src={images[currentIndex]} alt="" className="w-full h-full object-cover" />
         )}
 
-        {post.photoIds?.[currentIndex] != null && (
-          post.matchedPhotoIds?.includes(post.photoIds[currentIndex]) ? (
-            <span className="absolute top-2 left-2 flex items-center gap-1 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
-              💳 매핑됨
-            </span>
-          ) : (
-            <span className="absolute top-2 left-2 flex items-center gap-1 bg-gray-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
-              🔍 미매핑
-            </span>
-          )
-        )}
-
         {images.length > 1 && (
           <>
             <button
               onClick={() => setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow text-lg"
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 flex items-center justify-center shadow text-base"
             >
               ‹
             </button>
             <button
               onClick={() => setCurrentIndex((prev) => (prev + 1) % images.length)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow text-lg"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 flex items-center justify-center shadow text-base"
             >
               ›
             </button>
@@ -89,12 +72,12 @@ function FeedPost({ post, onToggleLike }) {
         <button
           type="button"
           onClick={() => onToggleLike(post.id)}
-          className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-white/95 shadow flex items-center justify-center"
+          className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-white/95 shadow flex items-center justify-center"
           aria-label="좋아요"
         >
           <svg
-            width="22"
-            height="22"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill={post.liked ? '#ef4444' : 'none'}
             stroke={post.liked ? '#ef4444' : '#374151'}
@@ -108,14 +91,16 @@ function FeedPost({ post, onToggleLike }) {
       <section className="px-4 py-3 text-left">
         <div className="flex items-start justify-between gap-2 mb-2">
           <h3 className="text-base font-bold text-gray-900 m-0">{post.title}</h3>
-          <time className="text-[10px] text-gray-400 shrink-0 whitespace-nowrap">{post.date}</time>
         </div>
         {post.diaryLines.map((line, i) => (
           <p key={i} className="text-sm text-gray-700 leading-relaxed m-0 mb-1">
             {line}
           </p>
         ))}
-        <p className="text-xs text-gray-400 mt-2 m-0">좋아요 {post.likes}개</p>
+        <div className="flex items-center justify-between mt-2">
+          <p className="text-xs text-gray-400 m-0">좋아요 {post.likes}개</p>
+          <time className="text-[10px] text-gray-400 whitespace-nowrap">{post.date} {post.time}</time>
+        </div>
       </section>
     </article>
   )
@@ -130,6 +115,28 @@ export default function Feed() {
   const [activeRoom, setActiveRoom] = useState(initialRoomId)
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(false)
+  const [personaImage, setPersonaImage] = useState(null)
+
+  useEffect(() => {
+    const fetchPersona = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        if (!token) return
+        const decoded = JSON.parse(atob(token.split('.')[1]))
+        const userId = decoded.sub
+        const res = await fetch(`/api/avatar/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.avatarImgUrl) setPersonaImage(data.avatarImgUrl)
+        }
+      } catch {
+        // 실패 시 기본 이미지 유지
+      }
+    }
+    fetchPersona()
+  }, [])
 
   useEffect(() => {
     if (!activeRoom || !activeRoom.startsWith('room_')) return
@@ -207,7 +214,12 @@ export default function Feed() {
                 <div className="flex-1 h-px bg-gray-300" />
               </div>
               {datePosts.map((post) => (
-                <FeedPost key={post.id} post={post} onToggleLike={handleToggleLike} />
+                <FeedPost
+                  key={post.id}
+                  post={post}
+                  onToggleLike={handleToggleLike}
+                  personaImage={personaImage}
+                />
               ))}
             </div>
           ))
