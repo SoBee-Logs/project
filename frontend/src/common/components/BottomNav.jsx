@@ -43,8 +43,8 @@ export default function BottomNav({ floating = false }) {
   ]
 
   const navClass = floating
-    ? 'mx-5 mb-4 rounded-full bg-white shadow-lg border border-gray-100 h-14'
-    : 'h-16 bg-white border-t border-gray-100'
+  ? 'bg-white shadow-lg border-t border-gray-100 h-14'
+  : 'h-16 bg-white border-t border-gray-100'
 
   return (
     <nav className={`flex-shrink-0 flex items-center justify-around ${navClass}`}>
