@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import StatusBar from '../../common/components/StatusBar'
-import BottomNav from '../../common/components/BottomNav'
+
 
 const toLocalDateStr = (date) => {
   const y = date.getFullYear()
@@ -218,7 +218,7 @@ export default function ConsumptionLog() {
         )}
       </div>
 
-      <footer className="fixed bottom-[72px] left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 py-3 bg-white border-t border-gray-100 z-10">
+      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 py-3 bg-white border-t border-gray-100 z-10">
         {!isToday && (
           <p className="text-center text-[11px] text-gray-400 mb-2">
             과거 날짜의 일기는 생성할 수 없어요
@@ -235,10 +235,6 @@ export default function ConsumptionLog() {
           <span className="text-[11px]">▶</span> LLM 일기 생성
         </button>
       </footer>
-
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[375px] z-20">
-        <BottomNav floating />
-      </div>
     </main>
   )
 }
