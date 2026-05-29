@@ -694,10 +694,27 @@ export default function ProductSearch() {
                                 />
                             ))
                         ) : (
-                            <div style={{ textAlign: "center", padding: "40px 0", color: "#8494A8", fontSize: 14 }}>
-                                <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
-                                이 카테고리에 결과가 없어요<br />
-                                <span style={{ fontSize: 12 }}>다른 탭을 확인해보세요</span>
+                            <div>
+                                <div style={{ textAlign: "center", padding: "40px 0 24px", color: "#8494A8", fontSize: 14 }}>
+                                    <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+                                    이 카테고리에 결과가 없어요<br />
+                                    <span style={{ fontSize: 12 }}>다른 탭을 확인해보세요</span>
+                                </div>
+                                {suggestedQuestions.length > 0 && (
+                                    <div style={{ marginBottom: 24 }}>
+                                        <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 700, color: WOORI_NAVY }}>추천 질문</p>
+                                        {suggestedQuestions.map((q, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => handleSearch(getQuestionText(q))}
+                                                style={{ width: "100%", background: "#fff", border: "1.5px solid #EEF1F5", borderRadius: 12, padding: "12px 14px", textAlign: "left", fontSize: 13, color: WOORI_NAVY, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
+                                            >
+                                                <span style={{ fontSize: 14, color: WOORI_BLUE }}>✦</span>
+                                                {getQuestionText(q)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </>
