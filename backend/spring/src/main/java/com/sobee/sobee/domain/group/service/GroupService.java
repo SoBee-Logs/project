@@ -87,4 +87,16 @@ public class GroupService {
         }
         return sb.toString();
     }
+
+    public void leaveGroup(Long groupId, Long userId) {
+        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new RuntimeException("모임에 참여하지 않은 사용자입니다."));
+        userGroupRepository.delete(userGroup);
+    
+        // 남은 멤버가 없으면 그룹 삭제
+        List<UserGroup> remaining = userGroupRepository.findByGroupId(groupId);
+        if (remaining.isEmpty()) {
+            groupRepository.deleteById(groupId);
+        }
+    }
 }

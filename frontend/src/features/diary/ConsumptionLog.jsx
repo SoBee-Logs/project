@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import StatusBar from '../../common/components/StatusBar'
-import BottomNav from '../../common/components/BottomNav'
+
 
 const toLocalDateStr = (date) => {
   const y = date.getFullYear()
@@ -21,6 +21,7 @@ export default function ConsumptionLog() {
   const [showCalendar, setShowCalendar] = useState(false)
   const [selectedDate, setSelectedDate] = useState(toLocalDateStr(new Date()))
   const [myGroups, setMyGroups] = useState([])
+  const isToday = selectedDate === toLocalDateStr(new Date())
 
   const today = new Date()
   today.setHours(23, 59, 59, 999)
@@ -129,14 +130,14 @@ export default function ConsumptionLog() {
 
       {showCalendar && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-6"
           onClick={() => setShowCalendar(false)}
         >
           <div
-            className="bg-white rounded-2xl p-5 w-[320px]"
+            className="bg-white rounded-3xl p-6 w-full max-w-[340px] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-[14px] font-bold text-gray-900 mb-4 text-center">날짜 선택</p>
+            <p className="text-[15px] font-bold text-gray-900 mb-4 text-center">📅 날짜 선택</p>
             <Calendar
               onChange={handleDateChange}
               value={new Date(selectedDate + 'T00:00:00')}
@@ -147,7 +148,7 @@ export default function ConsumptionLog() {
             <button
               type="button"
               onClick={() => setShowCalendar(false)}
-              className="w-full mt-3 py-2.5 rounded-xl bg-gray-100 text-[13px] text-gray-600 font-medium"
+              className="w-full mt-4 py-3 rounded-2xl bg-gray-100 text-[13px] text-gray-600 font-semibold"
             >
               취소
             </button>
@@ -217,19 +218,23 @@ export default function ConsumptionLog() {
         )}
       </div>
 
-      <footer className="fixed bottom-[72px] left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 py-3 bg-white border-t border-gray-100 z-10">
+      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 py-3 bg-white border-t border-gray-100 z-10">
+        {!isToday && (
+          <p className="text-center text-[11px] text-gray-400 mb-2">
+            과거 날짜의 일기는 생성할 수 없어요
+          </p>
+        )}
         <button
           type="button"
           onClick={handleGenerate}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-[#00BFFF] text-white text-[14px] font-bold"
+          disabled={!isToday}
+          className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white text-[14px] font-bold ${
+            isToday ? 'bg-[#00BFFF]' : 'bg-gray-300 cursor-not-allowed'
+          }`}
         >
           <span className="text-[11px]">▶</span> LLM 일기 생성
         </button>
       </footer>
-
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[375px] z-20">
-        <BottomNav floating />
-      </div>
     </main>
   )
 }
