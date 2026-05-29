@@ -201,14 +201,15 @@ export default function ProductDetail() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#F4F7FB", fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif" }}>
+            <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
 
             <div style={{ padding: "16px 20px", background: "#fff", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
                 <button onClick={() => navigate(-1)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: WOORI_NAVY, padding: 0 }}>←</button>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+            <div className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 <div style={{ background: headerBg, borderRadius: 18, padding: "20px", display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
-                    <div style={{ width: 52, height: 80, borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
+                    <div style={{ width: 100, height: 154, borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
                         {product_img_url
                             ? <img src={product_img_url} alt={product_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             : <div style={{ width: "100%", height: "100%", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{headerEmoji}</div>
@@ -217,7 +218,10 @@ export default function ProductDetail() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ margin: "0 0 4px", fontSize: 12, color: "rgba(255,255,255,0.6)" }}>{product_company}</p>
                         <p style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 800, color: "#fff" }}>{product_name}</p>
-                        {content?.header && <p style={{ margin: "0 0 8px", fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{content.header}</p>}
+                        {product_type === "card" && content?.benefitGroups?.length > 0
+                            ? <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.9)", lineHeight: 1.6, wordBreak: "keep-all" }}>{content.benefitGroups.map(g => g.cateName).join(" · ")}</p>
+                            : content?.header && <p style={{ margin: "0 0 8px", fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{content.header}</p>
+                        }
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                             {content?.onlyOnline && <span style={{ fontSize: 11, background: "rgba(255,255,255,0.2)", color: "#fff", borderRadius: 6, padding: "3px 8px" }}>온라인 전용</span>}
                             {content?.isImpend   && <span style={{ fontSize: 11, background: "rgba(255,200,0,0.25)", color: "#FFD700", borderRadius: 6, padding: "3px 8px" }}>단종 임박</span>}
