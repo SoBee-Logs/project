@@ -7,6 +7,7 @@ import com.sobee.sobee.domain.product.dto.SearchResultDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -59,6 +60,7 @@ public class SearchService {
     @Value("${fastapi.internal-secret:}")
     private String internalSecret;
 
+    @Cacheable(value = "searchCache", key = "#request.search_input.trim().toLowerCase()")
     public SearchResponseDto search(SearchRequestDto request) {
         String keyword = request.getSearch_input();
 
