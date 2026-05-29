@@ -18,7 +18,6 @@ public class Transaction {
 
     @Column(name = "payment_in")
     private Integer paymentIn;
-
     @Column(name = "payment_place", length = 50)
     private String paymentPlace;
 
