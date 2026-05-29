@@ -5,9 +5,13 @@ import {
   PieChart, Pie, Cell, Tooltip,
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
   AreaChart, Area,
-  LineChart, Line, CartesianGrid, LabelList, ReferenceLine
+  CartesianGrid, LabelList, ReferenceLine
 } from 'recharts'
 
+export const CATEGORY_PALETTE = [
+  '#1e73be', '#38BDF8', '#60a5fa', '#93c5fd', '#0ea5e9',
+  '#3b82f6', '#7dd3fc', '#2563eb', '#6366f1', '#bfdbfe',
+]
 function EmptyMonthModal({ year, month, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
@@ -27,7 +31,7 @@ function EmptyMonthModal({ year, month, onClose }) {
     </div>
   )
 }
-
+ 
 function CategoryDonut({ categoryList }) {
   const [selectedCat, setSelectedCat] = useState(null)
   return (
@@ -71,12 +75,12 @@ function CategoryDonut({ categoryList }) {
     </div>
   )
 }
-
-function RecommendCard({ item, index }) {
+ 
+function RecommendCard({ item }) {
   const navigate = useNavigate()
   const { product_name, product_img_url, product_type } = item
   const label = product_type === 'card' ? '💳 추천 카드' : '🏦 추천 예적금'
-
+ 
   return (
     <div
       onClick={() => navigate('/product/detail', { state: { item } })}
@@ -109,12 +113,7 @@ function RecommendCard({ item, index }) {
     </div>
   )
 }
-
-const CATEGORY_PALETTE = [
-  '#1e73be', '#38BDF8', '#60a5fa', '#93c5fd', '#0ea5e9',
-  '#3b82f6', '#7dd3fc', '#2563eb', '#6366f1', '#bfdbfe',
-]
-
+ 
 const TIME_ICONS = {
   '새벽': '🌙', '아침': '🌅', '점심': '☀️', '저녁': '🍽️', '심야': '🌃',
 }
@@ -122,7 +121,7 @@ const TIME_RANGES = {
   '새벽': '0~5시', '아침': '5~10시', '점심': '10~15시', '저녁': '15~20시', '심야': '20~24시',
 }
 const TIME_ORDER = ['새벽', '아침', '점심', '저녁', '심야']
-
+ 
 function MonthNavigator({ year, month, isCurrentMonth, onPrev, onNext }) {
   return (
     <div className="flex items-center justify-between h-12">
@@ -164,13 +163,13 @@ function MonthNavigator({ year, month, isCurrentMonth, onPrev, onNext }) {
     </div>
   )
 }
-
+ 
 export default function Report() {
   const navigate = useNavigate()
   const location = useLocation()
   const aiRecommendRef = useRef(null)
   const USER_ID = getUserId() ?? 1
-
+ 
   const [persona,       setPersona]       = useState(null)
   const [lifecycle,     setLifecycle]     = useState(null)
   const [txData,        setTxData]        = useState(null)
@@ -178,19 +177,18 @@ export default function Report() {
   const [loading,       setLoading]       = useState(true)
   const [error,         setError]         = useState(null)
   const [isEmptyMonth,  setIsEmptyMonth]  = useState(false)
-
+ 
   const today = new Date()
   const [selectedYear,  setSelectedYear]  = useState(today.getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1)
-
-  // 이동 예정 달 (실제 이동 전 데이터 먼저 확인)
-  const [pendingYear,   setPendingYear]   = useState(null)
-  const [pendingMonth,  setPendingMonth]  = useState(null)
-  const [checkPending,  setCheckPending]  = useState(false)
-
+ 
+  const [pendingYear,  setPendingYear]  = useState(null)
+  const [pendingMonth, setPendingMonth] = useState(null)
+  const [checkPending, setCheckPending] = useState(false)
+ 
   const isCurrentMonth =
     selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
-
+ 
   const goPrev = () => {
     const newYear  = selectedMonth === 1 ? selectedYear - 1 : selectedYear
     const newMonth = selectedMonth === 1 ? 12 : selectedMonth - 1
@@ -198,7 +196,7 @@ export default function Report() {
     setPendingMonth(newMonth)
     setCheckPending(true)
   }
-
+ 
   const goNext = () => {
     if (isCurrentMonth) return
     const newYear  = selectedMonth === 12 ? selectedYear + 1 : selectedYear
@@ -207,7 +205,7 @@ export default function Report() {
     setPendingMonth(newMonth)
     setCheckPending(true)
   }
-
+ 
   useEffect(() => {
     if (location.state?.scrollTo === 'aiRecommend' && aiRecommendRef.current) {
       setTimeout(() => {
@@ -215,20 +213,16 @@ export default function Report() {
       }, 300)
     }
   }, [loading, location.state])
-
-  // 이동 예정 달 데이터 미리 확인 — 데이터 없으면 이동 막고 모달만 띄우기
+ 
   useEffect(() => {
     if (!checkPending || pendingYear === null || pendingMonth === null) return
-
     const checkData = async () => {
       try {
         const res = await fetch(`/api/report/mydata/transaction?user_id=${USER_ID}&year=${pendingYear}&month=${pendingMonth}`)
         const tx = await res.json()
         if (!tx || (tx.payment_total_num === 0 && tx.payment_out === 0 && Object.keys(tx.category_price ?? {}).length === 0)) {
-          // 데이터 없음 → 이동 막고 모달만 띄우기
           setIsEmptyMonth(true)
         } else {
-          // 데이터 있음 → 실제 이동
           setSelectedYear(pendingYear)
           setSelectedMonth(pendingMonth)
         }
@@ -240,30 +234,29 @@ export default function Report() {
     }
     checkData()
   }, [checkPending])
-
-  // 선택된 달 데이터 fetch
+ 
   useEffect(() => {
     const fetchAll = async () => {
       try {
         setLoading(true)
         setTxData(null)
         setRecommendData(null)
-
+ 
         fetch(`/api/users/${USER_ID}/persona`)
           .then(r => r.ok ? r.json() : null)
           .then(data => { if (data) setPersona(data) })
           .catch(() => {})
-
+ 
         const [lcRes, txRes] = await Promise.allSettled([
           fetch(`/api/lifecycle/${USER_ID}`).then(r => r.json()),
           fetch(`/api/report/mydata/transaction?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`).then(r => r.json()),
         ])
-
+ 
         if (lcRes.status === 'fulfilled') setLifecycle(lcRes.value)
         else setLifecycle({ lifecycle_stage: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' })
-
+ 
         if (txRes.status === 'fulfilled') setTxData(txRes.value)
-
+ 
         try {
           const recRes = await fetch(`/api/report/ai-insight?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`)
           const recData = await recRes.json()
@@ -279,7 +272,8 @@ export default function Report() {
     }
     fetchAll()
   }, [selectedYear, selectedMonth])
-
+ 
+  // ✅ 팔레트 기반 categoryList
   const categoryList = txData
     ? (() => {
         const total = Object.values(txData.category_price).reduce((a, b) => a + b, 0)
@@ -292,9 +286,12 @@ export default function Report() {
           }))
       })()
     : []
-
+ 
+  // ✅ 상세보기로 넘길 색상 맵
+  const categoryColorMap = Object.fromEntries(categoryList.map(c => [c.name, c.color]))
+ 
   const top3 = categoryList.slice(0, 3)
-
+ 
   const timeList = txData
     ? (() => {
         const total = Object.values(txData.timepattern_price).reduce((a, b) => a + b, 0)
@@ -308,11 +305,11 @@ export default function Report() {
         }))
       })()
     : []
-
+ 
   const peakTime = timeList.length > 0
     ? timeList.reduce((a, b) => a.pct > b.pct ? a : b)
     : null
-
+ 
   if (loading) return (
     <div className="flex flex-col h-full">
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4">
@@ -392,11 +389,10 @@ export default function Report() {
       </div>
     </div>
   )
-
+ 
   return (
     <div className="flex flex-col h-full">
-
-      {/* 빈 달 모달 — selectedYear/Month는 그대로, pendingYear/Month를 모달에 표시 */}
+ 
       {isEmptyMonth && (
         <EmptyMonthModal
           year={pendingYear}
@@ -408,13 +404,13 @@ export default function Report() {
           }}
         />
       )}
-
+ 
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4">
         <MonthNavigator year={selectedYear} month={selectedMonth} isCurrentMonth={isCurrentMonth} onPrev={goPrev} onNext={goNext} />
       </div>
-
+ 
       <div className="flex flex-col gap-4 pt-4 px-4 pb-24 overflow-y-auto">
-
+ 
         {/* 페르소나 배너 */}
         <div className="rounded-2xl bg-[#1e73be] text-white p-4 flex items-center gap-3">
           <div className="w-14 h-14 rounded-full bg-white/20 overflow-hidden shrink-0">
@@ -428,7 +424,7 @@ export default function Report() {
             <p className="text-xs text-blue-100 mt-0.5 leading-relaxed">{persona?.avatarExplane ?? ''}</p>
           </div>
         </div>
-
+ 
         {/* 이번 달 총 소비 */}
         <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
           <p className="text-xs text-gray-400 mb-1">📊 소비 리포트</p>
@@ -450,7 +446,7 @@ export default function Report() {
             ))}
           </div>
         </div>
-
+ 
         {/* AI 상품 추천 */}
         <div ref={aiRecommendRef} className="flex flex-col gap-2">
           <p className="text-xs text-gray-500 font-semibold">🤖 AI 상품 추천</p>
@@ -458,13 +454,13 @@ export default function Report() {
             <p className="text-[11px] text-gray-400 leading-relaxed px-1">{recommendData.message}</p>
           )}
           {recommendData?.recommned?.length > 0
-            ? recommendData.recommned.map((item, i) => <RecommendCard key={i} item={item} index={i} />)
+            ? recommendData.recommned.map((item, i) => <RecommendCard key={i} item={item} />)
             : recommendData === null
               ? <div className="rounded-2xl border border-gray-100 p-4 shadow-sm text-center text-xs text-gray-400">추천 상품을 불러오는 중...</div>
               : <div className="rounded-2xl border border-gray-100 p-4 shadow-sm text-center text-xs text-gray-400">추천 상품을 불러올 수 없어요</div>
           }
         </div>
-
+ 
         {/* 생애주기 */}
         <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
           <p className="text-xs text-[#1e73be] font-semibold mb-2">🧬 AI 생애주기 분석</p>
@@ -472,13 +468,25 @@ export default function Report() {
           <p className="text-xs text-blue-400 mt-1 leading-relaxed">{lifecycle?.description}</p>
           {error && <p className="text-[10px] text-red-300 mt-1">※ 서버 연결 실패</p>}
         </div>
-
+ 
         {/* 카테고리 도넛 */}
         {categoryList.length > 0 && (
           <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
             <div className="flex justify-between items-center mb-3">
               <p className="text-xs text-gray-500 font-semibold">🏷️ 카테고리별 소비 내역</p>
-              <button onClick={() => navigate('/report/detail', { state: { scrollTo: 'category' } })} className="text-[10px] text-[#1e73be] underline">더보기 →</button>
+              <button
+                onClick={() => navigate('/report/detail', {
+                  state: {
+                    scrollTo: 'category',
+                    year: selectedYear,
+                    month: selectedMonth,
+                    categoryColorMap,
+                  }
+                })}
+                className="text-[10px] text-[#1e73be] underline"
+              >
+                더보기 →
+              </button>
             </div>
             <CategoryDonut categoryList={categoryList} />
             {top3.length > 0 && (
@@ -523,13 +531,12 @@ export default function Report() {
             )}
           </div>
         )}
-
-        {/* 주별 소비 변화 */}
+ 
+        {/* ✅ 주별 소비 변화 — 더보기 버튼 제거 */}
         {txData?.weekly_price?.length > 0 && (
           <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
-            <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center mb-3">
               <p className="text-xs text-gray-500 font-semibold">📈 주별 소비 변화 추이</p>
-              <button onClick={() => navigate('/report/detail', { state: { scrollTo: 'weekly' } })} className="text-[10px] text-[#1e73be] underline">더보기 →</button>
             </div>
             {(() => {
               const weeklyTotals = txData.weekly_price.map(w => ({
@@ -581,13 +588,12 @@ export default function Report() {
             })()}
           </div>
         )}
-
+ 
         {/* 시간대 패턴 */}
         {timeList.length > 0 && (
           <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
-            <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center mb-3">
               <p className="text-xs text-gray-500 font-semibold">⏰ 시간대별 소비 패턴</p>
-              <button onClick={() => navigate('/report/detail', { state: { scrollTo: 'time' } })} className="text-[10px] text-[#1e73be] underline">더보기 →</button>
             </div>
             <ResponsiveContainer width="100%" height={160}>
               <AreaChart data={timeList} margin={{ top: 20, right: 20, left: 20, bottom: 10 }}>
@@ -641,7 +647,7 @@ export default function Report() {
             )}
           </div>
         )}
-
+ 
       </div>
     </div>
   )
