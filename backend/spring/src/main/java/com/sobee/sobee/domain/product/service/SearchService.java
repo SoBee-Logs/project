@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,16 +84,31 @@ public class SearchService {
                 List<SearchResultDto.CardResult> catCards =
                         productSearchService.searchAndEnrichCardsByCateNames(dbCateNames);
 
-                // 카테고리 카드 우선, 텍스트 검색 카드 중 중복 제거 후 뒤에 붙임
-                Set<Long> catIds = catCards.stream()
-                        .map(SearchResultDto.CardResult::getCardInfoId)
-                        .collect(Collectors.toSet());
-                List<SearchResultDto.CardResult> deduped = result.getCards().stream()
-                        .filter(c -> !catIds.contains(c.getCardInfoId()))
+                // 텍스트 카드의 cateNames를 직접 확인해 카테고리 매칭 판단 (catCards 크기 제한 우회)
+                Set<String> cateNameSet = new HashSet<>(dbCateNames);
+
+                // 텍스트 검색 카드 중 카테고리 관련 있는 것 (cateNames 직접 확인)
+                List<SearchResultDto.CardResult> textWithCate = result.getCards().stream()
+                        .filter(c -> c.getCateNames() != null &&
+                                c.getCateNames().stream().anyMatch(cateNameSet::contains))
+                        .collect(Collectors.toList());
+                List<SearchResultDto.CardResult> textOnly = result.getCards().stream()
+                        .filter(c -> c.getCateNames() == null ||
+                                c.getCateNames().stream().noneMatch(cateNameSet::contains))
                         .collect(Collectors.toList());
 
-                List<SearchResultDto.CardResult> merged = new ArrayList<>(catCards);
-                merged.addAll(deduped);
+                // catCards 중 텍스트 검색에 없는 것만 추가 (중복 방지)
+                Set<Long> textWithCateIds = textWithCate.stream()
+                        .map(SearchResultDto.CardResult::getCardInfoId)
+                        .collect(Collectors.toSet());
+                List<SearchResultDto.CardResult> catOnly = catCards.stream()
+                        .filter(c -> !textWithCateIds.contains(c.getCardInfoId()))
+                        .collect(Collectors.toList());
+
+                // 정렬: 텍스트+카테고리 → 카테고리만 → 텍스트만
+                List<SearchResultDto.CardResult> merged = new ArrayList<>(textWithCate);
+                merged.addAll(catOnly);
+                merged.addAll(textOnly);
 
                 result = SearchResultDto.builder()
                         .keyword(result.getKeyword()).totalCount(result.getTotalCount())
@@ -162,7 +178,7 @@ public class SearchService {
             String small = (c.getTopBenefitTitles() != null && c.getTopBenefitTitles().size() > 2)
                     ? String.join(", ", c.getTopBenefitTitles().subList(2, c.getTopBenefitTitles().size())) : "";
 
-            // 카테고리별 혜택 그룹핑
+            // 카테고리별 혜택 그룹
             List<SearchResponseDto.BenefitGroup> benefitGroups = null;
             if (c.getBenefits() != null && !c.getBenefits().isEmpty()) {
                 Map<String, List<SearchResultDto.BenefitItem>> grouped = new LinkedHashMap<>();
