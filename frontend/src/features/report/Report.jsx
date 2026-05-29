@@ -99,7 +99,7 @@ const TIME_ICONS = {
   '새벽': '🌙', '아침': '🌅', '점심': '☀️', '저녁': '🍽️', '심야': '🌃',
 }
 const TIME_RANGES = {
-  '새벽': '0~6시', '아침': '6~11시', '점심': '11~14시', '저녁': '14~20시', '심야': '20~24시',
+  '새벽': '0~5시', '아침': '5~10시', '점심': '10~15시', '저녁': '15~20시', '심야': '20~24시',
 }
 const TIME_ORDER = ['새벽', '아침', '점심', '저녁', '심야']
 
@@ -197,7 +197,6 @@ export default function Report() {
 
         const [lcRes, txRes] = await Promise.allSettled([
           fetch(`/api/lifecycle/${USER_ID}`).then(r => r.json()),
-          // ✅ /api/report 로 변경
           fetch(`/api/report/mydata/transaction?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`).then(r => r.json()),
         ])
         if (lcRes.status === 'fulfilled') setLifecycle(lcRes.value)
@@ -205,7 +204,6 @@ export default function Report() {
         if (txRes.status === 'fulfilled') setTxData(txRes.value)
 
         try {
-          // ✅ /api/report 로 변경
           const recRes = await fetch(`/api/report/ai-insight?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`)
           const recData = await recRes.json()
           setRecommendData(recData)
@@ -468,23 +466,39 @@ export default function Report() {
               const getAmountLabel = (total) => `${Math.round(total / 10000)}만`
               return (
                 <ResponsiveContainer width="100%" height={190}>
-                  <BarChart data={weeklyTotals} margin={{ top: 28, right: 8, left: 0, bottom: 0 }}>
+                  {/* ✅ left: 12 추가, right: 52 유지 */}
+                  <BarChart data={weeklyTotals} margin={{ top: 28, right: 52, left: 12, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                     <XAxis dataKey="week" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis hide />
-                    <Tooltip formatter={(v) => [`${v.toLocaleString()}원`, '소비금액']} labelFormatter={(l) => `${l}주차`} contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e5e7eb' }} />
+                    <Tooltip formatter={(v) => [`${v.toLocaleString()}원`, '소비금액']} labelFormatter={(l) => `${l}`} contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e5e7eb' }} />
                     <ReferenceLine y={avg} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1.5}
                       label={({ viewBox }) => {
                         const { x, y, width } = viewBox
-                        return <text x={x + width - 4} y={y - 5} textAnchor="end" fontSize={10} fill="#f97316" fontWeight={600}>평균 {Math.round(avg / 10000)}만</text>
+                        return (
+                          <text x={x + width + 4} y={y + 4} textAnchor="start" fontSize={10} fill="#f97316" fontWeight={600}>
+                            평균 {Math.round(avg / 10000)}만
+                          </text>
+                        )
                       }}
                     />
                     <Bar dataKey="total" radius={[6, 6, 0, 0]} barSize={28}>
                       {weeklyTotals.map((entry, idx) => <Cell key={`cell-${idx}`} fill={getBarColor(entry.total)} opacity={0.85} />)}
+                      {/* ✅ 흰 배경으로 평균선 겹침 방지 */}
                       <LabelList dataKey="total" position="top"
                         content={({ x, y, width, value }) => {
                           if (!value) return null
-                          return <text x={x + width / 2} y={y - 4} textAnchor="middle"><tspan fontSize={10} fill="#374151" fontWeight={600}>{getAmountLabel(value)}</tspan></text>
+                          const label = getAmountLabel(value)
+                          const labelWidth = label.length * 7 + 6
+                          const offsetX = x + width / 2
+                          return (
+                            <g>
+                              <rect x={offsetX - labelWidth / 2} y={y - 15} width={labelWidth} height={13} fill="white" rx={2} />
+                              <text x={offsetX} y={y - 5} textAnchor="middle">
+                                <tspan fontSize={10} fill="#374151" fontWeight={600}>{label}</tspan>
+                              </text>
+                            </g>
+                          )
                         }}
                       />
                     </Bar>
