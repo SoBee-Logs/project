@@ -5,8 +5,30 @@ import {
   PieChart, Pie, Cell, Tooltip,
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
   AreaChart, Area,
-  LineChart, Line, CartesianGrid, LabelList, ReferenceLine
+  CartesianGrid, LabelList, ReferenceLine
 } from 'recharts'
+
+function EmptyMonthModal({ year, month, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xs flex flex-col gap-3">
+        <div>
+          <p className="text-sm text-gray-500">
+            {year}년 {month}월은 소비 내역이 없어요.
+          </p>
+        </div>
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-xl bg-[#1e73be] text-white font-bold text-sm active:opacity-80"
+          >
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function CategoryDonut({ categoryList }) {
   const [selectedCat, setSelectedCat] = useState(null)
@@ -52,9 +74,9 @@ function CategoryDonut({ categoryList }) {
   )
 }
 
-function RecommendCard({ item, index }) {
+function RecommendCard({ item }) {
   const navigate = useNavigate()
-  const { product_name, product_company, product_img_url, product_type, content } = item
+  const { product_name, product_img_url, product_type } = item
   const label = product_type === 'card' ? '💳 추천 카드' : '🏦 추천 예적금'
 
   return (
@@ -150,27 +172,38 @@ export default function Report() {
   const location = useLocation()
   const aiRecommendRef = useRef(null)
   const USER_ID = getUserId() ?? 1
+
   const [persona,       setPersona]       = useState(null)
   const [lifecycle,     setLifecycle]     = useState(null)
   const [txData,        setTxData]        = useState(null)
   const [recommendData, setRecommendData] = useState(null)
   const [loading,       setLoading]       = useState(true)
   const [error,         setError]         = useState(null)
+  const [isEmptyMonth,  setIsEmptyMonth]  = useState(false)
 
   const today = new Date()
   const [selectedYear,  setSelectedYear]  = useState(today.getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1)
 
+  // 이동 전 달 기억 (소비 없을 때 복귀용)
+  const [prevYear,  setPrevYear]  = useState(null)
+  const [prevMonth, setPrevMonth] = useState(null)
+
   const isCurrentMonth =
     selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
 
   const goPrev = () => {
+    // 이동 전 현재 달 저장
+    setPrevYear(selectedYear)
+    setPrevMonth(selectedMonth)
     if (selectedMonth === 1) { setSelectedYear(y => y - 1); setSelectedMonth(12) }
     else setSelectedMonth(m => m - 1)
   }
 
   const goNext = () => {
     if (isCurrentMonth) return
+    setPrevYear(selectedYear)
+    setPrevMonth(selectedMonth)
     if (selectedMonth === 12) { setSelectedYear(y => y + 1); setSelectedMonth(1) }
     else setSelectedMonth(m => m + 1)
   }
@@ -189,6 +222,7 @@ export default function Report() {
         setLoading(true)
         setTxData(null)
         setRecommendData(null)
+        setIsEmptyMonth(false)
 
         fetch(`/api/users/${USER_ID}/persona`)
           .then(r => r.ok ? r.json() : null)
@@ -201,7 +235,18 @@ export default function Report() {
         ])
         if (lcRes.status === 'fulfilled') setLifecycle(lcRes.value)
         else setLifecycle({ lifecycle_stage: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' })
-        if (txRes.status === 'fulfilled') setTxData(txRes.value)
+
+        if (txRes.status === 'fulfilled') {
+          const tx = txRes.value
+          setTxData(tx)
+          if (!tx || (tx.payment_total_num === 0 && tx.payment_out === 0)) {
+            setIsEmptyMonth(true)
+          } else {
+            setIsEmptyMonth(false)
+          }
+        } else {
+          setIsEmptyMonth(false)
+        }
 
         try {
           const recRes = await fetch(`/api/report/ai-insight?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`)
@@ -334,6 +379,22 @@ export default function Report() {
 
   return (
     <div className="flex flex-col h-full">
+
+      {/* 소비 없는 달 팝업 — 확인 시 저장해둔 이전 달로 복귀 */}
+      {isEmptyMonth && (
+        <EmptyMonthModal
+          year={selectedYear}
+          month={selectedMonth}
+          onClose={() => {
+            setIsEmptyMonth(false)
+            if (prevYear !== null && prevMonth !== null) {
+              setSelectedYear(prevYear)
+              setSelectedMonth(prevMonth)
+            }
+          }}
+        />
+      )}
+
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4">
         <MonthNavigator year={selectedYear} month={selectedMonth} isCurrentMonth={isCurrentMonth} onPrev={goPrev} onNext={goNext} />
       </div>
@@ -365,7 +426,7 @@ export default function Report() {
           <div className="flex gap-3 mt-3">
             {[
               ['결제 건수', txData ? `${txData.payment_total_num}건` : '-'],
-              ['결제 일수', txData ? `${txData.payment_days}일` : '-'],
+              ['결제 일수', txData?.payment_days != null ? `${txData.payment_days}일` : '-'],
               ['결제 시간', peakTime ? `${peakTime.icon}${peakTime.label}` : '-'],
             ].map(([label, val]) => (
               <div key={label} className="flex-1 rounded-xl bg-gray-50 p-2 text-center">
@@ -466,7 +527,6 @@ export default function Report() {
               const getAmountLabel = (total) => `${Math.round(total / 10000)}만`
               return (
                 <ResponsiveContainer width="100%" height={190}>
-                  {/* ✅ left: 12 추가, right: 52 유지 */}
                   <BarChart data={weeklyTotals} margin={{ top: 28, right: 52, left: 12, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                     <XAxis dataKey="week" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -484,7 +544,6 @@ export default function Report() {
                     />
                     <Bar dataKey="total" radius={[6, 6, 0, 0]} barSize={28}>
                       {weeklyTotals.map((entry, idx) => <Cell key={`cell-${idx}`} fill={getBarColor(entry.total)} opacity={0.85} />)}
-                      {/* ✅ 흰 배경으로 평균선 겹침 방지 */}
                       <LabelList dataKey="total" position="top"
                         content={({ x, y, width, value }) => {
                           if (!value) return null
