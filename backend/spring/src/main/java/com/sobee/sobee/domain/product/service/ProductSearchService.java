@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -233,7 +234,10 @@ public class ProductSearchService {
                     .etcNote(sp.getEtcNote())
                     .mtrtInt(sp.getMtrtInt())
                     .build();
-        }).collect(Collectors.toList());
+        }).sorted(Comparator.comparing(
+                SearchResultDto.SavingsResult::getIntrMaxRate,
+                Comparator.nullsLast(Comparator.reverseOrder())
+        )).collect(Collectors.toList());
     }
 
     private List<SearchResultDto.InsuranceResult> enrichInsurance(List<SearchResultDto.InsuranceResult> insurance) {
