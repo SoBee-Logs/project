@@ -5,26 +5,24 @@ import {
   PieChart, Pie, Cell, Tooltip,
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
   AreaChart, Area,
-  CartesianGrid, LabelList, ReferenceLine
+  LineChart, Line, CartesianGrid, LabelList, ReferenceLine
 } from 'recharts'
 
 function EmptyMonthModal({ year, month, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xs flex flex-col gap-3">
-        <div>
-          <p className="text-sm text-gray-500">
-            {year}년 {month}월은 소비 내역이 없어요.
-          </p>
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-bold text-gray-800">{year}년 {month}월</p>
+          <p className="text-sm text-gray-500">마이데이터 연동 이전 기간으로,</p>
+          <p className="text-sm text-gray-500">불러온 결제 데이터가 없어요.</p>
         </div>
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 rounded-xl bg-[#1e73be] text-white font-bold text-sm active:opacity-80"
-          >
-            확인
-          </button>
-        </div>
+        <button
+          onClick={onClose}
+          className="py-3 rounded-xl bg-[#1e73be] text-white font-bold text-sm active:opacity-80"
+        >
+          확인
+        </button>
       </div>
     </div>
   )
@@ -74,7 +72,7 @@ function CategoryDonut({ categoryList }) {
   )
 }
 
-function RecommendCard({ item }) {
+function RecommendCard({ item, index }) {
   const navigate = useNavigate()
   const { product_name, product_img_url, product_type } = item
   const label = product_type === 'card' ? '💳 추천 카드' : '🏦 추천 예적금'
@@ -185,7 +183,7 @@ export default function Report() {
   const [selectedYear,  setSelectedYear]  = useState(today.getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1)
 
-  // 이동 전 달 기억 (소비 없을 때 복귀용)
+  // 이동 전 달 기억 (빈 달 모달 확인 시 복귀용)
   const [prevYear,  setPrevYear]  = useState(null)
   const [prevMonth, setPrevMonth] = useState(null)
 
@@ -193,7 +191,6 @@ export default function Report() {
     selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
 
   const goPrev = () => {
-    // 이동 전 현재 달 저장
     setPrevYear(selectedYear)
     setPrevMonth(selectedMonth)
     if (selectedMonth === 1) { setSelectedYear(y => y - 1); setSelectedMonth(12) }
@@ -206,6 +203,19 @@ export default function Report() {
     setPrevMonth(selectedMonth)
     if (selectedMonth === 12) { setSelectedYear(y => y + 1); setSelectedMonth(1) }
     else setSelectedMonth(m => m + 1)
+  }
+
+  const handleEmptyModalClose = () => {
+    setIsEmptyMonth(false)
+    if (prevYear !== null && prevMonth !== null) {
+      // 이전에 보던 달로 복귀
+      setSelectedYear(prevYear)
+      setSelectedMonth(prevMonth)
+    } else {
+      // 첫 진입부터 빈 달인 경우 → 이번 달로 복귀
+      setSelectedYear(today.getFullYear())
+      setSelectedMonth(today.getMonth() + 1)
+    }
   }
 
   useEffect(() => {
@@ -233,6 +243,7 @@ export default function Report() {
           fetch(`/api/lifecycle/${USER_ID}`).then(r => r.json()),
           fetch(`/api/report/mydata/transaction?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`).then(r => r.json()),
         ])
+
         if (lcRes.status === 'fulfilled') setLifecycle(lcRes.value)
         else setLifecycle({ lifecycle_stage: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' })
 
@@ -244,8 +255,6 @@ export default function Report() {
           } else {
             setIsEmptyMonth(false)
           }
-        } else {
-          setIsEmptyMonth(false)
         }
 
         try {
@@ -380,18 +389,12 @@ export default function Report() {
   return (
     <div className="flex flex-col h-full">
 
-      {/* 소비 없는 달 팝업 — 확인 시 저장해둔 이전 달로 복귀 */}
+      {/* 빈 달 모달 */}
       {isEmptyMonth && (
         <EmptyMonthModal
           year={selectedYear}
           month={selectedMonth}
-          onClose={() => {
-            setIsEmptyMonth(false)
-            if (prevYear !== null && prevMonth !== null) {
-              setSelectedYear(prevYear)
-              setSelectedMonth(prevMonth)
-            }
-          }}
+          onClose={handleEmptyModalClose}
         />
       )}
 
@@ -426,7 +429,7 @@ export default function Report() {
           <div className="flex gap-3 mt-3">
             {[
               ['결제 건수', txData ? `${txData.payment_total_num}건` : '-'],
-              ['결제 일수', txData?.payment_days != null ? `${txData.payment_days}일` : '-'],
+              ['결제 일수', txData ? `${txData.payment_days}일` : '-'],
               ['결제 시간', peakTime ? `${peakTime.icon}${peakTime.label}` : '-'],
             ].map(([label, val]) => (
               <div key={label} className="flex-1 rounded-xl bg-gray-50 p-2 text-center">
