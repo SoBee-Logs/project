@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const WOORI_NAVY = "#042C53";
@@ -10,10 +10,14 @@ const FASTAPI_BASE = import.meta.env.VITE_FASTAPI_BASE_URL || "http://localhost:
 
 const getUserId = () => Number(localStorage.getItem("user_id")) || 1;
 
+// 컴포넌트 언마운트 후에도 메모리에 유지 (탭 이동 시 재검색 방지)
+let _searchStateCache = null;
+
 const api = {
-    search: (searchInput) =>
+    search: (searchInput, signal) =>
         fetch(`${BASE_URL}/api/search`, {
             method: "POST",
+            signal,
             headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -432,6 +436,7 @@ export default function ProductSearch() {
     const [query, setQuery] = useState(searchParams.get("q") || "");
     const [isSearched, setIsSearched] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const searchAbortRef = useRef(null);
     const [activePage, setActivePage] = useState(searchParams.get("detail") ? "detail" : "search");
     const [selectedItem, setSelectedItem] = useState(() => {
         if (searchParams.get("detail")) {
@@ -474,12 +479,28 @@ export default function ProductSearch() {
 
     useEffect(() => {
         const initialQuery = searchParams.get("q");
-        if (initialQuery) handleSearch(initialQuery);
+        if (!initialQuery) return;
+
+        // 같은 쿼리의 캐시가 있으면 복원 (재검색 방지)
+        if (_searchStateCache && _searchStateCache.q === initialQuery) {
+            setProducts(_searchStateCache.products);
+            setAiText(_searchStateCache.aiText);
+            setActiveTab(_searchStateCache.tab);
+            setIsSearched(true);
+            return;
+        }
+        handleSearch(initialQuery);
     }, []);
 
     const handleSearch = async (q) => {
         const searchQuery = q || query;
         if (!searchQuery.trim()) return;
+
+        // 이전 요청 취소
+        if (searchAbortRef.current) searchAbortRef.current.abort();
+        const controller = new AbortController();
+        searchAbortRef.current = controller;
+
         setQuery(searchQuery);
         setSearchParams({ q: searchQuery, tab: activeTab });
         setIsLoading(true);
@@ -493,7 +514,8 @@ export default function ProductSearch() {
         localStorage.setItem("recentQuestions", JSON.stringify(updated));
 
         try {
-            const data = await api.search(searchQuery);
+            const data = await api.search(searchQuery, controller.signal);
+            if (controller.signal.aborted) return;
             setAiText(data.AI_text || data.ai_text || "");
             const fetched = data.products || [];
             setProducts(fetched);
@@ -501,12 +523,19 @@ export default function ProductSearch() {
             const firstTab = ["card", "savings", "insurance"].find(t => fetched.some(p => p.product_type === t)) || "card";
             setActiveTab(firstTab);
             setSearchParams({ q: searchQuery, tab: firstTab });
+            _searchStateCache = { q: searchQuery, products: fetched, aiText: data.AI_text || data.ai_text || "", tab: firstTab };
         } catch (e) {
+            if (e.name === "AbortError") return;
             setError("검색 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
         } finally {
-            setIsLoading(false);
+            if (!controller.signal.aborted) setIsLoading(false);
         }
     };
+
+    // 언마운트 시 진행 중인 검색 요청 취소
+    useEffect(() => {
+        return () => { if (searchAbortRef.current) searchAbortRef.current.abort(); };
+    }, []);
 
     const handleBack = () => {
         if (activePage === "detail") {
