@@ -85,6 +85,7 @@ public class ProductSearchService {
                         .cardImgUrl(doc.getCardImgUrl())
                         .isDiscontinued(doc.getIsDiscontinued())
                         .topBenefitTitles(doc.getTopBenefitTitles())
+                        .cateNames(doc.getCateNames())
                         .build())
                 .collect(Collectors.toList());
 
@@ -114,6 +115,7 @@ public class ProductSearchService {
                         .cardImgUrl(doc.getCardImgUrl())
                         .isDiscontinued(doc.getIsDiscontinued())
                         .topBenefitTitles(doc.getTopBenefitTitles())
+                        .cateNames(doc.getCateNames())
                         .build())
                 .collect(Collectors.toList());
     }
@@ -201,6 +203,7 @@ public class ProductSearchService {
                     .isDiscontinued(c.getIsDiscontinued())
                     .topBenefitTitles(c.getTopBenefitTitles())
                     .benefits(benefits)
+                    .cateNames(c.getCateNames())
                     .build();
         }).collect(Collectors.toList());
     }

@@ -90,8 +90,8 @@ function ProductCard({ item, onClick }) {
             )}
             <div
                 style={{
-                    width: 52,
-                    height: 80,
+                    width: 72,
+                    height: 110,
                     borderRadius: 8,
                     overflow: "hidden",
                     flexShrink: 0,
@@ -125,11 +125,15 @@ function ProductCard({ item, onClick }) {
                     )
                 ) : (
                     <>
-                        {content?.header && (
+                        {product_type === "card" && content?.benefitGroups?.length > 0 ? (
+                            <p style={{ fontSize: 12, fontWeight: 600, color: WOORI_BLUE, margin: 0, lineHeight: 1.6, wordBreak: "keep-all", overflowWrap: "break-word" }}>
+                                {content.benefitGroups.map(g => g.cateName).join(" · ")}
+                            </p>
+                        ) : content?.header ? (
                             <p style={{ fontSize: 13, fontWeight: 600, color: WOORI_BLUE, margin: 0 }}>
                                 {content.header}
                             </p>
-                        )}
+                        ) : null}
                     </>
                 )}
             </div>
@@ -140,12 +144,13 @@ function ProductCard({ item, onClick }) {
 // ─── AI Insight Box ───────────────────────────────────────────────────────────
 function AIInsightBox({ text }) {
     if (!text) return null;
+    const formatted = text.replace(/([!?.])\s+/g, "$1\n");
     return (
         <div
             style={{
                 background: "linear-gradient(135deg, #EAF7F2, #E8F0FA)",
                 borderRadius: 14,
-                padding: "12px 16px",
+                padding: "12px 10px",
                 display: "flex",
                 gap: 12,
                 alignItems: "flex-start",
@@ -162,9 +167,9 @@ function AIInsightBox({ text }) {
             >
                 🤖
             </div>
-            <div>
-                <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: WOORI_GREEN }}>AI 분석 결과</p>
-                <p style={{ margin: 0, fontSize: 13, color: WOORI_NAVY, lineHeight: 1.6, whiteSpace: "pre-line" }}>{text}</p>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800, color: WOORI_GREEN }}>AI 분석 결과</p>
+                <p style={{ margin: 0, fontSize: 12, color: WOORI_NAVY, lineHeight: 1.65, wordBreak: "keep-all", overflowWrap: "anywhere", width: "100%", whiteSpace: "pre-line" }}>{formatted}</p>
             </div>
         </div>
     );
@@ -351,13 +356,14 @@ function DetailPage({ item, onBack }) {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
                 <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: WOORI_NAVY, padding: 0 }}>←</button>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+            <div className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 <div style={{ background: headerBg, borderRadius: 18, padding: "20px", display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
-                    <div style={{ width: 52, height: 80, borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
+                    <div style={{ width: 100, height: 154, borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
                         {product_img_url
                             ? <img src={product_img_url} alt={product_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             : <div style={{ width: "100%", height: "100%", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{headerEmoji}</div>
@@ -366,7 +372,10 @@ function DetailPage({ item, onBack }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ margin: "0 0 4px", fontSize: 12, color: "rgba(255,255,255,0.6)" }}>{product_company}</p>
                         <p style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 800, color: "#fff" }}>{product_name}</p>
-                        {content?.header && <p style={{ margin: "0 0 8px", fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{content.header}</p>}
+                        {product_type === "card" && content?.benefitGroups?.length > 0
+                            ? <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.9)", lineHeight: 1.6, wordBreak: "keep-all" }}>{content.benefitGroups.map(g => g.cateName).join(" · ")}</p>
+                            : content?.header && <p style={{ margin: "0 0 8px", fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{content.header}</p>
+                        }
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                             {content?.onlyOnline && <span style={{ fontSize: 11, background: "rgba(255,255,255,0.2)", color: "#fff", borderRadius: 6, padding: "3px 8px" }}>온라인 전용</span>}
                             {content?.isImpend   && <span style={{ fontSize: 11, background: "rgba(255,200,0,0.25)", color: "#FFD700", borderRadius: 6, padding: "3px 8px" }}>단종 임박</span>}
@@ -527,7 +536,7 @@ export default function ProductSearch() {
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#F4F7FB", fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif" }}>
+        <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#F4F7FB", fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif", position: "relative" }}>
 
             {/* Header */}
             <div style={{ padding: "16px 20px 0", background: "#fff", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
@@ -608,7 +617,7 @@ export default function ProductSearch() {
             )}
 
             {/* Body */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+            <div className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", paddingBottom: isSearched && aiText ? "90px" : "16px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 {isLoading ? (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12 }}>
                         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -698,10 +707,12 @@ export default function ProductSearch() {
                 )}
             </div>
 
-            {/* AI 분석 결과 - 하단 고정 */}
+            {/* AI 분석 결과 - 하단 오버레이 */}
             {isSearched && aiText && (
-                <div style={{ flexShrink: 0, padding: "12px 16px", background: "#fff", borderTop: "1px solid #EEF1F5" }}>
-                    <AIInsightBox text={aiText} />
+                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "10px 8px", background: "transparent", pointerEvents: "none", zIndex: 10 }}>
+                    <div style={{ pointerEvents: "auto" }}>
+                        <AIInsightBox text={aiText} />
+                    </div>
                 </div>
             )}
         </div>
