@@ -437,6 +437,7 @@ export default function ProductSearch() {
     const [isSearched, setIsSearched] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const searchAbortRef = useRef(null);
+    const scrollRef = useRef(null);
     const [activePage, setActivePage] = useState(searchParams.get("detail") ? "detail" : "search");
     const [selectedItem, setSelectedItem] = useState(() => {
         if (searchParams.get("detail")) {
@@ -536,6 +537,11 @@ export default function ProductSearch() {
     useEffect(() => {
         return () => { if (searchAbortRef.current) searchAbortRef.current.abort(); };
     }, []);
+
+    // 탭 전환 시 스크롤 초기화
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    }, [activeTab]);
 
     const handleBack = () => {
         if (activePage === "detail") {
@@ -658,7 +664,7 @@ export default function ProductSearch() {
             )}
 
             {/* Body */}
-            <div className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", paddingBottom: isSearched && aiText ? "90px" : "16px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+            <div ref={scrollRef} className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", paddingBottom: isSearched && aiText ? "90px" : "16px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 {isLoading ? (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12 }}>
                         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -694,10 +700,27 @@ export default function ProductSearch() {
                                 />
                             ))
                         ) : (
-                            <div style={{ textAlign: "center", padding: "40px 0", color: "#8494A8", fontSize: 14 }}>
-                                <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
-                                이 카테고리에 결과가 없어요<br />
-                                <span style={{ fontSize: 12 }}>다른 탭을 확인해보세요</span>
+                            <div>
+                                <div style={{ textAlign: "center", padding: "40px 0 24px", color: "#8494A8", fontSize: 14 }}>
+                                    <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+                                    이 카테고리에 결과가 없어요<br />
+                                    <span style={{ fontSize: 12 }}>다른 탭을 확인해보세요</span>
+                                </div>
+                                {suggestedQuestions.length > 0 && (
+                                    <div style={{ marginBottom: 24 }}>
+                                        <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 700, color: WOORI_NAVY }}>추천 질문</p>
+                                        {suggestedQuestions.map((q, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => handleSearch(getQuestionText(q))}
+                                                style={{ width: "100%", background: "#fff", border: "1.5px solid #EEF1F5", borderRadius: 12, padding: "12px 14px", textAlign: "left", fontSize: 13, color: WOORI_NAVY, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
+                                            >
+                                                <span style={{ fontSize: 14, color: WOORI_BLUE }}>✦</span>
+                                                {getQuestionText(q)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </>
@@ -731,16 +754,38 @@ export default function ProductSearch() {
                         {/* 최근 질문 - 있을 때만 표시 */}
                         {recentQuestions.length > 0 && (
                             <div>
-                                <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 700, color: WOORI_NAVY }}>최근 질문</p>
-                                {recentQuestions.map((q, i) => (
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: WOORI_NAVY }}>최근 질문</p>
                                     <button
-                                        key={i}
-                                        onClick={() => handleSearch(q)}
-                                        style={{ width: "100%", background: "#fff", border: "1.5px solid #EEF1F5", borderRadius: 12, padding: "12px 14px", textAlign: "left", fontSize: 13, color: WOORI_NAVY, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
+                                        onClick={() => {
+                                            setRecentQuestions([]);
+                                            localStorage.removeItem("recentQuestions");
+                                        }}
+                                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#8494A8", padding: 0 }}
                                     >
-                                        <span style={{ fontSize: 14, color: "#8494A8" }}>🕐</span>
-                                        {q}
+                                        전체 삭제
                                     </button>
+                                </div>
+                                {recentQuestions.map((q, i) => (
+                                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                                        <button
+                                            onClick={() => handleSearch(q)}
+                                            style={{ flex: 1, background: "#fff", border: "1.5px solid #EEF1F5", borderRadius: 12, padding: "12px 14px", textAlign: "left", fontSize: 13, color: WOORI_NAVY, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8 }}
+                                        >
+                                            <span style={{ fontSize: 14, color: "#8494A8" }}>🕐</span>
+                                            {q}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const updated = recentQuestions.filter((_, idx) => idx !== i);
+                                                setRecentQuestions(updated);
+                                                localStorage.setItem("recentQuestions", JSON.stringify(updated));
+                                            }}
+                                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#B0BEC5", padding: "4px", flexShrink: 0 }}
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
                         )}

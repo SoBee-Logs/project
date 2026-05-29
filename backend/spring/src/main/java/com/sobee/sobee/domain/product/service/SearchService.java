@@ -7,6 +7,7 @@ import com.sobee.sobee.domain.product.dto.SearchResultDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -59,6 +61,7 @@ public class SearchService {
     @Value("${fastapi.internal-secret:}")
     private String internalSecret;
 
+    @Cacheable(value = "searchCache", key = "#request.search_input.trim().toLowerCase()")
     public SearchResponseDto search(SearchRequestDto request) {
         String keyword = request.getSearch_input();
 
@@ -116,6 +119,17 @@ public class SearchService {
                         .build();
             }
         }
+
+        // 보험 결과 정렬 (카테고리/태그 일치 우선)
+        List<SearchResultDto.InsuranceResult> sortedInsurance = sortInsurance(
+                result.getInsurance(),
+                parsed != null ? parsed.getCategory() : null,
+                keyword);
+        result = SearchResultDto.builder()
+                .keyword(result.getKeyword()).totalCount(result.getTotalCount())
+                .cards(result.getCards()).savings(result.getSavings())
+                .insurance(sortedInsurance)
+                .build();
 
         List<SearchResponseDto.ProductDto> products = buildProducts(result);
 
@@ -297,6 +311,22 @@ public class SearchService {
             log.warn("GPT 파싱 실패, ES 결과만 사용: {}", e.getMessage());
             return null;
         }
+    }
+
+    private List<SearchResultDto.InsuranceResult> sortInsurance(
+            List<SearchResultDto.InsuranceResult> list, String parsedCategory, String keyword) {
+        if (list == null || list.isEmpty()) return list;
+        return list.stream()
+                .sorted(Comparator.comparingInt((SearchResultDto.InsuranceResult i) -> {
+                    int score = 0;
+                    if (parsedCategory != null && parsedCategory.equalsIgnoreCase(i.getCategory())) score += 2;
+                    if (keyword != null && i.getSituationTags() != null
+                            && i.getSituationTags().contains(keyword)) score += 1;
+                    if (keyword != null && i.getCategory() != null
+                            && i.getCategory().contains(keyword)) score += 1;
+                    return score;
+                }).reversed())
+                .collect(Collectors.toList());
     }
 
     private String stripHtml(String html) {
