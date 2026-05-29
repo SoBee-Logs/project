@@ -56,6 +56,7 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         return {
             "payment_out": 0,
             "payment_total_num": 0,
+            "payment_days": 0,   # ✅ 추가
             "category_price": {},
             "timepattern_price": {},
             "weekly_price": [],
@@ -80,8 +81,11 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         elif 15 <= hour < 20:  return '저녁'
         else:                  return '심야'
 
-    # ✅ 달력 기준 주차 계산
-    # 해당 달 1일의 요일을 기준으로 실제 달력과 동일하게 주차 분류
+    # ✅ 달력 기준 주차 계산 (일요일 시작 기준으로 수정)
+    # adjusted_first: 달 1일을 일요일(0) 기준으로 보정
+    first_weekday = datetime(target_year, target_month, 1).weekday()  # 0=월 ~ 6=일
+    adjusted_first = (first_weekday + 1) % 7  # 일요일=0, 월요일=1, ..., 토요일=6
+
     def classify_week(d):
         if d is None:
             return '기타'
@@ -90,10 +94,7 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
                 d = datetime.strptime(str(d)[:10], "%Y-%m-%d")
             except (ValueError, TypeError):
                 return '기타'
-        # 해당 달 1일의 요일 (0=월요일 ~ 6=일요일)
-        first_weekday = datetime(d.year, d.month, 1).weekday()
-        # 달력 기준 주차 (1일이 수요일이면 1~4일이 1주, 5일부터 2주 시작)
-        week_num = (d.day + first_weekday - 1) // 7 + 1
+        week_num = (d.day + adjusted_first - 1) // 7 + 1
         return f'{week_num}주'
 
     df['time_label'] = df['payment_time'].apply(classify_time)
@@ -112,11 +113,10 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         .sum().astype(int).unstack(fill_value=0)
     )
 
-    # ✅ 해당 달의 실제 주차 수 동적 계산
-    first_weekday = datetime(target_year, target_month, 1).weekday()
-    last_day_num  = calendar.monthrange(target_year, target_month)[1]
-    total_weeks   = (last_day_num + first_weekday - 1) // 7 + 1
-    week_order    = [f'{i}주' for i in range(1, total_weeks + 1)]
+    # ✅ 해당 달의 실제 주차 수 동적 계산 (일요일 시작 기준)
+    last_day_num = calendar.monthrange(target_year, target_month)[1]
+    total_weeks  = (last_day_num + adjusted_first - 1) // 7 + 1
+    week_order   = [f'{i}주' for i in range(1, total_weeks + 1)]
 
     weekly_price = []
     for week in week_order:
