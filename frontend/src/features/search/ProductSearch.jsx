@@ -357,8 +357,16 @@ function DetailPage({ item, onBack }) {
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
-                <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: WOORI_NAVY, padding: 0 }}>←</button>
+            <div style={{ padding: "12px 20px", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
+                <button
+                    onClick={onBack}
+                    className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+                    style={{ border: "none", cursor: "pointer", background: "none" }}
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
+                </button>
             </div>
 
             <div className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
@@ -477,6 +485,7 @@ export default function ProductSearch() {
         setIsLoading(true);
         setError(null);
         setAiText("");
+        setProducts([]);
 
         // 최근 질문 localStorage 저장 (중복 제거 + 최대 5개)
         const updated = [searchQuery, ...recentQuestions.filter((r) => r !== searchQuery)].slice(0, 5);
@@ -539,12 +548,15 @@ export default function ProductSearch() {
         <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#F4F7FB", fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif", position: "relative" }}>
 
             {/* Header */}
-            <div style={{ padding: "16px 20px 0", background: "#fff", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
+            <div style={{ padding: "16px 20px 0", background: "#fff", flexShrink: 0 }}>
                 <button
                     onClick={handleBack}
-                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: WOORI_NAVY, padding: "0 0 8px 0", display: "block" }}
+                    className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+                    style={{ border: "none", cursor: "pointer", background: "none", marginBottom: 8 }}
                 >
-                    ←
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
                 </button>
                 <h1 style={{ margin: "0 0 2px", fontSize: 22, fontWeight: 800, color: WOORI_NAVY, letterSpacing: "-0.5px" }}>
                     상품 찾기
