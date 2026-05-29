@@ -18,7 +18,7 @@ function groupByDate(transactions) {
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([date, items]) => ({ date, items }))
 }
-
+ 
 function formatDateLabel(dateStr) {
   try {
     const d = new Date(dateStr)
@@ -30,25 +30,26 @@ function formatDateLabel(dateStr) {
     return dateStr
   }
 }
-
+ 
 export default function ReportDetail() {
   const navigate = useNavigate()
   const location = useLocation()
   const USER_ID  = getUserId() ?? 1
-
+ 
   const today = new Date()
   const year  = location.state?.year  ?? today.getFullYear()
   const month = location.state?.month ?? today.getMonth() + 1
-
+ 
   const categoryColorMap = location.state?.categoryColorMap ?? {}
-
+ 
   const [txData,  setTxData]  = useState(null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
   const [openCat, setOpenCat] = useState(null)
-
-  const categoryRef = useRef(null)
-
+ 
+  const categoryRef  = useRef(null)
+  const catItemRefs  = useRef({}) // ✅ 각 카테고리 div ref
+ 
   useEffect(() => {
     setLoading(true)
     setError(null)
@@ -58,14 +59,14 @@ export default function ReportDetail() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [year, month])
-
+ 
   useEffect(() => {
     if (loading) return
     if (location.state?.scrollTo === 'category' && categoryRef.current) {
       setTimeout(() => categoryRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200)
     }
   }, [loading, location.state])
-
+ 
   if (loading) return (
     <div className="flex flex-col gap-4 pt-4 px-4 pb-24 animate-pulse">
       <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
@@ -82,7 +83,7 @@ export default function ReportDetail() {
       </div>
     </div>
   )
-
+ 
   if (error) return (
     <div className="flex flex-col items-center justify-center h-64 gap-3 px-4">
       <p className="text-2xl">😢</p>
@@ -92,7 +93,7 @@ export default function ReportDetail() {
       </button>
     </div>
   )
-
+ 
   const categoryList = txData
     ? Object.entries(txData.category_price)
         .sort((a, b) => b[1] - a[1])
@@ -102,16 +103,16 @@ export default function ReportDetail() {
           color: categoryColorMap[name] ?? CATEGORY_PALETTE[i % CATEGORY_PALETTE.length],
         }))
     : []
-
+ 
   const maxTotal = Math.max(...categoryList.map(c => c.total), 1)
-
+ 
   return (
     <div className="flex flex-col gap-4 pt-4 px-4 pb-24 overflow-y-auto">
-
+ 
       <div className="flex items-center gap-2">
         <span className="text-sm font-bold text-gray-700">{year}년 {month}월 상세 리포트</span>
       </div>
-
+ 
       <div ref={categoryRef} className="rounded-2xl border border-gray-100 p-4 shadow-sm scroll-mt-4">
         <p className="text-xs text-gray-500 font-semibold mb-4">📊 카테고리별 소비</p>
         {categoryList.length === 0
@@ -123,12 +124,24 @@ export default function ReportDetail() {
                 const allTx = (txData?.category_transactions?.[cat.name] ?? [])
                   .filter(tx => Number(tx.payment_out) > 0)
                 const grouped = groupByDate(allTx)
-
+ 
                 return (
-                  <div key={cat.name}>
+                  <div
+                    key={cat.name}
+                    ref={el => catItemRefs.current[cat.name] = el} // ✅ ref 등록
+                  >
                     <button
                       className="w-full text-left py-2.5 active:bg-gray-50 rounded-xl px-1 transition-colors"
-                      onClick={() => setOpenCat(isOpen ? null : cat.name)}
+                      onClick={() => {
+                        const next = isOpen ? null : cat.name
+                        setOpenCat(next)
+                        // ✅ 열릴 때만 해당 카테고리 상단으로 스크롤
+                        if (next) {
+                          setTimeout(() => {
+                            catItemRefs.current[cat.name]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                          }, 50)
+                        }
+                      }}
                     >
                       <div className="flex justify-between items-center mb-1.5">
                         <div className="flex items-center gap-1.5">
@@ -150,7 +163,7 @@ export default function ReportDetail() {
                         />
                       </div>
                     </button>
-
+ 
                     {isOpen && (
                       <div className="mx-1 mb-2 rounded-xl bg-gray-50 overflow-hidden">
                         {grouped.length === 0
@@ -181,7 +194,7 @@ export default function ReportDetail() {
                                   </div>
                                   {/* 둘째 줄: 시간 오른쪽 정렬로 작게 */}
                                   {tx.payment_time && (
-                                    <div className="flex justify-end mt-0">
+                                    <div className="flex justify-end mt-0.5">
                                       <span className="text-[9px] text-gray-300">
                                         {String(tx.payment_time).slice(0, 5)}
                                       </span>
@@ -201,11 +214,6 @@ export default function ReportDetail() {
           )
         }
       </div>
-
-      <button onClick={() => navigate('/report')} className="w-full py-3 rounded-2xl bg-[#1e73be] text-white text-sm font-semibold">
-        ← 리포트로 돌아가기
-      </button>
-
     </div>
   )
 }
