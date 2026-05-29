@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useDragScroll } from '../../common/hooks/useDragScroll'
 import StatusBar from '../../common/components/StatusBar'
 import { jwtDecode } from 'jwt-decode'
 import cameraHalo from '../../assets/camera_3d_halo.png'
@@ -41,6 +42,8 @@ export default function Home() {
   } catch (e) {
     console.error("토큰 디코딩 실패", e)
   }
+
+  const { ref: feedRef, dragging: feedDragging, onMouseDown, onMouseMove, onMouseUp, onMouseLeave } = useDragScroll()
 
   const [showPopup, setShowPopup] = useState(() => {
     return localStorage.getItem(`mydataConnected_${userId}`) !== "true"
@@ -320,8 +323,14 @@ export default function Home() {
             아직 모임방이 없어요. 모임을 만들어보세요!
           </p>
         ) : (
-          <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
-            <style>{`div::-webkit-scrollbar { display: none; }`}</style>
+          <div
+            ref={feedRef}
+            className={`flex gap-3 overflow-x-auto pb-2 scrollbar-hide ${feedDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseLeave}
+          >
             {feedPreviews.map((item) => (
               <button
                 key={item.groupId}

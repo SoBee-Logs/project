@@ -168,21 +168,16 @@ export default function CameraPage() {
       if (!res.ok) throw new Error('업로드 실패')
       const result = await res.json()
 
-      // ② VLM 결과 저장 + 결제 내역 매핑 (persona_transaction 생성)
-      // VLM이 아직 분석 중이면 Promise가 resolve될 때까지 실제로 대기
+      // ② VLM 결과 저장 (매핑은 일기 생성 시점으로 지연)
       let finalVlmData = vlmData
       if (vlmLoading && vlmPromiseRef.current) {
         setLoadingStep('analyze')
-        finalVlmData = await vlmPromiseRef.current  // 진짜로 완료까지 기다림
+        finalVlmData = await vlmPromiseRef.current
       }
-
-      // 디버그: VLM 데이터 확인
-      console.log('[VLM] finalVlmData:', finalVlmData)
-      console.log('[VLM] photoId:', result.photoId)
 
       if (result.photoId && finalVlmData?.category) {
         try {
-          const vlmSaveRes = await fetch(`/api/photos/${result.photoId}/vlm-result`, {
+          await fetch(`/api/photos/${result.photoId}/vlm-result`, {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${token}`,
@@ -190,14 +185,9 @@ export default function CameraPage() {
             },
             body: JSON.stringify(finalVlmData),
           })
-          // 디버그: VLM 저장 응답 확인
-          const vlmSaveBody = await vlmSaveRes.json().catch(() => null)
-          console.log('[VLM] 저장 응답 status:', vlmSaveRes.status, '| body:', vlmSaveBody)
-        } catch (e) {
-          console.error('[VLM] 저장 요청 실패:', e)
+        } catch {
+          // VLM 저장 실패해도 이동 계속
         }
-      } else {
-        console.warn('[VLM] skip 이유 — photoId:', result.photoId, '| category:', finalVlmData?.category)
       }
 
       navigate('/consumption-log', {
@@ -338,6 +328,7 @@ export default function CameraPage() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="사진에 대해 설명해주세요!"
+            maxLength={50}
             className="w-full px-4 py-3.5 rounded-2xl bg-[#F0F0F0] border-0 text-[14px] text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-300"
           />
         </label>
