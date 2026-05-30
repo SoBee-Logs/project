@@ -275,11 +275,12 @@ export default function Home() {
           <button
             type="button"
             onClick={() => navigate('/camera')}
-            className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
+            className="rounded-2xl flex flex-col cursor-pointer border-0 text-left"
             style={{
-              background: 'radial-gradient(circle at 50% 48%, rgba(33,188,234,0.12) 0%, rgba(33,188,234,0.08) 42%, rgba(255,255,255,0) 68%), linear-gradient(180deg, #F4FAFF 0%, #EEF7FF 100%)',
-              boxShadow: '0 18px 35px rgba(0,32,80,0.08), inset 0 1px 0 rgba(255,255,255,0.8)',
-              border: '1px solid rgba(0,72,145,0.08)'
+              background: '#EBF5FF',
+              borderRadius: '14px',
+              border: 'none',
+              boxShadow: 'none',
             }}
           >
             <div className="w-full flex items-center justify-center pt-1 pb-0">
@@ -302,11 +303,12 @@ export default function Home() {
               const roomIds = groups.map(g => g.groupId)
               navigate('/consumption-log', { state: { selectedRooms: roomIds } })
             }}
-            className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
+            className="rounded-2xl flex flex-col cursor-pointer border-0 text-left"
             style={{
-              background: 'radial-gradient(circle at 50% 48%, rgba(33,188,234,0.12) 0%, rgba(33,188,234,0.08) 42%, rgba(255,255,255,0) 68%), linear-gradient(180deg, #F4FAFF 0%, #EEF7FF 100%)',
-              boxShadow: '0 18px 35px rgba(0,32,80,0.08), inset 0 1px 0 rgba(255,255,255,0.8)',
-              border: '1px solid rgba(0,72,145,0.08)'
+              background: '#EBF5FF',
+              borderRadius: '14px',
+              border: 'none',
+              boxShadow: 'none',
             }}
           >
             <div className="w-full flex items-center justify-center pt-1 pb-0">
