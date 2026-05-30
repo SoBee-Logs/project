@@ -32,6 +32,8 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.Comparator;
@@ -65,9 +67,17 @@ public class PhotoService {
 
     private LocalDateTime parseTakenAt(String takenAt) {
         try {
-            return LocalDateTime.parse(takenAt, TAKEN_AT_FORMATTER);
+            // offset 포함(Z, +09:00 등) → KST LocalDateTime으로 변환
+            OffsetDateTime odt = OffsetDateTime.parse(takenAt, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+            return odt.withOffsetSameInstant(ZoneOffset.ofHours(9)).toLocalDateTime();
         } catch (Exception e) {
-            return LocalDateTime.parse(takenAt.replace("Z", "").replaceAll("\\.\\d+$", ""));
+            // offset 없는 경우 → KST로 간주하고 그대로 파싱
+            String cleaned = takenAt.replace("Z", "").replaceAll("\\.\\d+$", "");
+            try {
+                return LocalDateTime.parse(cleaned, TAKEN_AT_FORMATTER);
+            } catch (Exception e2) {
+                return LocalDateTime.parse(cleaned);
+            }
         }
     }
 
@@ -211,9 +221,7 @@ public class PhotoService {
         if (request.getTaken_at() != null && !request.getTaken_at().isBlank()) {
             photoMetadataRepository.findByPhotoPhotoId(photoId).ifPresent(metadata -> {
                 try {
-                    String normalized = request.getTaken_at().trim().substring(0, 19);
-                    LocalDateTime exifTime = LocalDateTime.parse(normalized,
-                            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                    LocalDateTime exifTime = parseExifDateTime(request.getTaken_at());
                     metadata.setTakenAt(exifTime);
                     photoMetadataRepository.save(metadata);
                 } catch (Exception ignored) {}
@@ -236,6 +244,23 @@ public class PhotoService {
         // photo_metadata.taken_at이 saveVlmResult에서 EXIF 시간으로 이미 업데이트됨
         // taken_at null이면 matchTransaction 내부에서 created_at으로 폴백
         matchTransaction(photoId, userId, vlm, null);
+    }
+
+    // EXIF datetime 문자열 파싱 — offset 포함("2026-05-15 12:43:38+09:00") 및 미포함("2026-05-15 12:43:38") 모두 처리
+    // offset 있으면 해당 timezone → KST(+09:00) 변환, 없으면 로컬 시각으로 그대로 사용
+    private LocalDateTime parseExifDateTime(String raw) {
+        String normalized = raw.trim().substring(0, 19);
+        LocalDateTime ldt = LocalDateTime.parse(normalized,
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        if (raw.trim().length() > 19) {
+            try {
+                ZoneOffset offset = ZoneOffset.of(raw.trim().substring(19).trim());
+                return ldt.atOffset(offset)
+                        .withOffsetSameInstant(ZoneOffset.ofHours(9))
+                        .toLocalDateTime();
+            } catch (Exception ignored) {}
+        }
+        return ldt;
     }
 
     // VLM의 실제 촬영 일시(EXIF) 또는 photo_metadata.taken_at 기준으로 결제 내역을 찾아 persona_transaction에 저장
@@ -311,7 +336,7 @@ public class PhotoService {
                                     t.getPaymentTime().trim().substring(0, 5),
                                     DateTimeFormatter.ofPattern("HH:mm"));
                             LocalDateTime txDateTime = photoDate.atTime(txTime);
-                            return Math.abs(Duration.between(photoTime, txDateTime).toMinutes()) <= 120;
+                            return Math.abs(Duration.between(photoTime, txDateTime).toMinutes()) <= 360;
                         } catch (Exception e) {
                             return false;
                         }
