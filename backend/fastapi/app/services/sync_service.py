@@ -33,7 +33,9 @@ from app.services.codef_client import (
     fetch_bank_transactions,
     fetch_card_transactions,
 )
-from app.services.category_mapping_service import resolve_and_update_all_unmapped  # ✅ 추가
+from app.services.category_mapping_service import resolve_and_update_all_unmapped
+from app.services.lifecycle_service import predict_lifecycle
+from app.models.schemas import LifecycleRequest
 
 log = logging.getLogger(__name__)
 
@@ -562,7 +564,7 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
     # transactions 병합
     merged = await _merge_to_transactions(pool, user_id, start_date, end_date)
 
-    # ✅ 카테고리 매핑 — 룰베이스 → 기타 남은 건 LLM 자동 체이닝
+    # 카테고리 매핑 — 룰베이스 → 기타 남은 건 LLM 자동 체이닝
     mapping_result = {}
     try:
         mapping_result = await resolve_and_update_all_unmapped()
@@ -570,11 +572,21 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
     except Exception as e:
         log.error(f"카테고리 매핑 실패 (sync는 정상 완료): {e}")
 
+    # 생애주기 예측 — 매핑 완료 후 트랜잭션 기반으로 예측 → users.life_stage_code 저장
+    lifecycle_result = {}
+    try:
+        lifecycle_resp = await predict_lifecycle(LifecycleRequest(user_id=user_id))
+        lifecycle_result = {"life_stage_code": lifecycle_resp.life_stage_code}
+        log.info(f"생애주기 예측 완료: user={user_id} → {lifecycle_resp.life_stage_code}")
+    except Exception as e:
+        log.error(f"생애주기 예측 실패 (sync는 정상 완료): {e}")
+
     return {
         "user_id": user_id,
         "period": f"{start_date}~{end_date}",
         "bank_saved": bank_saved,
         "card_saved": card_saved,
         "transactions_merged": merged,
-        "mapping": mapping_result,  # ✅ 추가
+        "mapping": mapping_result,
+        "lifecycle": lifecycle_result,
     }
