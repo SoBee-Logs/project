@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from app.api import avatar, recommend, lifecycle, report, internal, category_mapping, vlm, diary_generate
 from app.db.connection import close_pool
 from app.core.config import settings
+from app.api import mapping
 
 
 @asynccontextmanager
@@ -44,6 +45,7 @@ app.include_router(internal.router)
 app.include_router(category_mapping.router, prefix="/api/category", tags=["category-mapping"])
 app.include_router(vlm.router, prefix="/api/vlm", tags=["vlm"])
 app.include_router(diary_generate.router, prefix="/api/diary", tags=["diary-generate"])
+app.include_router(mapping.router, prefix="/api/mapping")
 
 
 @app.get("/health")
