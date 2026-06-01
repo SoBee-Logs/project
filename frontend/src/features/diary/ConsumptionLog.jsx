@@ -16,11 +16,11 @@ export default function ConsumptionLog() {
   const navigate = useNavigate()
   const location = useLocation()
   const selectedRooms = location.state?.selectedRooms ?? []
+  const myGroups = location.state?.myGroups ?? [] //앞에서 받아온 모임 목록 재사용하도록 수정
   const [photos, setPhotos] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCalendar, setShowCalendar] = useState(false)
   const [selectedDate, setSelectedDate] = useState(toLocalDateStr(new Date()))
-  const [myGroups, setMyGroups] = useState([])
   const isToday = selectedDate === toLocalDateStr(new Date())
 
   const today = new Date()
@@ -42,22 +42,6 @@ export default function ConsumptionLog() {
     return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
   }
 
-  useEffect(() => {
-    const fetchMyGroups = async () => {
-      try {
-        const token = localStorage.getItem("token")
-        if (!token) return
-        const res = await fetch('/api/groups', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        })
-        const data = await res.json()
-        setMyGroups(data)
-      } catch (err) {
-        console.error('모임 목록 조회 실패', err)
-      }
-    }
-    fetchMyGroups()
-  }, [])
 
   useEffect(() => {
     const fetchPhotos = async () => {

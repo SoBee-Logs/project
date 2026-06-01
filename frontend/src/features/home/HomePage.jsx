@@ -295,16 +295,16 @@ export default function Home() {
           </button>
 
           <button
-            type="button"
-            onClick={async () => {
-              const token = localStorage.getItem("token")
-              const res = await fetch('/api/groups', {
-                headers: { Authorization: `Bearer ${token}` },
+            type="button" //consumption-log로 이동할 때 selectedRooms와 myGroups 상태를 함께 전달
+            onClick={() => {
+              const roomIds = feedPreviews.map(f => f.groupId)
+              navigate('/consumption-log', { 
+                  state: { 
+                      selectedRooms: roomIds,
+                      myGroups: feedPreviews
+                  } 
               })
-              const groups = await res.json()
-              const roomIds = groups.map(g => g.groupId)
-              navigate('/consumption-log', { state: { selectedRooms: roomIds } })
-            }}
+          }}
             className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
             style={{
               background: 'radial-gradient(circle at 50% 48%, rgba(33,188,234,0.12) 0%, rgba(33,188,234,0.08) 42%, rgba(255,255,255,0) 68%), linear-gradient(180deg, #F4FAFF 0%, #EEF7FF 100%)',
