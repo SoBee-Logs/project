@@ -106,9 +106,9 @@ export default function CameraPage() {
           file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
           { type: 'image/jpeg' }
         )
-        setImageFile(convertedFile)  // ← 변환된 JPEG 파일로 교체
+        setImageFile(convertedFile)
         setPreviewUrl(URL.createObjectURL(blob))
-        runVlmAnalysis(convertedFile)  // ← 변환된 파일로 분석
+        runVlmAnalysis(file)  // ← 원본 HEIC 전송 (EXIF 있음)
       } catch {
         setImageFile(file)
         setPreviewUrl(null)
