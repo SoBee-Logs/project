@@ -33,6 +33,38 @@ public class SearchService {
     private static final List<String> FINANCIAL_COMPANIES =
         List.of("신한", "삼성", "롯데", "현대", "KB", "우리", "하나", "NH", "BC", "씨티", "카카오", "토스", "IBK", "기업", "국민", "농협", "수협");
 
+    private static final String FV = "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.%s&size=256";
+    private static final Map<String, String> COMPANY_LOGO_MAP = Map.ofEntries(
+        // 은행
+        Map.entry("경남은행",               String.format(FV, "knbank.co.kr")),
+        Map.entry("광주은행",               String.format(FV, "kjbank.com")),
+        Map.entry("국민은행",               String.format(FV, "kbstar.com")),
+        Map.entry("농협은행주식회사",        String.format(FV, "nonghyup.com")),
+        Map.entry("부산은행",               String.format(FV, "busanbank.co.kr")),
+        Map.entry("수협은행",               String.format(FV, "suhyup.co.kr")),
+        Map.entry("신한은행",               String.format(FV, "shinhan.com")),
+        Map.entry("아이엠뱅크",             String.format(FV, "imbank.co.kr")),
+        Map.entry("우리은행",               String.format(FV, "wooribank.com")),
+        Map.entry("전북은행",               String.format(FV, "jbbank.co.kr")),
+        Map.entry("제주은행",               String.format(FV, "jejubank.co.kr")),
+        Map.entry("주식회사 카카오뱅크",     String.format(FV, "kakaobank.com")),
+        Map.entry("주식회사 케이뱅크",       String.format(FV, "kbanknow.com")),
+        Map.entry("주식회사 하나은행",       "https://www.hanabank.com/apple-touch-icon.png"),
+        Map.entry("중소기업은행",            String.format(FV, "ibk.co.kr")),
+        Map.entry("토스뱅크 주식회사",       String.format(FV, "tossbank.com")),
+        Map.entry("한국산업은행",            String.format(FV, "kdb.co.kr")),
+        Map.entry("한국스탠다드차타드은행",  String.format(FV, "standardchartered.co.kr")),
+        // 보험사
+        Map.entry("NH농협생명",             String.format(FV, "nhlife.co.kr")),
+        Map.entry("교보라이프플래닛",        String.format(FV, "kyobolifeplanet.com")),
+        Map.entry("교보생명",               String.format(FV, "kyobo.co.kr")),
+        Map.entry("메트라이프",             String.format(FV, "metlife.co.kr")),
+        Map.entry("삼성화재",               String.format(FV, "samsungfire.com")),
+        Map.entry("신한라이프",             String.format(FV, "shinhanlife.co.kr")),
+        Map.entry("카카오페이손해보험",      String.format(FV, "kakaopayins.com")),
+        Map.entry("캐롯손해보험",           "https://www.carrotins.com/apple-touch-icon.png")
+    );
+
     // GPT 카테고리 → 실제 DB cate_name 매핑 (카테고리 간 중복 최소화)
     private static final Map<String, List<String>> CATEGORY_MAP = Map.ofEntries(
         Map.entry("음식점", List.of("푸드", "일반음식점", "패밀리레스토랑", "패스트푸드", "배달앱", "점심", "저녁")),
@@ -242,7 +274,7 @@ public class SearchService {
             products.add(SearchResponseDto.ProductDto.builder()
                     .product_name(s.getFinPrdtNm())
                     .product_company(s.getKorCoNm())
-                    .product_img_url(null)
+                    .product_img_url(COMPANY_LOGO_MAP.get(s.getKorCoNm()))
                     .product_type("savings")
                     .content(SearchResponseDto.ContentDto.builder()
                             .header(intrMaxRateStr != null ? "우대금리 최대 " + intrMaxRateStr : "")
@@ -280,7 +312,7 @@ public class SearchService {
             products.add(SearchResponseDto.ProductDto.builder()
                     .product_name(i.getProductName())
                     .product_company(i.getInsurer())
-                    .product_img_url(null)
+                    .product_img_url(COMPANY_LOGO_MAP.get(i.getInsurer()))
                     .product_type("insurance")
                     .content(SearchResponseDto.ContentDto.builder()
                             .header(i.getCategory() != null ? i.getCategory() : "")

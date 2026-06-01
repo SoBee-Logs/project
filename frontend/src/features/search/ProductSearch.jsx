@@ -37,6 +37,85 @@ const FALLBACK_SUGGEST = [
     "금리 좋은 적금 상품 알려줘",
 ];
 
+// ─── Company Logo ─────────────────────────────────────────────────────────────
+const COMPANY_DOMAIN_MAP = [
+    // 은행
+    ["카카오뱅크",    "kakaobank.com"],
+    ["케이뱅크",      "kbanknow.com"],
+    ["토스뱅크",      "tossbank.com"],
+    ["KB국민",        "kbstar.com"],
+    ["신한",          "shinhan.com"],
+    ["우리",          "wooribank.com"],
+    ["하나",          "hanabank.com"],
+    ["NH농협",        "nonghyup.com"],
+    ["농협",          "nonghyup.com"],
+    ["IBK기업",       "ibk.co.kr"],
+    ["기업은행",      "ibk.co.kr"],
+    ["SC제일",        "standardchartered.co.kr"],
+    ["씨티",          "citibank.co.kr"],
+    ["수협",          "suhyup.co.kr"],
+    ["전북",          "jbbank.co.kr"],
+    ["광주",          "kjbank.com"],
+    ["제주",          "jejubank.co.kr"],
+    ["경남",          "knbank.co.kr"],
+    ["대구",          "dgb.co.kr"],
+    ["부산",          "busanbank.co.kr"],
+    ["산업은행",      "kdb.co.kr"],
+    ["우체국",        "epostbank.go.kr"],
+    ["신협",          "cu.co.kr"],
+    ["SBI저축",       "sbibank.co.kr"],
+    // 보험
+    ["삼성화재",      "samsungfire.com"],
+    ["삼성생명",      "samsunglife.com"],
+    ["현대해상",      "hi.co.kr"],
+    ["DB손해",        "db-ins.com"],
+    ["DB생명",        "dblife.co.kr"],
+    ["KB손해",        "kbinsure.co.kr"],
+    ["KB생명",        "kblife.co.kr"],
+    ["롯데손해",      "lotteins.co.kr"],
+    ["메리츠",        "meritzfire.com"],
+    ["한화손해",      "hwgeneralins.com"],
+    ["한화생명",      "hanwhalife.com"],
+    ["흥국화재",      "hkfire.co.kr"],
+    ["흥국생명",      "hklife.co.kr"],
+    ["교보",          "kyobo.co.kr"],
+    ["신한라이프",    "shinhanlife.co.kr"],
+    ["NH농협생명",    "nhlife.co.kr"],
+    ["동양생명",      "myangel.co.kr"],
+    ["미래에셋",      "miraeassetlife.com"],
+    ["AXA",           "axa.co.kr"],
+    ["MG손해",        "mggeneralins.com"],
+];
+
+const getCompanyDomain = (company) => {
+    if (!company) return null;
+    const entry = COMPANY_DOMAIN_MAP.find(([key]) => company.includes(key));
+    return entry ? entry[1] : null;
+};
+
+function CompanyLogo({ src, company, fallbackEmoji, size, bg }) {
+    const domain = !src ? getCompanyDomain(company) : null;
+    const [stage, setStage] = useState(0);
+
+    const srcs = src ? [src] : domain ? [
+        `https://logo.clearbit.com/${domain}`,
+        `https://www.google.com/s2/favicons?domain=${domain}&sz=256`,
+    ] : [];
+
+    if (srcs.length === 0 || stage >= srcs.length) {
+        return (
+            <div style={{ width: size, height: size, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(size * 0.38) }}>
+                {fallbackEmoji}
+            </div>
+        );
+    }
+    return (
+        <div style={{ width: size, height: size, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: Math.floor(size * 0.12) }}>
+            <img src={srcs[stage]} alt={company} style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={() => setStage(s => s + 1)} />
+        </div>
+    );
+}
+
 // ─── Product Card ─────────────────────────────────────────────────────────────
 const TYPE_ICON = {
     card:      { emoji: "💳", bg: "linear-gradient(135deg, #2A7FD8, #0E3F78)" },
@@ -132,11 +211,13 @@ function ProductCard({ item, onClick, matchedCateNames = [] }) {
                     </span>
                 </div>
             )}
-            <div style={{ borderRadius: 8, overflow: "hidden", flexShrink: 0, alignSelf: "center", background: product_img_url ? "transparent" : typeStyle.bg, boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
-                {product_img_url ? (
+            <div style={{ borderRadius: 8, overflow: "hidden", flexShrink: 0, alignSelf: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
+                {product_type !== "card" ? (
+                    <CompanyLogo src={product_img_url} company={product_company} fallbackEmoji={typeStyle.emoji} size={72} bg={typeStyle.bg} />
+                ) : product_img_url ? (
                     <CardImage src={product_img_url} alt={product_name} containerW={72} containerH={110} />
                 ) : (
-                    <div style={{ width: 72, height: 110, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+                    <div style={{ width: 72, height: 110, background: typeStyle.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
                         {typeStyle.emoji}
                     </div>
                 )}
@@ -400,10 +481,12 @@ function DetailPage({ item, onBack }) {
 
             <div className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 <div style={{ background: headerBg, borderRadius: 18, padding: "20px", display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
-                    <div style={{ borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)", background: product_img_url ? "transparent" : "rgba(255,255,255,0.15)" }}>
-                        {product_img_url
-                            ? <CardImage src={product_img_url} alt={product_name} containerW={100} containerH={154} />
-                            : <div style={{ width: 100, height: 154, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{headerEmoji}</div>
+                    <div style={{ borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
+                        {product_type !== "card"
+                            ? <CompanyLogo src={product_img_url} company={product_company} fallbackEmoji={headerEmoji} size={100} bg="rgba(255,255,255,0.15)" />
+                            : product_img_url
+                                ? <CardImage src={product_img_url} alt={product_name} containerW={100} containerH={154} />
+                                : <div style={{ width: 100, height: 154, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{headerEmoji}</div>
                         }
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
