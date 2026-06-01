@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from app.core.config import settings
 from app.api.vlm import reverse_geocode  # 위도경도 → 주소 변환 함수 재사용
+from langsmith import traceable
 
 router = APIRouter()
 
@@ -73,6 +74,7 @@ def _get_client() -> AsyncOpenAI:
 
 
 @router.post("/match", response_model=MappingResponse)
+@traceable(name="사진-결제 매핑")  # ← 추가
 async def match_photo_to_transaction(req: MappingRequest):
     # 후보 없으면 바로 미매핑 반환
     if not req.candidates:
