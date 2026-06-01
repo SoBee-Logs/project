@@ -44,7 +44,7 @@ const TYPE_ICON = {
     insurance: { emoji: "🛡️", bg: "linear-gradient(135deg, #7B5EA7, #4A3570)" },
 };
 
-function ProductCard({ item, onClick }) {
+function ProductCard({ item, onClick, matchedCateNames = [] }) {
     const { product_name, product_company, product_img_url, product_type, is_discontinued, content } = item;
     const typeStyle = TYPE_ICON[product_type] || TYPE_ICON.card;
 
@@ -130,9 +130,22 @@ function ProductCard({ item, onClick }) {
                 ) : (
                     <>
                         {product_type === "card" && content?.benefitGroups?.length > 0 ? (
-                            <p style={{ fontSize: 12, fontWeight: 600, color: WOORI_BLUE, margin: 0, lineHeight: 1.6, wordBreak: "keep-all", overflowWrap: "break-word" }}>
-                                {content.benefitGroups.map(g => g.cateName).join(" · ")}
-                            </p>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+                                {content.benefitGroups.map((g, i) => {
+                                    const isMatched = matchedCateNames.includes(g.cateName);
+                                    return (
+                                        <span key={i} style={{
+                                            fontSize: 11, fontWeight: isMatched ? 700 : 500,
+                                            color: isMatched ? WOORI_BLUE : "#8494A8",
+                                            background: isMatched ? "#E8F0FA" : "#F4F7FB",
+                                            borderRadius: 6,
+                                            padding: "2px 7px",
+                                        }}>
+                                            {g.cateName}
+                                        </span>
+                                    );
+                                })}
+                            </div>
                         ) : content?.header ? (
                             <p style={{ fontSize: 13, fontWeight: 600, color: WOORI_BLUE, margin: 0 }}>
                                 {content.header}
@@ -155,26 +168,14 @@ function AIInsightBox({ text }) {
                 background: "linear-gradient(135deg, #EAF7F2, #E8F0FA)",
                 borderRadius: 14,
                 padding: "12px 10px",
-                display: "flex",
-                gap: 12,
-                alignItems: "flex-start",
                 border: "1px solid #C8E6D8",
             }}
         >
-            <div
-                style={{
-                    width: 32, height: 32, borderRadius: "50%",
-                    background: `linear-gradient(135deg, ${WOORI_GREEN}, ${WOORI_BLUE})`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0, fontSize: 16,
-                }}
-            >
-                🤖
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <span style={{ fontSize: 18 }}>🤖</span>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: WOORI_GREEN }}>AI 분석 결과</p>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800, color: WOORI_GREEN }}>AI 분석 결과</p>
-                <p style={{ margin: 0, fontSize: 12, color: WOORI_NAVY, lineHeight: 1.65, wordBreak: "keep-all", overflowWrap: "anywhere", width: "100%", whiteSpace: "pre-line" }}>{formatted}</p>
-            </div>
+            <p style={{ margin: 0, fontSize: 12, color: WOORI_NAVY, lineHeight: 1.65, wordBreak: "break-all", overflowWrap: "break-word", whiteSpace: "pre-line", width: "100%" }}>{formatted}</p>
         </div>
     );
 }
@@ -454,6 +455,7 @@ export default function ProductSearch() {
     );
     const [aiText, setAiText] = useState("");
     const [products, setProducts] = useState([]);
+    const [matchedCateNames, setMatchedCateNames] = useState([]);
     const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "card");
     const [error, setError] = useState(null);
 
@@ -486,6 +488,7 @@ export default function ProductSearch() {
         if (_searchStateCache && _searchStateCache.q === initialQuery) {
             setProducts(_searchStateCache.products);
             setAiText(_searchStateCache.aiText);
+            setMatchedCateNames(_searchStateCache.matchedCateNames || []);
             setActiveTab(_searchStateCache.tab);
             setIsSearched(true);
             return;
@@ -519,12 +522,14 @@ export default function ProductSearch() {
             if (controller.signal.aborted) return;
             setAiText(data.AI_text || data.ai_text || "");
             const fetched = data.products || [];
+            const cateNames = data.matched_cate_names || [];
             setProducts(fetched);
+            setMatchedCateNames(cateNames);
             setIsSearched(true);
             const firstTab = ["card", "savings", "insurance"].find(t => fetched.some(p => p.product_type === t)) || "card";
             setActiveTab(firstTab);
             setSearchParams({ q: searchQuery, tab: firstTab });
-            _searchStateCache = { q: searchQuery, products: fetched, aiText: data.AI_text || data.ai_text || "", tab: firstTab };
+            _searchStateCache = { q: searchQuery, products: fetched, aiText: data.AI_text || data.ai_text || "", matchedCateNames: cateNames, tab: firstTab };
         } catch (e) {
             if (e.name === "AbortError") return;
             setError("검색 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
@@ -691,6 +696,7 @@ export default function ProductSearch() {
                                 <ProductCard
                                     key={i}
                                     item={item}
+                                    matchedCateNames={matchedCateNames}
                                     onClick={(it) => {
                         sessionStorage.setItem("searchSelectedItem", JSON.stringify(it));
                         setSearchParams({ q: query, tab: activeTab, detail: "1" });
