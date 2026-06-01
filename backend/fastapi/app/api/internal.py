@@ -1,6 +1,33 @@
 import asyncio
+import logging
 
+import aiohttp
 from fastapi import APIRouter
+
+log = logging.getLogger(__name__)
+
+
+async def _trigger_airflow_sync(user_id: int, days: int) -> None:
+    """Airflow sobee_transaction_sync DAG 트리거 (회원가입 시 초기 sync)."""
+    from app.core.config import settings
+    url = f"{settings.AIRFLOW_URL}/api/v1/dags/sobee_transaction_sync/dagRuns"
+    try:
+        async with aiohttp.ClientSession() as session:
+            res = await session.post(
+                url,
+                json={"conf": {"user_id": user_id, "days": days}},
+                auth=aiohttp.BasicAuth(settings.AIRFLOW_USER, settings.AIRFLOW_PASSWORD),
+                timeout=aiohttp.ClientTimeout(total=10),
+            )
+            if res.status in (200, 201):
+                log.info(f"Airflow 트리거 완료: user_id={user_id} days={days}")
+            else:
+                body = await res.text()
+                log.warning(f"Airflow 트리거 실패 ({res.status}): {body} — 로컬 sync로 fallback")
+                asyncio.create_task(sync_transactions(user_id, days=days))
+    except Exception as e:
+        log.warning(f"Airflow 연결 실패: {e} — 로컬 sync로 fallback")
+        asyncio.create_task(sync_transactions(user_id, days=days))
 from app.models.schemas import (
     SyncRequest, SyncResponse,
     MappingRequest, MappingResponse,
@@ -107,14 +134,14 @@ async def accounts_register(request: RegisterAccountRequest):
         login_pw=request.login_pw,
         connected_id=request.connected_id,
     )
-    asyncio.create_task(sync_transactions(request.user_id, days=INITIAL_SYNC_DAYS))
+    asyncio.create_task(_trigger_airflow_sync(request.user_id, days=INITIAL_SYNC_DAYS))
     action = "기관 추가" if request.connected_id else "connected_id 발급"
     return RegisterAccountResponse(
         user_id=request.user_id,
         business_type=request.business_type,
         org_code=request.org_code,
         connected_id=cid,
-        message=f"{action} 완료. 초기 30일 sync 백그라운드 실행 중.",
+        message=f"{action} 완료. Airflow 초기 30일 sync 트리거됨.",
     )
 
 
@@ -124,10 +151,13 @@ async def transactions_sync(request: SyncRequest):
         DAILY_SYNC_DAYS, sync_transactions, sync_transactions_env,
     )
     days = request.days if request.days is not None else DAILY_SYNC_DAYS
-    if request.mode == "env":
-        result = await sync_transactions_env(request.user_id, days=days)
-    else:
-        result = await sync_transactions(request.user_id, days=days)
+    try:
+        if request.mode == "env":
+            result = await sync_transactions_env(request.user_id, days=days)
+        else:
+            result = await sync_transactions(request.user_id, days=days)
+    except ValueError as e:
+        return SyncResponse(message=f"skip (연동 계정 없음): {e}")
     msg = (
         f"sync 완료 [{request.mode}] | 기간:{result['period']} "
         f"계좌:{result['bank_saved']} 카드:{result['card_saved']} "

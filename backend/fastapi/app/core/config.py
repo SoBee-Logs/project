@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     FASTAPI_BASE_URL: str = "http://localhost:8000"
     INTERNAL_SECRET_KEY: str = ""
 
+    AIRFLOW_URL: str = "http://airflow-api-server:8080"
+    AIRFLOW_USER: str = "admin"
+    AIRFLOW_PASSWORD: str = "admin"
+
     CODEF_CLIENT_ID: str = ""
     CODEF_CLIENT_SECRET: str = ""
     CODEF_PUBLIC_KEY: str = ""
