@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from app.core.config import settings
+from app.api.vlm import reverse_geocode  # 위도경도 → 주소 변환 함수 재사용
 
 router = APIRouter()
 
@@ -49,6 +50,7 @@ MAPPING_PROMPT = """너는 소비 사진과 결제 내역을 매핑하는 AI야.
 - 가게명: {store_name}
 - 설명: {description}
 - 촬영 시각: {taken_at}
+- 촬영 위치: {location}
 
 [결제 후보 목록]
 {candidates}
@@ -78,6 +80,13 @@ async def match_photo_to_transaction(req: MappingRequest):
 
     client = _get_client()
 
+    # 위도경도 → 주소 변환 (있을 때만 실행)
+    location = "알 수 없음"
+    if req.vlm_data.latitude and req.vlm_data.longitude:
+        address = reverse_geocode(req.vlm_data.latitude, req.vlm_data.longitude)
+        if address:
+            location = address
+
     # 후보 목록 텍스트 변환
     candidates_text = "\n".join([
         f"- payment_id: {c.payment_id}, 금액: {c.payment_out}원, "
@@ -94,6 +103,7 @@ async def match_photo_to_transaction(req: MappingRequest):
         store_name=req.vlm_data.store_name or "알 수 없음",
         description=req.vlm_data.description or "",
         taken_at=req.vlm_data.taken_at or "알 수 없음",
+        location=location,
         candidates=candidates_text,
     )
 
