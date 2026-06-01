@@ -8,5 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface EmotionsTextRepository extends JpaRepository<EmotionsText, Long> {
-    Optional<EmotionsText> findByPhoto(Photo photo);
+    Optional<EmotionsText> findByPhotoId(Long photoId);
 }

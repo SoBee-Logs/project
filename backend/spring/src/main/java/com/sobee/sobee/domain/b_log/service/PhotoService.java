@@ -145,7 +145,7 @@ public class PhotoService {
                     ? metadata.getTakenAt().format(TIME_FORMATTER) : "";
 
             // emoji, text 추출
-            EmotionsText emotionsText = emotionsTextRepository.findByPhoto(photo).orElse(null);
+            EmotionsText emotionsText = emotionsTextRepository.findByPhotoId(photo.getPhotoId()).orElse(null);
             String emoji = emotionsText != null && emotionsText.getEmoji() != null
                     ? emotionsText.getEmoji().getEmoji() : null;
             String text = emotionsText != null ? emotionsText.getText() : null;
