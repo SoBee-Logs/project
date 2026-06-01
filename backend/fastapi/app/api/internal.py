@@ -175,9 +175,24 @@ async def mapping_run(request: MappingRequest):
 @router.post("/persona/generate", response_model=AvatarResponse)
 async def persona_generate(request: PersonaGenerateRequest):
     from app.services.avatar_service import _get_last_week_range
+    from app.db.connection import get_pool
+    import aiomysql
+
     start, end = request.start_date, request.end_date
     if not start or not end:
         start, end = _get_last_week_range()
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT COUNT(*) FROM transactions WHERE user_id = %s AND payment_date BETWEEN %s AND %s",
+                (request.user_id, start, end),
+            )
+            row = await cur.fetchone()
+    if not row or row[0] == 0:
+        return AvatarResponse(avatar_title="", avatar_description="", avatar_image="")
+
     return await _generate_and_save_avatar(request.user_id, start, end)
 
 
