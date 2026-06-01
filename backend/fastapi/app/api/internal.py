@@ -7,9 +7,10 @@ from app.models.schemas import (
     PersonaGenerateRequest, AvatarResponse,
     DiaryGenerateRequest, DiaryGenerateResponse,
     RegisterAccountRequest, RegisterAccountResponse,
+    ConnectedIdListResponse, ConnectedIdInfo,
     ParseSearchRequest, ParseSearchResponse,
 )
-from app.services.sync_service import sync_transactions, register_account, INITIAL_SYNC_DAYS
+from app.services.sync_service import sync_transactions, sync_transactions_env, register_account, list_connected_ids, INITIAL_SYNC_DAYS
 from app.services.mapping_service import run_mapping
 from app.services.avatar_service import _generate_and_save_avatar
 from app.services.diary_service import generate_diary
@@ -59,37 +60,76 @@ async def accounts_setup():
     return {"results": results}
 
 
+@router.get("/accounts/{user_id}", response_model=ConnectedIdListResponse)
+async def accounts_list(user_id: int):
+    """
+    유저의 connected_id 목록과 각 connected_id에 등록된 기관 목록 조회.
+    응답 예시:
+      {
+        "user_id": 1,
+        "connected_ids": [
+          {
+            "connected_id": "cid_abc",
+            "institutions": [
+              {"businessType": "BK", "organization": "0020"},
+              {"businessType": "CD", "organization": "0301"}
+            ]
+          }
+        ]
+      }
+    """
+    entries = list_connected_ids(user_id)
+    return ConnectedIdListResponse(
+        user_id=user_id,
+        connected_ids=[ConnectedIdInfo(**e) for e in entries],
+    )
+
+
 @router.post("/accounts/register", response_model=RegisterAccountResponse)
 async def accounts_register(request: RegisterAccountRequest):
     """
-    유저 금융기관 계정 등록 (최초 1회).
-    connected_id를 발급받아 Secrets Manager에 저장.
-    등록 완료 후 최근 30일 transactions 초기 sync를 백그라운드로 트리거.
+    금융기관 계정 등록.
+
+    connected_id 미전달: /account/create → 새 connected_id 발급
+      → 최초 등록 또는 다른 인증수단(인증서 vs ID/PW)으로 추가할 때 사용
+
+    connected_id 전달: /account/add → 기존 connected_id에 기관 추가
+      → 인증서 하나로 여러 은행/카드를 하나의 connected_id로 묶을 때 사용
+
+    등록 완료 후 최근 30일 transactions 초기 sync 백그라운드 트리거.
     login_id / login_pw는 CODEF에만 전달되며 저장되지 않음.
     """
-    await register_account(
+    cid = await register_account(
         user_id=request.user_id,
         business_type=request.business_type,
         org_code=request.org_code,
         login_id=request.login_id,
         login_pw=request.login_pw,
+        connected_id=request.connected_id,
     )
     asyncio.create_task(sync_transactions(request.user_id, days=INITIAL_SYNC_DAYS))
+    action = "기관 추가" if request.connected_id else "connected_id 발급"
     return RegisterAccountResponse(
         user_id=request.user_id,
         business_type=request.business_type,
         org_code=request.org_code,
-        message="connected_id 발급 및 저장 완료. 초기 30일 sync 백그라운드 실행 중.",
+        connected_id=cid,
+        message=f"{action} 완료. 초기 30일 sync 백그라운드 실행 중.",
     )
 
 
 @router.post("/transactions/sync", response_model=SyncResponse)
 async def transactions_sync(request: SyncRequest):
-    from app.services.sync_service import DAILY_SYNC_DAYS
+    from app.services.sync_service import (
+        DAILY_SYNC_DAYS, sync_transactions, sync_transactions_env,
+    )
     days = request.days if request.days is not None else DAILY_SYNC_DAYS
-    result = await sync_transactions(request.user_id, days=days)
+    if request.mode == "env":
+        result = await sync_transactions_env(request.user_id, days=days)
+    else:
+        result = await sync_transactions(request.user_id, days=days)
     msg = (
-        f"sync 완료 | 기간:{result['period']} "
+        f"sync 완료 [{request.mode}] | 기간:{result['period']} "
         f"계좌:{result['bank_saved']} 카드:{result['card_saved']} "
         f"transactions:{result['transactions_merged']}"
     )
