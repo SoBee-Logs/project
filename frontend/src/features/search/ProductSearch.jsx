@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const WOORI_NAVY = "#042C53";
@@ -43,6 +43,46 @@ const TYPE_ICON = {
     savings:   { emoji: "🏦", bg: "linear-gradient(135deg, #1D9E75, #0A6B4E)" },
     insurance: { emoji: "🛡️", bg: "linear-gradient(135deg, #7B5EA7, #4A3570)" },
 };
+
+function CardImage({ src, alt, containerW, containerH }) {
+    const [landscape, setLandscape] = useState(false);
+
+    useEffect(() => {
+        const img = new Image();
+        img.onload = () => setLandscape(img.naturalWidth > img.naturalHeight);
+        img.src = src;
+    }, [src]);
+
+    return landscape ? (
+        // 가로 이미지: layout은 portrait(containerW×containerH)로 잡고,
+        // 내부에 landscape 컨테이너를 중앙 배치 후 90도 회전
+        <div style={{ width: containerW, height: containerH, flexShrink: 0, overflow: "hidden", position: "relative" }}>
+            <div style={{
+                width: containerH, height: containerW,
+                position: "absolute",
+                left: (containerW - containerH) / 2,
+                top: (containerH - containerW) / 2,
+                transform: "rotate(90deg)",
+                transformOrigin: "center center",
+                overflow: "hidden",
+            }}>
+                <img
+                    src={src} alt={alt}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                />
+            </div>
+        </div>
+    ) : (
+        <div style={{ width: containerW, height: containerH, overflow: "hidden", flexShrink: 0 }}>
+            <img
+                src={src} alt={alt}
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
+            />
+        </div>
+    );
+}
 
 function ProductCard({ item, onClick, matchedCateNames = [] }) {
     const { product_name, product_company, product_img_url, product_type, is_discontinued, content } = item;
@@ -92,27 +132,11 @@ function ProductCard({ item, onClick, matchedCateNames = [] }) {
                     </span>
                 </div>
             )}
-            <div
-                style={{
-                    width: 72,
-                    height: 110,
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    flexShrink: 0,
-                    alignSelf: "center",
-                    background: typeStyle.bg,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                }}
-            >
+            <div style={{ borderRadius: 8, overflow: "hidden", flexShrink: 0, alignSelf: "center", background: product_img_url ? "transparent" : typeStyle.bg, boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
                 {product_img_url ? (
-                    <img
-                        src={product_img_url}
-                        alt={product_name}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        onError={(e) => { e.currentTarget.style.display = "none"; }}
-                    />
+                    <CardImage src={product_img_url} alt={product_name} containerW={72} containerH={110} />
                 ) : (
-                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+                    <div style={{ width: 72, height: 110, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
                         {typeStyle.emoji}
                     </div>
                 )}
@@ -376,10 +400,10 @@ function DetailPage({ item, onBack }) {
 
             <div className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 <div style={{ background: headerBg, borderRadius: 18, padding: "20px", display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
-                    <div style={{ width: 100, height: 154, borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
+                    <div style={{ borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)", background: product_img_url ? "transparent" : "rgba(255,255,255,0.15)" }}>
                         {product_img_url
-                            ? <img src={product_img_url} alt={product_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            : <div style={{ width: "100%", height: "100%", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{headerEmoji}</div>
+                            ? <CardImage src={product_img_url} alt={product_name} containerW={100} containerH={154} />
+                            : <div style={{ width: 100, height: 154, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{headerEmoji}</div>
                         }
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
