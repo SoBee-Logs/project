@@ -142,9 +142,14 @@ public class SearchService {
                 ? parsed.getAi_text()
                 : "'" + keyword + "' 관련 상품을 찾았어요. 총 " + products.size() + "개의 상품이 있어요.";
 
+        List<String> matchedCateNames = (parsed != null && parsed.getCategory() != null)
+                ? CATEGORY_MAP.getOrDefault(parsed.getCategory(), List.of())
+                : List.of();
+
         return SearchResponseDto.builder()
                 .AI_text(aiText)
                 .products(products)
+                .matched_cate_names(matchedCateNames)
                 .build();
     }
 
