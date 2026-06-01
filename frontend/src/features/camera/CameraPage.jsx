@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import StatusBar from '../../common/components/StatusBar'
 
 const MOOD_EMOJIS = ['☺️', '😭', '😮', '😍', '😡']
@@ -7,6 +7,8 @@ const MOOD_TYPES = ['HAPPY', 'SAD', 'SURPRISED', 'LOVE', 'ANGRY']
 
 export default function CameraPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const groupsFromState = location.state?.myGroups ?? []
   const [text, setText] = useState('')
   const [selectedMood, setSelectedMood] = useState(0)
   const [selectedRooms, setSelectedRooms] = useState([])
@@ -14,7 +16,9 @@ export default function CameraPage() {
   const [previewUrl, setPreviewUrl] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingStep, setLoadingStep] = useState('')  // 'upload' | 'analyze'
-  const [rooms, setRooms] = useState([])
+  const [rooms, setRooms] = useState(
+    groupsFromState.map(g => ({ id: g.groupId, label: g.groupName }))
+)
   // VLM 분석 상태 — 사진 선택 즉시 백그라운드 분석
   const [vlmData, setVlmData] = useState(null)
   const [vlmLoading, setVlmLoading] = useState(false)
@@ -25,28 +29,6 @@ export default function CameraPage() {
   // VLM Promise 참조 — handleNext에서 분석 완료까지 실제로 await하기 위해 사용
   const vlmPromiseRef = useRef(null)
   const fileInputRef = useRef(null)
-
-  useEffect(() => {
-    const fetchMyGroups = async () => {
-      try {
-        const token = localStorage.getItem("token")
-        if (!token) return
-        const res = await fetch('/api/groups', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        })
-        const data = await res.json()
-        if (data && data.length > 0) {
-          setRooms(data.map((group) => ({
-            id: group.groupId,
-            label: group.groupName,
-          })))
-        }
-      } catch (err) {
-        console.error('모임 목록 조회 실패', err)
-      }
-    }
-    fetchMyGroups()
-  }, [])
 
   // 컴포넌트 마운트 시 실제 기기 GPS 위치 요청
   useEffect(() => {

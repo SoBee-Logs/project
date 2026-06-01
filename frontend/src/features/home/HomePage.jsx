@@ -277,7 +277,9 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
-            onClick={() => navigate('/camera')}
+            onClick={() => navigate('/camera', { 
+              state: { myGroups: feedPreviews } //groups 재호출 하지 않도록
+          })}
             className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
             style={{
               background: 'radial-gradient(circle at 50% 48%, rgba(33,188,234,0.12) 0%, rgba(33,188,234,0.08) 42%, rgba(255,255,255,0) 68%), linear-gradient(180deg, #F4FAFF 0%, #EEF7FF 100%)',
