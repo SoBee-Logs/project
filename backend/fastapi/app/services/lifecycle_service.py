@@ -1,8 +1,25 @@
+import io
+import pickle
+import boto3
+import pandas as pd
+from sqlalchemy import create_engine, text
 from app.models.schemas import LifecycleRequest, LifecycleResponse
 from ml.lifecycle_model import lifecycle_model
-from sqlalchemy import create_engine, text
 from app.core.config import settings
-import pandas as pd
+
+
+def _load_model_from_s3():
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_REGION,
+    )
+    obj = s3.get_object(Bucket=settings.S3_BUCKET_NAME, Key="models/model.pkl")
+    saved = pickle.load(io.BytesIO(obj["Body"].read()))
+    lifecycle_model.pipeline   = saved["pipeline"]
+    lifecycle_model.le         = saved["label_encoder"]
+    lifecycle_model.is_trained = True
 
 engine = create_engine(
     f"mysql+pymysql://{settings.DB_USER}:{settings.DB_PASSWORD}"
@@ -28,6 +45,7 @@ LIFECYCLE_KO = {
 # 로그인 시 호출 → 예측 후 users.life_stage_code 저장
 # ─────────────────────────────────────────
 async def predict_lifecycle(request: LifecycleRequest) -> LifecycleResponse:
+    _load_model_from_s3()
 
     user_id = request.user_id
 
