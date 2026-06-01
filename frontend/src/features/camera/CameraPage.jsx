@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import StatusBar from '../../common/components/StatusBar'
+import heic2any from 'heic2any'
 
 const MOOD_EMOJIS = ['☺️', '😭', '😮', '😍', '😡']
 const MOOD_TYPES = ['HAPPY', 'SAD', 'SURPRISED', 'LOVE', 'ANGRY']
@@ -99,7 +100,7 @@ export default function CameraPage() {
     const ext = file.name.toLowerCase().split('.').pop()
     if (ext === 'heic' || ext === 'heif') {
       try {
-        const heic2any = (await import('heic2any')).default
+
         const blob = await heic2any({ blob: file, toType: 'image/jpeg' })
         const convertedFile = new File(
           [blob],
