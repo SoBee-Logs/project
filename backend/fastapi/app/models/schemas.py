@@ -155,6 +155,7 @@ class DiaryRequest(BaseModel):
     matched: Optional[bool] = None
     tags: Optional[List[str]] = []
     group_description: Optional[str] = None
+    photo_count: Optional[int] = 1
 
 class DiaryResponse(BaseModel):
     title: str
