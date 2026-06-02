@@ -38,7 +38,7 @@ export default function ConsumptionLog() {
     if (!timeStr) return ''
     const [hour, minute] = timeStr.split(':').map(Number)
     const date = new Date()
-    date.setUTCHours(hour, minute, 0, 0)
+    date.setHours(hour, minute, 0, 0)
     return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
   }
 
