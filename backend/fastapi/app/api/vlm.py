@@ -84,11 +84,18 @@ def extract_exif(image_bytes: bytes) -> dict:
 
     result = {"datetime": None, "gps": None}
 
+    datetime_original = None
+    offset_original = None
+
     for tag_id, value in exif_data.items():
         tag_name = TAGS.get(tag_id, tag_id)
         if tag_name == "DateTimeOriginal":
-            result["datetime"] = value.replace(":", "-", 2)
-            break
+            datetime_original = value.replace(":", "-", 2)
+        elif tag_name == "OffsetTimeOriginal":
+            offset_original = value
+
+    if datetime_original:
+        result["datetime"] = f"{datetime_original}{offset_original}" if offset_original else datetime_original
 
     for tag_id, value in exif_data.items():
         tag_name = TAGS.get(tag_id, tag_id)

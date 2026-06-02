@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import StatusBar from '../../common/components/StatusBar'
 import heic2any from 'heic2any'
+import exifr from 'exifr'
 
 const MOOD_EMOJIS = ['☺️', '😭', '😮', '😍', '😡']
 const MOOD_TYPES = ['HAPPY', 'SAD', 'SURPRISED', 'LOVE', 'ANGRY']
@@ -96,7 +97,7 @@ export default function CameraPage() {
   const handleImageChange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-  
+
     const ext = file.name.toLowerCase().split('.').pop()
     if (ext === 'heic' || ext === 'heif') {
       try {
@@ -132,9 +133,26 @@ export default function CameraPage() {
 
       // ① 사진 업로드
       setLoadingStep('upload')
+
+      // EXIF에서 촬영 시각 추출 — 여러 태그를 순서대로 탐색
+      let takenAt = null
+      try {
+        const exif = await exifr.parse(imageFile)
+        console.log("🔍 파일에서 찾아낸 전체 EXIF 데이터:", exif)
+        if (exif) {
+          const extractedDate = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate
+          if (extractedDate) {
+            takenAt = new Date(extractedDate).toISOString()
+            console.log("✅ 최종 결정된 촬영 시간:", takenAt)
+          }
+        }
+      } catch (error) {
+        console.log("EXIF 데이터가 없거나 읽을 수 없습니다.", error)
+      }
+
       const formData = new FormData()
       formData.append('image', imageFile)
-      formData.append('takenAt', new Date().toISOString())
+      formData.append('takenAt', takenAt ?? new Date().toISOString())
       // 실제 GPS 좌표 사용 — GPS 실패 시 서울시청 폴백 좌표 사용
       formData.append('latitude', String(gpsCoords?.latitude ?? 37.5665))
       formData.append('longitude', String(gpsCoords?.longitude ?? 126.9780))
