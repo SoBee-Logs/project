@@ -610,6 +610,22 @@ export default function Report() {
           )
         })()}
 
+        {/* ① 소비 리포트 (월 총액) */}
+        <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
+          <p className="text-xs text-gray-400 mb-1">📊 {selectedYear}년 {selectedMonth}월 총 소비</p>
+          <span className="text-2xl font-extrabold text-gray-900">
+            {txData ? txData.payment_out.toLocaleString() : '-'}원
+          </span>
+          {txData?.vlm_summary?.total_count > 0 && (
+            <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 flex items-center gap-2">
+              <span className="text-sm">📷</span>
+              <span className="text-[11px] text-[#1e73be] font-semibold">
+                사진 {txData.vlm_summary.total_count}장 · VLM 분석 아이템 {txData.vlm_items?.length ?? 0}종 연결됨
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* 아바타 생성 기반 데이터 카드 */}
         {txData && (() => {
           const traits = [
@@ -655,86 +671,6 @@ export default function Report() {
           )
         })()}
 
-        {/* 🔄 이번 달 아바타가 이렇게 바뀌었어요 */}
-        {(() => {
-          let explaneObj = null
-          try { explaneObj = JSON.parse(persona?.avatarExplane ?? '') } catch {}
-          const isNewFormat = explaneObj && ('emoji' in explaneObj || 'background' in explaneObj || 'time' in explaneObj || 'item' in explaneObj)
-          if (!isNewFormat) return null
-
-          const CHANGE_ICONS = { emoji: '😊', background: '🎨', time: '⏰', item: '🛍️' }
-          const CHANGE_LABELS = { emoji: '표정', background: '스타일', time: '시간대', item: '아이템' }
-          const entries = Object.entries(explaneObj).filter(([, v]) => v?.header)
-
-          return (
-            <div className="rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-3">
-              <p className="text-xs text-gray-500 font-semibold">🔄 이번 달 아바타가 이렇게 바뀌었어요</p>
-              <div className="flex flex-col gap-3">
-                {entries.map(([key, val]) => (
-                  <div key={key} className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-sm shrink-0">
-                      {CHANGE_ICONS[key] ?? '✨'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-semibold text-[#1e73be] bg-blue-50 rounded-full px-2 py-0.5">
-                          {CHANGE_LABELS[key] ?? key}
-                        </span>
-                        <span className="text-sm font-bold text-gray-800 truncate">{val.header}</span>
-                      </div>
-                      {val.context && (
-                        <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">{val.context}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* ① 소비 리포트 (월 총액) */}
-        <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
-          <p className="text-xs text-gray-400 mb-1">📊 {selectedYear}년 {selectedMonth}월 총 소비</p>
-          <span className="text-2xl font-extrabold text-gray-900">
-            {txData ? txData.payment_out.toLocaleString() : '-'}원
-          </span>
-          {txData?.vlm_summary?.total_count > 0 && (
-            <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 flex items-center gap-2">
-              <span className="text-sm">📷</span>
-              <span className="text-[11px] text-[#1e73be] font-semibold">
-                사진 {txData.vlm_summary.total_count}장 · VLM 분석 아이템 {txData.vlm_items?.length ?? 0}종 연결됨
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* ② AI 상품 추천 */}
-        <div ref={aiRecommendRef} className="rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-3">
-          <div>
-            <p className="text-xs text-gray-500 font-semibold">🤖 AI 상품 추천</p>
-            {(() => {
-              const topCat = categoryList[0]?.name
-              const topStore = txData?.vlm_summary?.cards?.[0]?.store_type
-              if (topCat || topStore) {
-                return (
-                  <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
-                    결제 카테고리{topStore ? ' + VLM 장소 맥락' : ''} 반영
-                    {topCat && topStore && (
-                      <span className="ml-1 text-[#1e73be]">예: {topCat} 방문 많음 → {topCat} 혜택 카드</span>
-                    )}
-                  </p>
-                )
-              }
-              return null
-            })()}
-          </div>
-          {recommendData?.recommned?.length > 0
-            ? recommendData.recommned.map((item, i) => <RecommendCard key={i} item={item} />)
-            : recommendData === null
-              ? <p className="text-center text-xs text-gray-400">추천 상품을 불러오는 중...</p>
-              : <p className="text-center text-xs text-gray-400">추천 상품을 불러올 수 없어요</p>
-          }
         {/* AI 상품 추천 */}
         <div ref={aiRecommendRef} className="flex flex-col gap-2">
           <div className="flex items-center gap-1">
@@ -805,75 +741,91 @@ export default function Report() {
           )}
         </div>
 
-        {/* ③ 이번 달 소비 장면 (VLM 기반) */}
-        {txData?.vlm_summary?.total_count > 0 && (() => {
-          const { cards, category_items } = txData.vlm_summary
-          const storeTypeCounts = cards.reduce((acc, c) => {
-            if (c.store_type) acc[c.store_type] = (acc[c.store_type] || 0) + 1
-            return acc
-          }, {})
-          const topStores = Object.entries(storeTypeCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
-            .map(([type, cnt]) => `${type} ${cnt}회`)
-          const topItems = cards
-            .map(c => c.item_name).filter(Boolean)
-            .filter((v, i, arr) => arr.indexOf(v) === i)
-            .slice(0, 5)
+        {/* ⑤ 카테고리별 주별 소비 도넛 */}
+        {categoryList.length > 0 && txData && (() => {
+          // category_transactions에서 주차별 카테고리 집계
+          const firstDay = new Date(selectedYear, selectedMonth - 1, 1)
+          const firstWeekday = (firstDay.getDay() + 1) % 7 // 일요일=0 기준 월요일 시작
 
-          return (
-            <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#FFF8F0', border: '1px solid #FFE4C4' }}>
-              <p className="text-xs font-semibold" style={{ color: '#B45309' }}>📷 이번 달 소비 장면</p>
-              <div>
-                <p className="text-lg font-extrabold text-gray-900">VLM 분석 기반</p>
-                {topStores.length > 0 && (
-                  <p className="text-sm text-gray-600 mt-0.5">{topStores.join(' · ')}</p>
-                )}
-                {topItems.length > 0 && (
-                  <p className="text-[11px] text-gray-400 mt-1">
-                    주요 아이템: {topItems.join(', ')}
-                    {cards.length > 5 ? '...' : ''}
-                  </p>
-                )}
-              </div>
-              {Object.keys(category_items).length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {Object.entries(category_items).flatMap(([cat, items]) =>
-                    items.slice(0, 2).map((item, i) => (
-                      <span key={`${cat}-${i}`} className="text-[11px] font-medium rounded-full px-2.5 py-0.5"
-                        style={{ background: '#FDEBC8', color: '#92400E' }}>
-                        {item}
-                      </span>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })()}
-
-        {/* ④ 이번 달 소비 감정 (카테고리 이모지 분포) */}
-        {categoryList.length > 0 && (() => {
-          const CAT_EMOJI = {
-            '카페/음료': '☕', '식사': '🍽️', '한식': '🍚', '편의점': '🏪',
-            '쇼핑/온라인': '🛍️', '교통': '🚌', '제과/베이커리': '🥐',
-            '의료/약국': '💊', '완구/취미': '🎮', '서적': '📚', '기타': '🎉',
+          const getWeekLabel = (dateStr) => {
+            const d = new Date(dateStr)
+            const dayOfMonth = d.getDate()
+            const weekNum = Math.floor((dayOfMonth + firstWeekday - 1) / 7) + 1
+            return `${weekNum}주`
           }
-          const top3Cats = categoryList.slice(0, 3)
+
+          // 주차 목록 추출
+          const weekSet = new Set(['전체'])
+          Object.values(txData.category_transactions ?? {}).forEach(records =>
+            records.forEach(r => weekSet.add(getWeekLabel(r.payment_date)))
+          )
+          const weeks = ['전체', ...Array.from(weekSet).filter(w => w !== '전체').sort()]
+
+          // 선택 주차의 카테고리별 합산
+          const weekCategoryTotals = {}
+          Object.entries(txData.category_transactions ?? {}).forEach(([cat, records]) => {
+            const filtered = selectedWeek === '전체'
+              ? records
+              : records.filter(r => getWeekLabel(r.payment_date) === selectedWeek)
+            const sum = filtered.reduce((s, r) => s + (r.payment_out ?? 0), 0)
+            if (sum > 0) weekCategoryTotals[cat] = sum
+          })
+
+          const total = Object.values(weekCategoryTotals).reduce((a, b) => a + b, 0)
+          const weekCatList = Object.entries(weekCategoryTotals)
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, amount], i) => ({
+              name, amount,
+              value: total > 0 ? Math.round((amount / total) * 100) : 0,
+              color: CATEGORY_PALETTE[i % CATEGORY_PALETTE.length],
+            }))
+
           return (
-            <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#F5F3FF', border: '1px solid #DDD6FE' }}>
-              <p className="text-xs font-semibold" style={{ color: '#6D28D9' }}>😊 이번 달 소비 감정</p>
-              <div className="flex items-center gap-3 flex-wrap">
-                {top3Cats.map((cat) => (
-                  <div key={cat.name} className="flex items-center gap-1">
-                    <span className="text-xl">{CAT_EMOJI[cat.name] ?? '💳'}</span>
-                    <span className="text-base font-extrabold" style={{ color: '#5B21B6' }}>{cat.value}%</span>
-                  </div>
+            <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
+              <div className="flex justify-between items-center mb-3">
+                <p className="text-xs text-gray-500 font-semibold">🏷️ 카테고리별 소비</p>
+                <button
+                  onClick={() => navigate('/report/detail', { state: { year: selectedYear, month: selectedMonth, categoryColorMap } })}
+                  className="text-[10px] text-[#1e73be] underline"
+                >
+                  더보기 →
+                </button>
+              </div>
+
+              {/* 주차 탭 */}
+              <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
+                {weeks.map(w => (
+                  <button
+                    key={w}
+                    onClick={() => setSelectedWeek(w)}
+                    className={`shrink-0 text-[11px] font-semibold rounded-full px-3 py-1 transition-colors ${
+                      selectedWeek === w
+                        ? 'bg-[#1e73be] text-white'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {w}
+                  </button>
                 ))}
               </div>
-              <p className="text-[11px]" style={{ color: '#7C3AED' }}>
-                {top3Cats.map(c => `${CAT_EMOJI[c.name] ?? '💳'} ${c.name}`).join(' · ')} 순으로 소비했어요
-              </p>
+
+              {weekCatList.length > 0 ? (
+                <>
+                  <CategoryDonut categoryList={weekCatList} />
+                  <div className="border-t border-gray-100 mt-3 pt-3 flex flex-col gap-1.5">
+                    {weekCatList.slice(0, 5).map((cat) => (
+                      <div key={cat.name} className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat.color }} />
+                        <span className="text-[11px] text-gray-600 flex-1">{cat.name}</span>
+                        <span className="text-[11px] font-bold text-gray-800">{cat.amount.toLocaleString()}원</span>
+                        <span className="text-[10px] text-gray-400">({cat.value}%)</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-center text-xs text-gray-400 py-8">해당 주에 결제 내역이 없어요</p>
+              )}
             </div>
           )
         })()}
@@ -1000,95 +952,6 @@ export default function Report() {
           )
         })()}
 
-        {/* ⑤ 카테고리별 주별 소비 도넛 */}
-        {categoryList.length > 0 && txData && (() => {
-          // category_transactions에서 주차별 카테고리 집계
-          const firstDay = new Date(selectedYear, selectedMonth - 1, 1)
-          const firstWeekday = (firstDay.getDay() + 1) % 7 // 일요일=0 기준 월요일 시작
-
-          const getWeekLabel = (dateStr) => {
-            const d = new Date(dateStr)
-            const dayOfMonth = d.getDate()
-            const weekNum = Math.floor((dayOfMonth + firstWeekday - 1) / 7) + 1
-            return `${weekNum}주`
-          }
-
-          // 주차 목록 추출
-          const weekSet = new Set(['전체'])
-          Object.values(txData.category_transactions ?? {}).forEach(records =>
-            records.forEach(r => weekSet.add(getWeekLabel(r.payment_date)))
-          )
-          const weeks = ['전체', ...Array.from(weekSet).filter(w => w !== '전체').sort()]
-
-          // 선택 주차의 카테고리별 합산
-          const weekCategoryTotals = {}
-          Object.entries(txData.category_transactions ?? {}).forEach(([cat, records]) => {
-            const filtered = selectedWeek === '전체'
-              ? records
-              : records.filter(r => getWeekLabel(r.payment_date) === selectedWeek)
-            const sum = filtered.reduce((s, r) => s + (r.payment_out ?? 0), 0)
-            if (sum > 0) weekCategoryTotals[cat] = sum
-          })
-
-          const total = Object.values(weekCategoryTotals).reduce((a, b) => a + b, 0)
-          const weekCatList = Object.entries(weekCategoryTotals)
-            .sort((a, b) => b[1] - a[1])
-            .map(([name, amount], i) => ({
-              name, amount,
-              value: total > 0 ? Math.round((amount / total) * 100) : 0,
-              color: CATEGORY_PALETTE[i % CATEGORY_PALETTE.length],
-            }))
-
-          return (
-            <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
-              <div className="flex justify-between items-center mb-3">
-                <p className="text-xs text-gray-500 font-semibold">🏷️ 카테고리별 소비</p>
-                <button
-                  onClick={() => navigate('/report/detail', { state: { year: selectedYear, month: selectedMonth, categoryColorMap } })}
-                  className="text-[10px] text-[#1e73be] underline"
-                >
-                  더보기 →
-                </button>
-              </div>
-
-              {/* 주차 탭 */}
-              <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
-                {weeks.map(w => (
-                  <button
-                    key={w}
-                    onClick={() => setSelectedWeek(w)}
-                    className={`shrink-0 text-[11px] font-semibold rounded-full px-3 py-1 transition-colors ${
-                      selectedWeek === w
-                        ? 'bg-[#1e73be] text-white'
-                        : 'bg-gray-100 text-gray-500'
-                    }`}
-                  >
-                    {w}
-                  </button>
-                ))}
-              </div>
-
-              {weekCatList.length > 0 ? (
-                <>
-                  <CategoryDonut categoryList={weekCatList} />
-                  <div className="border-t border-gray-100 mt-3 pt-3 flex flex-col gap-1.5">
-                    {weekCatList.slice(0, 5).map((cat) => (
-                      <div key={cat.name} className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat.color }} />
-                        <span className="text-[11px] text-gray-600 flex-1">{cat.name}</span>
-                        <span className="text-[11px] font-bold text-gray-800">{cat.amount.toLocaleString()}원</span>
-                        <span className="text-[10px] text-gray-400">({cat.value}%)</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="text-center text-xs text-gray-400 py-8">해당 주에 결제 내역이 없어요</p>
-              )}
-            </div>
-          )
-        })()}
-
         {/* ⑥ 아바타 변화 이유 */}
         {(() => {
           const reason = persona?.avatarChangeReason || txData?.avatar_change_reason
@@ -1117,6 +980,78 @@ export default function Report() {
           )
         })()}
 
+        {/* ③ 이번 달 소비 장면 (VLM 기반) */}
+        {txData?.vlm_summary?.total_count > 0 && (() => {
+          const { cards, category_items } = txData.vlm_summary
+          const storeTypeCounts = cards.reduce((acc, c) => {
+            if (c.store_type) acc[c.store_type] = (acc[c.store_type] || 0) + 1
+            return acc
+          }, {})
+          const topStores = Object.entries(storeTypeCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([type, cnt]) => `${type} ${cnt}회`)
+          const topItems = cards
+            .map(c => c.item_name).filter(Boolean)
+            .filter((v, i, arr) => arr.indexOf(v) === i)
+            .slice(0, 5)
+
+          return (
+            <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#FFF8F0', border: '1px solid #FFE4C4' }}>
+              <p className="text-xs font-semibold" style={{ color: '#B45309' }}>📷 이번 달 소비 장면</p>
+              <div>
+                <p className="text-lg font-extrabold text-gray-900">VLM 분석 기반</p>
+                {topStores.length > 0 && (
+                  <p className="text-sm text-gray-600 mt-0.5">{topStores.join(' · ')}</p>
+                )}
+                {topItems.length > 0 && (
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    주요 아이템: {topItems.join(', ')}
+                    {cards.length > 5 ? '...' : ''}
+                  </p>
+                )}
+              </div>
+              {Object.keys(category_items).length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(category_items).flatMap(([cat, items]) =>
+                    items.slice(0, 2).map((item, i) => (
+                      <span key={`${cat}-${i}`} className="text-[11px] font-medium rounded-full px-2.5 py-0.5"
+                        style={{ background: '#FDEBC8', color: '#92400E' }}>
+                        {item}
+                      </span>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* ④ 이번 달 소비 감정 (카테고리 이모지 분포) */}
+        {categoryList.length > 0 && (() => {
+          const CAT_EMOJI = {
+            '카페/음료': '☕', '식사': '🍽️', '한식': '🍚', '편의점': '🏪',
+            '쇼핑/온라인': '🛍️', '교통': '🚌', '제과/베이커리': '🥐',
+            '의료/약국': '💊', '완구/취미': '🎮', '서적': '📚', '기타': '🎉',
+          }
+          const top3Cats = categoryList.slice(0, 3)
+          return (
+            <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#F5F3FF', border: '1px solid #DDD6FE' }}>
+              <p className="text-xs font-semibold" style={{ color: '#6D28D9' }}>😊 이번 달 소비 감정</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                {top3Cats.map((cat) => (
+                  <div key={cat.name} className="flex items-center gap-1">
+                    <span className="text-xl">{CAT_EMOJI[cat.name] ?? '💳'}</span>
+                    <span className="text-base font-extrabold" style={{ color: '#5B21B6' }}>{cat.value}%</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px]" style={{ color: '#7C3AED' }}>
+                {top3Cats.map(c => `${CAT_EMOJI[c.name] ?? '💳'} ${c.name}`).join(' · ')} 순으로 소비했어요
+              </p>
+            </div>
+          )
+        })()}
 
         {/* 시간대 패턴 */}
         {timeList.length > 0 && (
