@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from app.api import avatar, recommend, lifecycle, report, internal, category_mapping, vlm, diary_generate
 from app.db.connection import close_pool
@@ -18,7 +19,23 @@ app = FastAPI(
     title="Sobee FastAPI - B조",
     version="0.1.0",
     lifespan=lifespan,
+    swagger_ui_parameters={"persistAuthorization": True},
 )
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
+    schema.setdefault("components", {})["securitySchemes"] = {
+        "InternalSecret": {"type": "apiKey", "in": "header", "name": "X-Internal-Secret"}
+    }
+    schema["security"] = [{"InternalSecret": []}]
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = custom_openapi
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,7 +50,7 @@ async def internal_auth_middleware(request: Request, call_next):
     if request.url.path.startswith("/internal/"):
         token = request.headers.get("X-Internal-Secret")
         if not token or token != settings.INTERNAL_SECRET_KEY:
-            return JSONResponse(status_code=403, detail="접근 불가")
+            return JSONResponse(status_code=403, content={"detail": "접근 불가"})
     return await call_next(request)
 
 app.include_router(avatar.router, prefix="/api/avatar", tags=["avatar"])
