@@ -127,7 +127,7 @@ public class DiaryService {
 
         // 감정 데이터 — 전체 수집 후 텍스트 합치기
         List<EmotionsText> allEmotions = todayPhotos.stream()
-        .map(p -> emotionsTextRepository.findByPhoto(p).orElse(null))
+        .map(p -> emotionsTextRepository.findByPhotoId(p.getPhotoId()).orElse(null))
         .filter(Objects::nonNull)
         .collect(Collectors.toList());
 
@@ -160,7 +160,7 @@ public class DiaryService {
         // 모임방 카테고리 — FastAPI에서 카테고리별 일기 테마 적용에 사용
         .room_category(group.getCategory() != null ? group.getCategory().name() : null)
         .build();
-
+        
         FastApiDiaryResponse faRes;
         try {
             faRes = callFastApiDiary(faReq);
