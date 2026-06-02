@@ -1,8 +1,25 @@
+import io
+import pickle
+import boto3
+import pandas as pd
+from sqlalchemy import create_engine, text
 from app.models.schemas import LifecycleRequest, LifecycleResponse
 from ml.lifecycle_model import lifecycle_model
-from sqlalchemy import create_engine, text
 from app.core.config import settings
-import pandas as pd
+
+
+def _load_model_from_s3():
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_REGION,
+    )
+    obj = s3.get_object(Bucket=settings.S3_BUCKET_NAME, Key="models/model.pkl")
+    saved = pickle.load(io.BytesIO(obj["Body"].read()))
+    lifecycle_model.pipeline   = saved["pipeline"]
+    lifecycle_model.le         = saved["label_encoder"]
+    lifecycle_model.is_trained = True
 
 engine = create_engine(
     f"mysql+pymysql://{settings.DB_USER}:{settings.DB_PASSWORD}"
@@ -28,33 +45,28 @@ LIFECYCLE_KO = {
 # 로그인 시 호출 → 예측 후 users.life_stage_code 저장
 # ─────────────────────────────────────────
 async def predict_lifecycle(request: LifecycleRequest) -> LifecycleResponse:
+    _load_model_from_s3()
 
     user_id = request.user_id
 
     # DB에서 트랜잭션 가져오기 (payment_date 추가)
+    # 나이 조회
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT age FROM users WHERE user_id = :uid"), {"uid": user_id}).fetchone()
+    age = int(row[0]) if row and row[0] else 0
+
     df_tx = pd.read_sql(text("""
-        SELECT payment_category,
+        SELECT payment_category_id,
+               payment_category,
                payment_out,
-               payment_date
+               payment_date,
+               payment_place,
+               payment_time
         FROM transactions
         WHERE user_id = :user_id
-        AND payment_out > 0
+          AND payment_out > 0
+          AND payment_category_id IS NOT NULL
     """), engine, params={"user_id": user_id})
-
-    # DB에서 나이/성별 가져오기
-    df_user = pd.read_sql(text("""
-        SELECT age, gender
-        FROM users
-        WHERE user_id = :user_id
-    """), engine, params={"user_id": user_id})
-
-    # users 데이터 파싱 (없으면 request 값 사용)
-    if not df_user.empty:
-        age    = int(df_user['age'].iloc[0])
-        gender = 1 if str(df_user['gender'].iloc[0]).lower() == 'm' else 2
-    else:
-        age    = request.age or 0
-        gender = 0
 
     # 트랜잭션 없으면 fallback
     if df_tx.empty:
@@ -67,7 +79,6 @@ async def predict_lifecycle(request: LifecycleRequest) -> LifecycleResponse:
     result = lifecycle_model.predict_from_transactions(
         user_transactions=df_tx.to_dict('records'),
         age=age,
-        gender=gender
     )
 
     # 예측 결과 → users.life_stage_code 저장
@@ -82,7 +93,8 @@ async def predict_lifecycle(request: LifecycleRequest) -> LifecycleResponse:
         })
 
     # 카테고리별 지출 TOP 3 분석
-    category_summary = df_tx.groupby('payment_category')['payment_out'].sum()
+    cat_col  = 'payment_category' if 'payment_category' in df_tx.columns else 'payment_category_id'
+    category_summary = df_tx.groupby(cat_col)['payment_out'].sum()
     top3     = category_summary.nlargest(3)
     top3_str = ", ".join([f"{cat}({int(amt):,}원)" for cat, amt in top3.items()])
 

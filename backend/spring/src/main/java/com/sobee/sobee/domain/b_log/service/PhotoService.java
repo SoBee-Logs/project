@@ -32,6 +32,8 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.Comparator;
@@ -66,9 +68,17 @@ public class PhotoService {
 
     private LocalDateTime parseTakenAt(String takenAt) {
         try {
-            return LocalDateTime.parse(takenAt, TAKEN_AT_FORMATTER);
+            // offset 포함(Z, +09:00 등) → KST LocalDateTime으로 변환
+            OffsetDateTime odt = OffsetDateTime.parse(takenAt, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+            return odt.withOffsetSameInstant(ZoneOffset.ofHours(9)).toLocalDateTime();
         } catch (Exception e) {
-            return LocalDateTime.parse(takenAt.replace("Z", "").replaceAll("\\.\\d+$", ""));
+            // offset 없는 경우 → KST로 간주하고 그대로 파싱
+            String cleaned = takenAt.replace("Z", "").replaceAll("\\.\\d+$", "");
+            try {
+                return LocalDateTime.parse(cleaned, TAKEN_AT_FORMATTER);
+            } catch (Exception e2) {
+                return LocalDateTime.parse(cleaned);
+            }
         }
     }
 
@@ -212,9 +222,7 @@ public class PhotoService {
         if (request.getTaken_at() != null && !request.getTaken_at().isBlank()) {
             photoMetadataRepository.findByPhotoPhotoId(photoId).ifPresent(metadata -> {
                 try {
-                    String normalized = request.getTaken_at().trim().substring(0, 19);
-                    LocalDateTime exifTime = LocalDateTime.parse(normalized,
-                            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                    LocalDateTime exifTime = parseExifDateTime(request.getTaken_at());
                     metadata.setTakenAt(exifTime);
                     photoMetadataRepository.save(metadata);
                 } catch (Exception ignored) {}
