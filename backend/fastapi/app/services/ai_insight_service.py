@@ -53,6 +53,38 @@ LIFE_STAGE_SAVE_TRM = {
 CHILD_STAGES = {'TEEN', 'CHILD_BABY', 'CHILD_TEEN', 'CHILD_UNI'}
 CHILD_KEYWORDS = '키즈|아이|어린이|주니어|청소년|영유아|태아|baby|kids|junior'
 
+_FV = "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.{}&size=256"
+COMPANY_LOGO_MAP: dict[str, str] = {
+    # 은행
+    "경남은행":               _FV.format("knbank.co.kr"),
+    "광주은행":               _FV.format("kjbank.com"),
+    "국민은행":               _FV.format("kbstar.com"),
+    "농협은행주식회사":        _FV.format("nonghyup.com"),
+    "부산은행":               _FV.format("busanbank.co.kr"),
+    "수협은행":               _FV.format("suhyup.co.kr"),
+    "신한은행":               _FV.format("shinhan.com"),
+    "아이엠뱅크":             _FV.format("imbank.co.kr"),
+    "우리은행":               _FV.format("wooribank.com"),
+    "전북은행":               _FV.format("jbbank.co.kr"),
+    "제주은행":               _FV.format("jejubank.co.kr"),
+    "주식회사 카카오뱅크":    _FV.format("kakaobank.com"),
+    "주식회사 케이뱅크":      _FV.format("kbanknow.com"),
+    "주식회사 하나은행":      "https://www.hanabank.com/apple-touch-icon.png",
+    "중소기업은행":           _FV.format("ibk.co.kr"),
+    "토스뱅크 주식회사":      _FV.format("tossbank.com"),
+    "한국산업은행":           _FV.format("kdb.co.kr"),
+    "한국스탠다드차타드은행": _FV.format("standardchartered.co.kr"),
+    # 보험사
+    "NH농협생명":             _FV.format("nhlife.co.kr"),
+    "교보라이프플래닛":       _FV.format("kyobolifeplanet.com"),
+    "교보생명":               _FV.format("kyobo.co.kr"),
+    "메트라이프":             _FV.format("metlife.co.kr"),
+    "삼성화재":               _FV.format("samsungfire.com"),
+    "신한라이프":             _FV.format("shinhanlife.co.kr"),
+    "카카오페이손해보험":      _FV.format("kakaopayins.com"),
+    "캐롯손해보험":           "https://www.carrotins.com/apple-touch-icon.png",
+}
+
 
 def _strip_html(html: str | None) -> str | None:
     if not html:
@@ -187,7 +219,7 @@ def _query_savings(save_trm: int = 12, life_stage_code: str | None = None) -> Ai
     return AiInsightItem(
         product_name=r['fin_prdt_nm'],
         product_company=r['kor_co_nm'],
-        product_img_url=None,
+        product_img_url=COMPANY_LOGO_MAP.get(r['kor_co_nm']),
         product_type='savings',
         reason=reason,
         content=AiInsightContent(
