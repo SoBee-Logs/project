@@ -217,6 +217,14 @@ export default function Report() {
 
   useEffect(() => {
     if (!checkPending || pendingYear === null || pendingMonth === null) return
+    const isPendingCurrentMonth =
+      pendingYear === today.getFullYear() && pendingMonth === today.getMonth() + 1
+    if (isPendingCurrentMonth) {
+      setSelectedYear(pendingYear)
+      setSelectedMonth(pendingMonth)
+      setCheckPending(false)
+      return
+    }
     const checkData = async () => {
       try {
         const res = await fetch(`/api/report/mydata/transaction?user_id=${USER_ID}&year=${pendingYear}&month=${pendingMonth}`)
@@ -254,7 +262,7 @@ export default function Report() {
         ])
 
         if (lcRes.status === 'fulfilled') setLifecycle(lcRes.value)
-        else setLifecycle({ lifecycle_stage: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' })
+        else setLifecycle({ life_stage_code: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' })
 
         if (txRes.status === 'fulfilled') setTxData(txRes.value)
 
@@ -310,6 +318,47 @@ export default function Report() {
   const peakTime = timeList.length > 0
     ? timeList.reduce((a, b) => a.pct > b.pct ? a : b)
     : null
+
+  const sheetRef = useRef(null)
+  const dragStartY = useRef(null)
+  const dragStartTop = useRef(null)
+  const PEEK_HEIGHT = 120
+  const NAV_HEIGHT = 64
+  const HEADER_HEIGHT = 48
+
+  const getSheetTop = () => {
+    const available = window.innerHeight - HEADER_HEIGHT
+    return available - PEEK_HEIGHT - NAV_HEIGHT
+  }
+
+  const [sheetTop, setSheetTop] = useState(() => getSheetTop())
+  const [isDragging, setIsDragging] = useState(false)
+
+  const minTop = 0
+  const maxTop = getSheetTop()
+
+  const onDragStart = (clientY) => {
+    dragStartY.current = clientY
+    dragStartTop.current = sheetTop
+    setIsDragging(true)
+  }
+
+  const onDragMove = (clientY) => {
+    if (dragStartY.current === null) return
+    const delta = clientY - dragStartY.current
+    const next = Math.min(maxTop, Math.max(minTop, dragStartTop.current + delta))
+    setSheetTop(next)
+  }
+
+  const onDragEnd = (clientY) => {
+    if (dragStartY.current === null) return
+    const delta = clientY - dragStartY.current
+    if (delta < -60) setSheetTop(minTop)
+    else if (delta > 60) setSheetTop(maxTop)
+    else setSheetTop(dragStartTop.current < maxTop / 2 ? minTop : maxTop)
+    dragStartY.current = null
+    setIsDragging(false)
+  }
 
   if (loading) return (
     <div className="flex flex-col h-full">
@@ -392,7 +441,7 @@ export default function Report() {
   )
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative overflow-hidden">
 
       {isEmptyMonth && (
         <EmptyMonthModal
@@ -406,11 +455,43 @@ export default function Report() {
         />
       )}
 
+      {/* 날짜 탭 */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4">
         <MonthNavigator year={selectedYear} month={selectedMonth} isCurrentMonth={isCurrentMonth} onPrev={goPrev} onNext={goNext} />
       </div>
 
-      <div className="flex flex-col gap-4 pt-4 px-4 pb-24 overflow-y-auto">
+      {/* 아바타 히어로 이미지 (배경) */}
+      <div className="absolute inset-0 top-[48px] bottom-0 z-0">
+        {persona?.avatarImgUrl
+          ? <img src={persona.avatarImgUrl} alt="페르소나" className="w-full h-full object-cover" />
+          : <div className="w-full h-full bg-gradient-to-b from-[#1e73be] to-[#0e3f78]" />
+        }
+      </div>
+
+      {/* 바텀시트 */}
+      <div
+        ref={sheetRef}
+        className="absolute left-0 right-0 z-20 bg-white rounded-t-3xl shadow-2xl"
+        style={{
+          top: `calc(${HEADER_HEIGHT}px + ${sheetTop}px)`,
+          bottom: 0,
+          transition: isDragging ? 'none' : 'top 0.35s cubic-bezier(0.32,0.72,0,1)',
+        }}
+        onTouchStart={(e) => onDragStart(e.touches[0].clientY)}
+        onTouchMove={(e) => onDragMove(e.touches[0].clientY)}
+        onTouchEnd={(e) => onDragEnd(e.changedTouches[0].clientY)}
+        onMouseDown={(e) => onDragStart(e.clientY)}
+        onMouseMove={(e) => { if (dragStartY.current !== null) onDragMove(e.clientY) }}
+        onMouseUp={(e) => onDragEnd(e.clientY)}
+        onMouseLeave={(e) => { if (dragStartY.current !== null) onDragEnd(e.clientY) }}
+      >
+        {/* 드래그 핸들 */}
+        <div className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing select-none">
+          <div className="w-10 h-1 rounded-full bg-gray-300" />
+        </div>
+
+        <div className="overflow-y-auto h-full pb-24 px-4">
+        <div className="flex flex-col gap-4 pb-4">
 
         {/* 페르소나 배너 */}
         <div className="rounded-2xl bg-[#1e73be] text-white p-4 flex items-center gap-3">
@@ -648,6 +729,8 @@ export default function Report() {
           </div>
         )}
 
+        </div>
+        </div>
       </div>
     </div>
   )
