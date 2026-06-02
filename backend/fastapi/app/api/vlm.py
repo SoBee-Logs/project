@@ -48,7 +48,9 @@ def _convert_to_jpeg_if_needed(filename: str, image_bytes: bytes) -> tuple[bytes
             pillow_heif.register_heif_opener()
             img = Image.open(io.BytesIO(image_bytes))
             buf = io.BytesIO()
-            img.convert("RGB").save(buf, format="JPEG")
+            # HEIC → JPEG 변환 시 EXIF 메타데이터 보존 (taken_at, gps 손실 방지)
+            exif_data = img.info.get("exif", b"")
+            img.convert("RGB").save(buf, format="JPEG", exif=exif_data)
             return buf.getvalue(), "converted.jpg"
         except Exception:
             raise HTTPException(status_code=400, detail="HEIC 변환 실패. JPEG/PNG로 다시 시도해주세요.")
@@ -159,10 +161,13 @@ async def _analyze_with_openai(client: AsyncOpenAI, image_bytes: bytes, mime_typ
         return {"error": "JSON 파싱 실패", "raw_response": content[:200]}
 
 
-async def analyze_image(filename: str, image_bytes: bytes) -> dict:
+# exif 파라미터 추가 — 엔드포인트에서 원본 EXIF를 미리 추출해서 넘겨줌
+async def analyze_image(filename: str, image_bytes: bytes, exif: dict = None) -> dict:
     client = _get_client()
 
-    exif = extract_exif(image_bytes)
+    # exif가 없으면 직접 추출 (일반 JPEG/PNG 케이스)
+    if exif is None:
+        exif = extract_exif(image_bytes)
 
     address = None
     if exif["gps"]:
@@ -185,5 +190,9 @@ async def analyze_image(filename: str, image_bytes: bytes) -> dict:
 async def analyze_image_endpoint(image: UploadFile = File(...)):
     image_bytes = await image.read()
     filename = image.filename or "image.jpg"
+    # HEIC는 변환 후에 EXIF 추출해야 함
     image_bytes, filename = _convert_to_jpeg_if_needed(filename, image_bytes)
-    return await analyze_image(filename, image_bytes)
+    exif = extract_exif(image_bytes)  # 변환 후 추출
+    return await analyze_image(filename, image_bytes, exif)
+
+    
