@@ -251,6 +251,53 @@ export default function CameraPage() {
               <span>📷</span>
             </span>
           )}
+          {previewUrl && vlmData?.item_name && (
+            <div className="absolute bottom-4 left-0 right-0 flex flex-wrap justify-center gap-2 px-3 z-10">
+              {vlmData.item_name.split(',').map((item, i) => (
+                <div
+                  key={i}
+                  className="relative text-[10px] font-bold px-2.5 py-1.5 shadow-md"
+                  style={{
+                    background: 'rgba(255,255,255,0.9)',
+                    color: '#0073BC',
+                    backdropFilter: 'blur(4px)',
+                    border: '1px solid rgba(0,115,188,0.2)',
+                    borderRadius: '8px',
+                  }}
+                >
+                  {item.trim()}
+                  {/* 말풍선 꼬리 */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '-6px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 0,
+                      height: 0,
+                      borderLeft: '5px solid transparent',
+                      borderRight: '5px solid transparent',
+                      borderTop: '6px solid rgba(255,255,255,0.9)',
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '-8px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 0,
+                      height: 0,
+                      borderLeft: '6px solid transparent',
+                      borderRight: '6px solid transparent',
+                      borderTop: '7px solid rgba(0,115,188,0.2)',
+                      zIndex: -1,
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -293,6 +340,12 @@ export default function CameraPage() {
                       <span className="block font-semibold text-gray-800">{vlmData.category}</span>
                     </div>
                   )}
+                  {vlmData.secondary_category && (
+                    <div className="text-[11px] text-gray-600">
+                      <span className="text-gray-400">서브 카테고리</span>
+                      <span className="block font-semibold text-gray-800">{vlmData.secondary_category}</span>
+                    </div>
+                  )}
                   {vlmData.item_name && (
                     <div className="text-[11px] text-gray-600">
                       <span className="text-gray-400">품목</span>
@@ -323,6 +376,12 @@ export default function CameraPage() {
                     <div className="text-[11px] text-gray-600 col-span-2">
                       <span className="text-gray-400">위치</span>
                       <span className="block font-semibold text-gray-800 line-clamp-1">{vlmData.address}</span>
+                    </div>
+                  )}
+                  {vlmData.reasoning && (
+                    <div className="text-[11px] text-gray-600 col-span-2">
+                      <span className="text-gray-400">판단 근거</span>
+                      <span className="block font-semibold text-gray-800">{vlmData.reasoning}</span>
                     </div>
                   )}
                 </div>
