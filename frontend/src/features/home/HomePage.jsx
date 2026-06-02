@@ -232,7 +232,7 @@ export default function Home() {
           />
           <div className="absolute bottom-0 left-3 right-3 h-20 bg-gradient-to-t from-black/40 to-transparent rounded-b-2xl" />
           <div className="absolute bottom-3 left-6 text-white">
-            <span className="block text-[10px] font-light opacity-80">나의 소비 페르소나</span>
+            <span className="block text-[10px] font-extrabold opacity-80">나의 소비 페르소나</span>
             <span className="block text-[16px] font-extrabold leading-tight">{persona?.avatarName ?? '분석 중...'}</span>
           </div>
         </figure>
@@ -282,9 +282,10 @@ export default function Home() {
           })}
             className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
             style={{
-              background: 'radial-gradient(circle at 50% 48%, rgba(33,188,234,0.12) 0%, rgba(33,188,234,0.08) 42%, rgba(255,255,255,0) 68%), linear-gradient(180deg, #F4FAFF 0%, #EEF7FF 100%)',
-              boxShadow: '0 18px 35px rgba(0,32,80,0.08), inset 0 1px 0 rgba(255,255,255,0.8)',
-              border: '1px solid rgba(0,72,145,0.08)'
+              background: '#EBF5FF',
+              borderRadius: '14px',
+              border: 'none',
+              boxShadow: 'none',
             }}
           >
             <div className="w-full flex items-center justify-center pt-1 pb-0">
@@ -309,9 +310,10 @@ export default function Home() {
           }}
             className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
             style={{
-              background: 'radial-gradient(circle at 50% 48%, rgba(33,188,234,0.12) 0%, rgba(33,188,234,0.08) 42%, rgba(255,255,255,0) 68%), linear-gradient(180deg, #F4FAFF 0%, #EEF7FF 100%)',
-              boxShadow: '0 18px 35px rgba(0,32,80,0.08), inset 0 1px 0 rgba(255,255,255,0.8)',
-              border: '1px solid rgba(0,72,145,0.08)'
+              background: '#EBF5FF',
+              borderRadius: '14px',
+              border: 'none',
+              boxShadow: 'none',
             }}
           >
             <div className="w-full flex items-center justify-center pt-1 pb-0">

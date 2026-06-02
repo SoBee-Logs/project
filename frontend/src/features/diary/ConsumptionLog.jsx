@@ -37,8 +37,7 @@ export default function ConsumptionLog() {
   const toKoreanTime = (timeStr) => {
     if (!timeStr) return ''
     const [hour, minute] = timeStr.split(':').map(Number)
-    const date = new Date()
-    date.setHours(hour, minute, 0, 0)
+    const date = new Date(2000, 0, 1, hour, minute, 0)
     return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
   }
 

@@ -74,7 +74,10 @@ async def create_connected_id(
     login_id: str,
     login_pw: str,
 ) -> str | None:
-    """최초 1회 호출 → connected_id 발급. 이후 Secrets Manager에 저장해 재사용."""
+    """
+    최초 1회 → connected_id 신규 발급 (/account/create).
+    동일 인증수단으로 기관을 추가할 때는 add_institution() 사용.
+    """
     for login_type in ["1", "0"]:
         data = await _post(session, token, "/v1/account/create", {
             "accountList": [{
@@ -89,10 +92,44 @@ async def create_connected_id(
         })
         if data:
             cid = data.get("connectedId")
-            log.info(f"connected_id 발급 완료: {organization} (loginType={login_type})")
+            log.info(f"connected_id 발급 완료: {organization} loginType={login_type} cid={cid}")
             return cid
     log.error(f"connected_id 발급 실패: {organization}")
     return None
+
+
+async def add_institution(
+    session: aiohttp.ClientSession,
+    token: str,
+    connected_id: str,
+    business_type: str,
+    organization: str,
+    login_id: str,
+    login_pw: str,
+) -> bool:
+    """
+    기존 connected_id에 새 기관을 추가 (/account/add).
+    동일 인증수단(인증서/ID+PW)으로 여러 기관을 하나의 connected_id로 관리할 때 사용.
+    connected_id 1개 → 기관 N개 등록 (CODEF 스펙).
+    """
+    for login_type in ["1", "0"]:
+        data = await _post(session, token, "/v1/account/add", {
+            "connectedId": connected_id,
+            "accountList": [{
+                "countryCode": "KR",
+                "businessType": business_type,
+                "clientType": "P",
+                "organization": organization,
+                "loginType": login_type,
+                "id": login_id,
+                "password": encrypt_rsa(login_pw),
+            }]
+        })
+        if data is not None:
+            log.info(f"기관 추가 완료: cid={connected_id} {business_type}/{organization} loginType={login_type}")
+            return True
+    log.error(f"기관 추가 실패: cid={connected_id} {business_type}/{organization}")
+    return False
 
 
 async def fetch_bank_transactions(
@@ -173,4 +210,43 @@ async def fetch_card_transactions(
         txs = data.get("resApprovalList", data.get("resList", []))
     for tx in txs:
         tx["_org"] = org_code
+    return txs
+
+
+async def fetch_bank_transactions_by_account(
+    session: aiohttp.ClientSession,
+    token: str,
+    connected_id: str,
+    org_code: str,
+    account: str,
+    start_date: str,
+    end_date: str,
+) -> list[dict]:
+    """
+    계좌번호를 직접 지정하여 수시입출 거래내역 조회.
+    (account-list 선행 조회 없이 바로 호출)
+    5000건 초과 및 commStartDate 불일치 시 WARNING 로깅.
+    """
+    data = await _post(session, token, "/v1/kr/bank/p/account/transaction-list", {
+        "organization": org_code,
+        "connectedId": connected_id,
+        "account": account,
+        "startDate": start_date,
+        "endDate": end_date,
+        "orderBy": "0",
+        "inquiryType": "1",
+    })
+    if not data:
+        return []
+    comm_start = data.get("commStartDate", "")
+    if comm_start and comm_start != start_date:
+        log.warning(
+            f"commStartDate({comm_start}) ≠ startDate({start_date}): org={org_code} account={account}"
+        )
+    txs = data.get("resTrHistoryList", [])
+    if len(txs) >= 5000:
+        log.warning(f"거래내역 5000건 초과 — 추가 과금 가능: org={org_code} account={account}")
+    for tx in txs:
+        tx["_org"] = org_code
+        tx["_account"] = account
     return txs
