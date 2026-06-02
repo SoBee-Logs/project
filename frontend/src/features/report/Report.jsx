@@ -217,6 +217,14 @@ export default function Report() {
 
   useEffect(() => {
     if (!checkPending || pendingYear === null || pendingMonth === null) return
+    const isPendingCurrentMonth =
+      pendingYear === today.getFullYear() && pendingMonth === today.getMonth() + 1
+    if (isPendingCurrentMonth) {
+      setSelectedYear(pendingYear)
+      setSelectedMonth(pendingMonth)
+      setCheckPending(false)
+      return
+    }
     const checkData = async () => {
       try {
         const res = await fetch(`/api/report/mydata/transaction?user_id=${USER_ID}&year=${pendingYear}&month=${pendingMonth}`)
