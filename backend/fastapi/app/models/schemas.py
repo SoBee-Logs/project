@@ -170,7 +170,12 @@ class DiaryRequest(BaseModel):
     matched: Optional[bool] = None
     tags: Optional[List[str]] = []
     group_description: Optional[str] = None
+<<<<<<< HEAD
+    photo_count: Optional[int] = None
+    room_category: Optional[str] = None     # 모임방 테마 카테고리 (EXERCISE, HOBBY 등)
+=======
     photo_count: Optional[int] = 1
+>>>>>>> c0552f4e919b8e7cedb60f30cb817a95d57c117f
 
 class DiaryResponse(BaseModel):
     title: str
