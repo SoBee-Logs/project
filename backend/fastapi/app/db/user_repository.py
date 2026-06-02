@@ -18,7 +18,7 @@ async def get_user_avatar(user_id: int) -> dict | None:
         async with conn.cursor() as cur:
             await cur.execute(
                 """
-                SELECT avatar_name, avatar_explane, avatar_img_url
+                SELECT avatar_name, avatar_explain, avatar_img_url
                 FROM users
                 WHERE user_id = %s
                 """,
