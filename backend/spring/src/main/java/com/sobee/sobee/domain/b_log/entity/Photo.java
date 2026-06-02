@@ -4,6 +4,7 @@ package com.sobee.sobee.domain.b_log.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "photos")
@@ -35,7 +36,7 @@ public class Photo {
 
     @PrePersist
     protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         this.isValid = true;
     }
 }
