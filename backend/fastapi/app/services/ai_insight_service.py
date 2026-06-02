@@ -1,6 +1,7 @@
 from sqlalchemy import text
 import pandas as pd
 import re
+import random
 from app.services.lifecycle_service import engine
 from app.models.schemas import AiInsightContent, AiInsightItem, AiInsightResponse, BenefitGroup, BenefitLine
 
@@ -53,6 +54,106 @@ LIFE_STAGE_SAVE_TRM = {
 CHILD_STAGES = {'TEEN', 'CHILD_BABY', 'CHILD_TEEN', 'CHILD_UNI'}
 CHILD_KEYWORDS = '키즈|아이|어린이|주니어|청소년|영유아|태아|baby|kids|junior'
 
+# 카드 추천 이유 템플릿 — {cat}: 카테고리, {amt}: 지출액, {title}: 혜택 제목
+_CARD_T = {
+    "amt_title": [
+        "{cat}에 {amt}원 썼네요. 어차피 쓸 거라면 이 카드로 '{title}' 혜택 챙겨봐요!",
+        "{cat} 지출이 {amt}원이나 됐네요! '{title}' 혜택 있는 이 카드, 딱 맞을 것 같아요.",
+        "이번 달 {cat}에 {amt}원 쓰셨군요. 이 카드 쓰면 '{title}' 혜택이 바로 들어와요!",
+        "{amt}원이면 꽤 됐네요. 이 카드 하나면 '{title}' 혜택으로 조금씩 돌려받을 수 있어요.",
+        "{cat}에 {amt}원 썼는데, '{title}' 혜택 있는 이 카드랑 잘 맞더라고요. 한번 봐봐요!",
+        "매달 {cat} 지출 있으시죠? {amt}원 쓸 때마다 '{title}' 혜택 챙기면 진짜 이득이에요!",
+    ],
+    "title_only": [
+        "{cat} 자주 쓰세요? '{title}' 혜택 있는 이 카드, 진짜 잘 맞을 것 같아요!",
+        "'{title}' 혜택이 있어서 {cat} 쓸 때마다 이득이에요. 한번 써봐요!",
+        "{cat} 관련 혜택 찾고 계셨다면 이 카드 딱이에요. '{title}' 혜택 있거든요!",
+        "이 카드 '{title}' 혜택이 진짜 실용적이에요. {cat} 많이 쓰시는 분한테 강추해요!",
+        "{cat} 쓸 때 혜택 못 받고 있었다면 이제 바꿔봐요. '{title}' 혜택 기다리고 있어요!",
+        "'{title}' 혜택이 있는데, {cat} 소비랑 완전 찰떡이에요!",
+    ],
+    "amt_only": [
+        "{cat}에 {amt}원 썼네요. 이 카드로 바꾸면 쓸 때마다 혜택 바로 돌아와요!",
+        "{amt}원어치 {cat} 지출에 혜택 못 받으면 아깝잖아요. 이 카드 진짜 강추해요!",
+        "이번 달 {cat}에 {amt}원 쓰셨군요. 이 카드 있으면 다음 달엔 좀 더 알뜰해져요!",
+        "{cat} 지출이 {amt}원이네요. 관련 혜택 빵빵한 이 카드, 타이밍 딱이에요!",
+        "어차피 {cat} 계속 쓸 거라면, 이 카드로 혜택이라도 챙겨봐요. {amt}원이면 쏠쏠해요!",
+    ],
+    "none": [
+        "{cat} 소비가 있으시군요. 관련 혜택이 딱 맞는 카드, 한번 써봐요!",
+        "{cat} 쪽 혜택이 정말 좋은 카드예요. 놓치기 아까워요!",
+        "{cat} 자주 쓰신다면 이 카드가 진짜 잘 맞아요. 한번 살펴봐요!",
+        "이 카드 하나면 {cat} 지출이 훨씬 알뜰해질 거예요!",
+        "{cat} 쓸 때마다 혜택 챙기고 싶다면, 이 카드가 정답이에요!",
+    ],
+}
+
+# 적금 추천 이유 템플릿 — {trm}: 개월, {rate}: 금리
+_SAVINGS_T = {
+    'TEEN': [
+        "용돈 조금씩 모으다 보면 어느새 목돈이 돼 있을 거예요! {trm}개월에 최고 연 {rate}%예요.",
+        "지금부터 시작하면 나중에 진짜 달라요. {trm}개월 적금 한번 도전해봐요!",
+        "모아두면 언젠간 쓸 일이 생기더라고요. {trm}개월에 최고 {rate}%, 나쁘지 않죠?",
+        "10대 때 적금 시작하면 친구들한테 자랑할 수 있어요 ㅎㅎ {trm}개월에 최고 연 {rate}%예요!",
+    ],
+    'UNI': [
+        "학생 때 시작하면 나중에 진짜 뿌듯해요. {trm}개월에 최고 연 {rate}%예요!",
+        "알바비 조금씩 모아두면 졸업할 때 목돈 생겨 있을 거예요. {trm}개월짜리예요!",
+        "학비 걱정 조금은 덜어낼 수 있어요. {trm}개월에 최고 {rate}%, 꽤 짭짤해요!",
+        "대학생 때 적금 하나 만들어두면 나중에 진짜 잘했다 싶을 거예요. {trm}개월 강추해요!",
+    ],
+    'NEW_JOB': [
+        "첫 월급이잖아요! 이참에 적금 하나 만들어보는 거 어때요? {trm}개월에 최고 연 {rate}%예요.",
+        "사회초년생 때 시작하는 적금, 나중에 진짜 뿌듯해요. {trm}개월 동안 모아봐요!",
+        "첫 직장, 첫 적금! 월급 들어오면 바로 이체해두면 {trm}개월 후에 목돈 생겨요.",
+        "이제 돈 모을 때가 됐죠! {trm}개월에 최고 {rate}% 금리, 지금 딱이에요.",
+        "사회 나온 기념으로 적금 하나 시작해봐요. {trm}개월에 최고 연 {rate}%, 진짜 알차요!",
+    ],
+    'NEW_WED': [
+        "둘이 같이 모으면 진짜 빨라요. 함께 목돈 만들어봐요! {trm}개월에 최고 연 {rate}%예요.",
+        "신혼 때 시작하는 적금, 나중에 진짜 잘했다 싶을 거예요. {trm}개월짜리 강추해요!",
+        "내 집 마련 꿈꾸고 있다면 지금부터 차근차근 모아야죠. {trm}개월에 최고 {rate}%예요.",
+        "둘이 조금씩 모으면 {trm}개월 후엔 제법 목돈 생겨요. 최고 연 {rate}% 금리예요!",
+        "신혼 살림에 목돈이 하나 있으면 진짜 든든하거든요. {trm}개월 같이 모아봐요!",
+    ],
+    'CHILD_BABY': [
+        "아이 이름으로 하나 만들어두면 나중에 정말 든든하더라고요! {trm}개월에 최고 연 {rate}%예요.",
+        "우리 아이 미래를 위해 조금씩 모아두는 거, 나중에 정말 잘했다 싶을 거예요. {trm}개월짜리예요!",
+        "아이가 크면 돈 쓸 일이 많아지더라고요. 지금부터 {trm}개월 동안 미리 모아봐요!",
+        "아이 선물은 지금 이 적금이에요. {trm}개월에 최고 {rate}%, 든든하게 쌓아줘요!",
+    ],
+    'CHILD_TEEN': [
+        "교육비는 미리 준비할수록 나중이 편해요. 지금이 딱이에요! {trm}개월에 최고 연 {rate}%예요.",
+        "학원비, 생각보다 많이 들죠. 이 적금으로 미리미리 준비해봐요. {trm}개월짜리예요!",
+        "아이 교육비 걱정된다면 지금부터 조금씩 모아두는 게 맞아요. 최고 {rate}%예요!",
+        "중고등학교 때부터 교육비가 본격적으로 들어가더라고요. {trm}개월에 최고 연 {rate}% 강추해요!",
+    ],
+    'CHILD_UNI': [
+        "등록금 생각하면 지금부터 조금씩 모아두는 게 맞아요! {trm}개월에 최고 연 {rate}%예요.",
+        "대학 등록금이 진짜 큰돈이잖아요. 이 적금으로 준비해두는 거 어때요? {trm}개월이에요!",
+        "미리 준비해두면 그때 가서 훨씬 여유로워요. 최고 {rate}% 금리, 나쁘지 않죠?",
+        "아이 대학 입학 전에 이 적금 하나 마무리해두면 진짜 든든해요. {trm}개월짜리예요!",
+    ],
+    'GOLLIFE': [
+        "노후 준비, 사실 빠를수록 좋거든요. 지금 딱 좋은 타이밍이에요! {trm}개월에 최고 연 {rate}%예요.",
+        "든든한 노후를 위해 지금 시작해봐요. {trm}개월 동안 모으면 생각보다 많이 쌓여요!",
+        "나중에 후회하지 않으려면 지금이 기회예요. {trm}개월에 최고 {rate}% 금리예요.",
+        "노후 자금, 지금 시작하는 사람이 진짜 현명한 사람이에요. {trm}개월에 최고 연 {rate}% 강추해요!",
+    ],
+    'SECLIFE': [
+        "새 출발 준비 중이시군요! 차근차근 모아가다 보면 든든해질 거예요. {trm}개월에 최고 연 {rate}%예요.",
+        "새로운 시작을 위한 자금 마련, 지금부터 해봐요. {trm}개월짜리 적금 강추해요!",
+        "제2의 인생을 위한 든든한 준비, 이 적금이 딱이에요. 최고 {rate}% 금리예요!",
+        "새 출발엔 든든한 자금이 필요하죠. {trm}개월 동안 알차게 모아봐요!",
+    ],
+    'RETIR': [
+        "여유롭게 지내려면 이런 안정적인 상품이 딱이에요! {trm}개월에 최고 연 {rate}%예요.",
+        "은퇴 후엔 안정이 최고죠. {trm}개월 동안 안전하게 굴려봐요. 최고 {rate}% 금리예요!",
+        "여유 자금 묵혀두기엔 아깝잖아요. {trm}개월에 최고 {rate}%, 알뜰하게 운용해봐요!",
+        "편안한 노후를 위한 안심 적금이에요. {trm}개월에 최고 연 {rate}%, 믿을 수 있어요!",
+    ],
+}
+
 _FV = "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.{}&size=256"
 COMPANY_LOGO_MAP: dict[str, str] = {
     # 은행
@@ -98,7 +199,7 @@ def _strip_html(html: str | None) -> str | None:
     return text_val.strip() or None
 
 
-def _query_card(cate_names: list[str], top_category: str) -> AiInsightItem | None:
+def _query_card(cate_names: list[str], top_category: str, top_amount: int = 0) -> AiInsightItem | None:
     placeholders = ', '.join(f':c{i}' for i in range(len(cate_names)))
     params = {f'c{i}': v for i, v in enumerate(cate_names)}
     df = pd.read_sql(text(f"""
@@ -161,6 +262,15 @@ def _query_card(cate_names: list[str], top_category: str) -> AiInsightItem | Non
     annual_fee_basic = r['annual_fee_basic'] if pd.notna(r['annual_fee_basic']) else None
     annual_fee_detail = _strip_html(r['annual_fee_detail'] if pd.notna(r['annual_fee_detail']) else None)
 
+    if top_amount > 0 and top_title:
+        reason = random.choice(_CARD_T["amt_title"]).format(cat=top_category, amt=f"{top_amount:,}", title=top_title)
+    elif top_title:
+        reason = random.choice(_CARD_T["title_only"]).format(cat=top_category, title=top_title)
+    elif top_amount > 0:
+        reason = random.choice(_CARD_T["amt_only"]).format(cat=top_category, amt=f"{top_amount:,}")
+    else:
+        reason = random.choice(_CARD_T["none"]).format(cat=top_category)
+
     return AiInsightItem(
         product_name=r['card_name'],
         product_company=r['corp_name'],
@@ -209,7 +319,15 @@ def _query_savings(save_trm: int = 12, life_stage_code: str | None = None) -> Ai
 
     r = df.iloc[0]
     stage_ko = LIFE_STAGE_KO.get(life_stage_code, '회원')
-    reason = f"{stage_ko}에게 맞는 {r['save_trm']}개월 적금 상품이에요 (최고 연 {r['intr_max_rate']}%)"
+    templates = _SAVINGS_T.get(life_stage_code, [
+        f"{stage_ko}한테 딱 맞는 적금이에요. {{trm}}개월에 최고 연 {{rate}}%, 한번 시작해봐요!"
+    ])
+    spcl = str(r['spcl_cnd']).strip() if pd.notna(r['spcl_cnd']) else None
+    base = random.choice(templates).format(trm=r['save_trm'], rate=r['intr_max_rate'])
+    if spcl and len(spcl) <= 50:
+        reason = f"{base} {spcl} 조건 맞추면 우대금리도 챙길 수 있어요!"
+    else:
+        reason = base
 
     def _s(val): return str(val) if pd.notna(val) else None
 
@@ -254,7 +372,8 @@ async def get_ai_insight(user_id: int, category_price: dict) -> AiInsightRespons
         top_category = max(category_price, key=category_price.get)
         cate_names = CATEGORY_TO_CATE.get(top_category, ['모든가맹점'])
 
-    card_item = _query_card(cate_names, top_category)
+    top_amount = int(category_price.get(top_category, 0)) if category_price else 0
+    card_item = _query_card(cate_names, top_category, top_amount)
 
     save_trm = LIFE_STAGE_SAVE_TRM.get(life_stage_code, 12)
     savings_item = _query_savings(save_trm, life_stage_code)
