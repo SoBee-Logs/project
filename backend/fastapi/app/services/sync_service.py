@@ -30,8 +30,10 @@ from app.services.codef_client import (
     new_session,
     get_access_token,
     create_connected_id,
+    add_institution,
     fetch_bank_transactions,
     fetch_card_transactions,
+    fetch_bank_transactions_by_account,
 )
 from app.services.category_mapping_service import resolve_and_update_all_unmapped
 from app.services.lifecycle_service import predict_lifecycle
@@ -56,29 +58,59 @@ def _sm_client():
 
 
 def _load_connected_ids(user_id: int) -> dict:
-    """반환 형태: {"BK": {"0020": "cid_xxx"}, "CD": {"0301": "cid_yyy"}}"""
+    """
+    반환 형태 (신규):
+      { "cid_abc": [{"businessType": "BK", "organization": "0020"}, ...], ... }
+
+    구형 포맷 자동 마이그레이션:
+      {"BK": {"0020": "cid_abc"}, "CD": {"0301": "cid_def"}}
+      → {"cid_abc": [{"businessType":"BK","organization":"0020"}],
+         "cid_def": [{"businessType":"CD","organization":"0301"}]}
+    """
     try:
         resp = _sm_client().get_secret_value(SecretId=f"{_SECRETS_PREFIX}/{user_id}")
-        return json.loads(resp["SecretString"])
+        raw = json.loads(resp["SecretString"])
     except ClientError as e:
         if e.response["Error"]["Code"] == "ResourceNotFoundException":
             return {}
         raise
 
+    # 구형 포맷 감지 (key가 "BK" 또는 "CD"인 경우)
+    if any(k in ("BK", "CD") for k in raw):
+        migrated: dict[str, list] = {}
+        for btype, org_map in raw.items():
+            for org, cid in org_map.items():
+                migrated.setdefault(cid, []).append({"businessType": btype, "organization": org})
+        log.info(f"Secrets Manager 구형 포맷 마이그레이션: user={user_id}")
+        _write_connected_ids(user_id, migrated)
+        return migrated
 
-def _save_connected_id(user_id: int, business_type: str, org_code: str, connected_id: str) -> None:
-    data = _load_connected_ids(user_id)
-    data.setdefault(business_type, {})[org_code] = connected_id
+    return raw
+
+
+def _write_connected_ids(user_id: int, data: dict) -> None:
+    """Secrets Manager에 connected_id 맵 전체를 저장."""
     client = _sm_client()
     secret_id = f"{_SECRETS_PREFIX}/{user_id}"
+    payload = json.dumps(data)
     try:
-        client.update_secret(SecretId=secret_id, SecretString=json.dumps(data))
+        client.update_secret(SecretId=secret_id, SecretString=payload)
     except ClientError as e:
         if e.response["Error"]["Code"] == "ResourceNotFoundException":
-            client.create_secret(Name=secret_id, SecretString=json.dumps(data))
+            client.create_secret(Name=secret_id, SecretString=payload)
         else:
             raise
-    log.info(f"Secrets Manager 저장: user={user_id} {business_type}/{org_code}")
+
+
+def _save_institution(user_id: int, connected_id: str, business_type: str, org_code: str) -> None:
+    """connected_id에 기관(businessType+organization)을 추가 저장."""
+    data = _load_connected_ids(user_id)
+    institutions = data.setdefault(connected_id, [])
+    entry = {"businessType": business_type, "organization": org_code}
+    if entry not in institutions:
+        institutions.append(entry)
+    _write_connected_ids(user_id, data)
+    log.info(f"Secrets Manager 저장: user={user_id} cid={connected_id} {business_type}/{org_code}")
 
 
 # ════════════════════════════════════════
@@ -87,24 +119,64 @@ def _save_connected_id(user_id: int, business_type: str, org_code: str, connecte
 
 async def register_account(
     user_id: int,
-    business_type: str,   # "BK" | "CD"
+    business_type: str,      # "BK" | "CD"
     org_code: str,
     login_id: str,
     login_pw: str,
+    connected_id: str | None = None,
 ) -> str:
     """
-    사용자 금융기관 계정 등록 → connected_id 발급 후 Secrets Manager 저장.
-    실제 자격증명(login_id, login_pw)은 CODEF에만 전달되며 어디에도 저장하지 않음.
+    금융기관 계정 등록 → Secrets Manager 저장.
+    - connected_id=None  : /account/create → 새 connected_id 발급 (최초 or 다른 인증수단)
+    - connected_id 전달  : /account/add   → 기존 connected_id에 기관 추가 (동일 인증수단)
+
+    인증수단이 같은 여러 기관(예: 인증서로 KB은행+국민카드)은 하나의 connected_id로 관리.
+    login_id/login_pw는 CODEF에만 전달, 어디에도 저장하지 않음.
     """
     async with new_session() as session:
         token = await get_access_token(session)
-        cid = await create_connected_id(session, token, business_type, org_code, login_id, login_pw)
 
-    if not cid:
-        raise ValueError(f"connected_id 발급 실패: user={user_id} {business_type}/{org_code}")
+        if connected_id:
+            success = await add_institution(
+                session, token, connected_id, business_type, org_code, login_id, login_pw
+            )
+            if not success:
+                raise ValueError(
+                    f"기관 추가 실패: user={user_id} cid={connected_id} {business_type}/{org_code}"
+                )
+            cid = connected_id
+        else:
+            cid = await create_connected_id(
+                session, token, business_type, org_code, login_id, login_pw
+            )
+            if not cid:
+                raise ValueError(
+                    f"connected_id 발급 실패: user={user_id} {business_type}/{org_code}"
+                )
 
-    _save_connected_id(user_id, business_type, org_code, cid)
+    _save_institution(user_id, cid, business_type, org_code)
     return cid
+
+
+def list_connected_ids(user_id: int) -> list[dict]:
+    """
+    유저의 connected_id 목록과 등록된 기관 목록 반환.
+    반환 예시:
+      [
+        {
+          "connected_id": "cid_abc",
+          "institutions": [
+            {"businessType": "BK", "organization": "0020"},
+            {"businessType": "CD", "organization": "0301"}
+          ]
+        }
+      ]
+    """
+    data = _load_connected_ids(user_id)
+    return [
+        {"connected_id": cid, "institutions": institutions}
+        for cid, institutions in data.items()
+    ]
 
 
 # ════════════════════════════════════════
@@ -152,7 +224,7 @@ async def _upsert_bank_account(pool, user_id: int, org_code: str, acct: dict) ->
     return row[0] if row else 0
 
 
-async def _upsert_bank_txs(pool, bank_account_id: int, txs: list[dict]) -> int:
+async def _upsert_bank_txs(pool, bank_account_id: int, txs: list[dict], start_date: str, end_date: str) -> int:
     if not txs:
         return 0
 
@@ -162,15 +234,9 @@ async def _upsert_bank_txs(pool, bank_account_id: int, txs: list[dict]) -> int:
     def _to_time(s):
         return f"{s[:2]}:{s[2:4]}:{s[4:6]}" if s and len(s) >= 6 else None
 
-    sql = """
-        INSERT INTO bank_transactions
-            (bank_account_id, tr_date, tr_time,
-             amount_in, amount_out, after_balance,
-             desc1, desc2, desc3, desc4, created_at)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
-        ON DUPLICATE KEY UPDATE
-            after_balance = VALUES(after_balance)
-    """
+    sd = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]}"
+    ed = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}"
+
     rows = [
         (
             bank_account_id,
@@ -186,10 +252,27 @@ async def _upsert_bank_txs(pool, bank_account_id: int, txs: list[dict]) -> int:
         )
         for tx in txs
     ]
+
     async with pool.acquire() as conn:
-        async with conn.cursor() as cur:
-            await cur.executemany(sql, rows)
-        await conn.commit()
+        await conn.begin()
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM bank_transactions WHERE bank_account_id=%s AND tr_date BETWEEN %s AND %s",
+                    (bank_account_id, sd, ed),
+                )
+                await cur.executemany("""
+                    INSERT INTO bank_transactions
+                        (bank_account_id, tr_date, tr_time,
+                         amount_in, amount_out, after_balance,
+                         desc1, desc2, desc3, desc4, created_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                """, rows)
+            await conn.commit()
+        except Exception:
+            await conn.rollback()
+            raise
+
     return len(rows)
 
 
@@ -232,7 +315,7 @@ async def _upsert_card(pool, user_id: int, org_code: str, card: dict) -> int:
     return row[0] if row else 0
 
 
-async def _upsert_card_txs(pool, card_id: int, txs: list[dict]) -> int:
+async def _upsert_card_txs(pool, card_id: int, txs: list[dict], start_date: str, end_date: str) -> int:
     if not txs:
         return 0
 
@@ -242,21 +325,9 @@ async def _upsert_card_txs(pool, card_id: int, txs: list[dict]) -> int:
     def _to_time(s):
         return f"{s[:2]}:{s[2:4]}:{s[4:6]}" if s and len(s) >= 6 else None
 
-    sql = """
-        INSERT INTO card_transactions
-            (card_id, used_date, used_time,
-             member_store_name, member_store_no, member_store_corp_no,
-             member_store_type, member_store_addr,
-             used_amount, payment_type, installment_month,
-             approval_no, home_foreign_type,
-             cancel_yn, cancel_amount, account_currency, krw_amount,
-             created_at)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
-        ON DUPLICATE KEY UPDATE
-            member_store_name = VALUES(member_store_name),
-            cancel_yn         = VALUES(cancel_yn),
-            cancel_amount     = VALUES(cancel_amount)
-    """
+    sd = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]}"
+    ed = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}"
+
     rows = [
         (
             card_id,
@@ -278,14 +349,32 @@ async def _upsert_card_txs(pool, card_id: int, txs: list[dict]) -> int:
             float(tx.get("resKRWAmt") or 0),
         )
         for tx in txs
-        if tx.get("resApprovalNo")
     ]
-    if not rows:
-        return 0
+
     async with pool.acquire() as conn:
-        async with conn.cursor() as cur:
-            await cur.executemany(sql, rows)
-        await conn.commit()
+        await conn.begin()
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM card_transactions WHERE card_id=%s AND used_date BETWEEN %s AND %s",
+                    (card_id, sd, ed),
+                )
+                await cur.executemany("""
+                    INSERT INTO card_transactions
+                        (card_id, used_date, used_time,
+                         member_store_name, member_store_no, member_store_corp_no,
+                         member_store_type, member_store_addr,
+                         used_amount, payment_type, installment_month,
+                         approval_no, home_foreign_type,
+                         cancel_yn, cancel_amount, account_currency, krw_amount,
+                         created_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                """, rows)
+            await conn.commit()
+        except Exception:
+            await conn.rollback()
+            raise
+
     return len(rows)
 
 
@@ -359,24 +448,28 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
 
     # ── 계좌: 자기 이체 제거 ─────────────────────────────────
     self_transfer_ids: set[int] = set()
-    if user_name:
-        out_index: dict[tuple, list[dict]] = {}
-        for bt in bank_raw:
-            if bt["amount_out"] > 0:
-                key = (bt["tr_date"], bt["tr_time"], bt["amount_out"])
-                out_index.setdefault(key, []).append(bt)
 
+    # 방법1: desc1~4에 유저 이름 포함된 거래 제거 (토스+현소영, 현소영 등 자기 계좌 이체)
+    if user_name:
         for bt in bank_raw:
-            if bt["amount_in"] > 0:
-                key = (bt["tr_date"], bt["tr_time"], bt["amount_in"])
-                for partner in out_index.get(key, []):
-                    if partner["id"] in self_transfer_ids:
-                        continue
-                    desc3_bt = bt.get("desc3") or ""
-                    desc3_partner = partner.get("desc3") or ""
-                    if user_name in desc3_bt or user_name in desc3_partner:
-                        self_transfer_ids.add(bt["id"])
-                        self_transfer_ids.add(partner["id"])
+            descs = " ".join(filter(None, [bt.get(f"desc{i}") for i in range(1, 5)]))
+            if user_name in descs:
+                self_transfer_ids.add(bt["id"])
+
+    # 방법2: 날짜+금액 일치하는 입출금 쌍 제거 (계좌 간 이체)
+    out_index: dict[tuple, list[dict]] = {}
+    for bt in bank_raw:
+        if bt["amount_out"] > 0:
+            key = (bt["tr_date"], bt["amount_out"])
+            out_index.setdefault(key, []).append(bt)
+
+    for bt in bank_raw:
+        if bt["amount_in"] > 0:
+            key = (bt["tr_date"], bt["amount_in"])
+            for partner in out_index.get(key, []):
+                if partner["id"] not in self_transfer_ids:
+                    self_transfer_ids.add(bt["id"])
+                    self_transfer_ids.add(partner["id"])
 
     bank_valid = [bt for bt in bank_raw if bt["id"] not in self_transfer_ids]
 
@@ -473,6 +566,87 @@ DAILY_SYNC_DAYS = 3
 INITIAL_SYNC_DAYS = 30
 
 
+# ════════════════════════════════════════
+# ENV 기반 sync (팀원 테스트용)
+# ════════════════════════════════════════
+
+async def sync_transactions_env(
+    user_id: int,
+    days: int = INITIAL_SYNC_DAYS,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> dict:
+    """
+    ENV 기반 sync (팀원 로컬 테스트용).
+
+    ENV 형식:
+      CODEF_CARD_ACCOUNTS=[{"organization":"0301","loginId":"myid","loginPw":"mypw","cardName":"신한카드"}]
+      CODEF_BANK_ACCOUNTS=[{"organization":"0020","loginId":"myid","loginPw":"mypw","account":"1234567890","bankName":"우리은행"}]
+
+    흐름:
+      1. 이미 Secrets Manager에 등록된 (businessType, org)는 skip
+      2. 미등록 기관을 connected_id 발급/추가 → Secrets Manager 저장
+         - 같은 loginId끼리는 하나의 connected_id로 묶음 (CODEF 1:N 스펙)
+      3. sync_transactions(user_id) 호출 → 이후 Secrets Manager 기반 정상 sync
+
+    loginId/loginPw는 CODEF에만 전달, 어디에도 저장되지 않음.
+    """
+    card_accounts = settings.get_codef_card_accounts()
+    bank_accounts = settings.get_codef_bank_accounts()
+    if not card_accounts and not bank_accounts:
+        raise ValueError("ENV에 CODEF_CARD_ACCOUNTS / CODEF_BANK_ACCOUNTS 설정이 없습니다.")
+
+    # 이미 Secrets Manager에 등록된 (businessType, org) 확인
+    existing = _load_connected_ids(user_id)
+    registered: set[tuple] = {
+        (inst["businessType"], inst["organization"])
+        for insts in existing.values()
+        for inst in insts
+    }
+
+    # 미등록 계정만 추려서 businessType 붙여 통합 리스트 구성
+    to_register = [
+        {"businessType": "CD", **acc}
+        for acc in card_accounts
+        if ("CD", acc["organization"]) not in registered
+    ] + [
+        {"businessType": "BK", **acc}
+        for acc in bank_accounts
+        if ("BK", acc["organization"]) not in registered
+    ]
+
+    if to_register:
+        async with new_session() as session:
+            token = await get_access_token(session)
+
+            # 같은 loginId끼리 그룹핑 → 동일 자격증명이면 하나의 connected_id로 묶음
+            groups: dict[str, list] = {}
+            for acc in to_register:
+                groups.setdefault(acc["loginId"], []).append(acc)
+
+            for login_id, accs in groups.items():
+                cid: str | None = None
+                for acc in accs:
+                    btype = acc["businessType"]
+                    org   = acc["organization"]
+                    if cid is None:
+                        cid = await create_connected_id(
+                            session, token, btype, org, acc["loginId"], acc["loginPw"]
+                        )
+                        if cid:
+                            _save_institution(user_id, cid, btype, org)
+                            log.info(f"connected_id 발급: user={user_id} cid={cid} {btype}/{org}")
+                    else:
+                        ok = await add_institution(
+                            session, token, cid, btype, org, acc["loginId"], acc["loginPw"]
+                        )
+                        if ok:
+                            _save_institution(user_id, cid, btype, org)
+
+    # 등록 완료 후 Secrets Manager 기반 일반 sync 실행
+    return await sync_transactions(user_id, days=days)
+
+
 def _sync_date_range(days: int) -> tuple[str, str]:
     end = datetime.now()
     start = end - timedelta(days=days)
@@ -481,40 +655,53 @@ def _sync_date_range(days: int) -> tuple[str, str]:
 
 async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
     """
-    Airflow DAG / 최초 가입 후 호출하는 메인 함수.
-    1. Secrets Manager에서 connected_id 조회
-    2. 은행/카드 기관별 병렬 API 호출
-    3. bank_accounts → bank_transactions, cards → card_transactions 저장
-    4. transactions 병합 (해당 기간만 DELETE → INSERT, 멱등 보장)
-    5. 카테고리 매핑 (룰베이스 → LLM 체이닝)  ✅ 추가
+    Airflow DAG / 최초 가입 후 호출 (Secrets Manager 모드).
 
-    days=DAILY_SYNC_DAYS : 일별 동기화 (Airflow)
-    days=INITIAL_SYNC_DAYS: 최초 가입 시 30일 전체 fetch
+    Secrets Manager 형태: {connected_id: [{"businessType":"BK","organization":"0020"}, ...]}
+    → 하나의 connected_id로 등록된 모든 기관을 병렬 조회.
+
+    days=DAILY_SYNC_DAYS (3) : Airflow 일별 동기화
+    days=INITIAL_SYNC_DAYS (30): 최초 가입 시 전체 fetch
     """
-    connected_ids = _load_connected_ids(user_id)
-    if not connected_ids:
-        raise ValueError(f"user_id={user_id}의 connected_id가 없습니다. register_account()를 먼저 호출하세요.")
+    connected_id_map = _load_connected_ids(user_id)
+    if not connected_id_map:
+        raise ValueError(
+            f"user_id={user_id}의 connected_id가 없습니다. register_account()를 먼저 호출하세요."
+        )
 
     start_date, end_date = _sync_date_range(days)
-    log.info(f"동기화 시작: user={user_id} {start_date}~{end_date}")
+    log.info(
+        f"동기화 시작: user={user_id} {start_date}~{end_date} "
+        f"connected_ids={list(connected_id_map.keys())}"
+    )
 
     pool = await get_pool()
     bank_saved = card_saved = 0
 
+    # (connected_id, organization) 메타 정보 수집
+    bank_meta: list[tuple[str, str]] = []  # [(cid, org), ...]
+    card_meta: list[tuple[str, str]] = []
+
     async with new_session() as session:
         token = await get_access_token(session)
 
-        bank_orgs = list(connected_ids.get("BK", {}).items())
-        card_orgs  = list(connected_ids.get("CD", {}).items())
+        bank_tasks = []
+        card_tasks = []
 
-        bank_tasks = [
-            fetch_bank_transactions(session, token, cid, org, start_date, end_date)
-            for org, cid in bank_orgs
-        ]
-        card_tasks = [
-            fetch_card_transactions(session, token, cid, org, start_date, end_date)
-            for org, cid in card_orgs
-        ]
+        for cid, institutions in connected_id_map.items():
+            for inst in institutions:
+                btype = inst["businessType"]
+                org   = inst["organization"]
+                if btype == "BK":
+                    bank_tasks.append(
+                        fetch_bank_transactions(session, token, cid, org, start_date, end_date)
+                    )
+                    bank_meta.append((cid, org))
+                elif btype == "CD":
+                    card_tasks.append(
+                        fetch_card_transactions(session, token, cid, org, start_date, end_date)
+                    )
+                    card_meta.append((cid, org))
 
         results = await asyncio.gather(*bank_tasks, *card_tasks, return_exceptions=True)
 
@@ -522,14 +709,13 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
     card_results = results[len(bank_tasks):]
 
     # 은행 저장
-    for (org, _), result in zip(bank_orgs, bank_results):
+    for (cid, org), result in zip(bank_meta, bank_results):
         if isinstance(result, Exception):
-            log.error(f"은행 조회 실패 {org}: {result}")
+            log.error(f"은행 조회 실패 cid={cid} org={org}: {result}")
             continue
         acct_map: dict[str, list] = {}
         for tx in result:
             acct_map.setdefault(tx.get("_account", ""), []).append(tx)
-
         for acc_num, txs in acct_map.items():
             bank_account_id = await _upsert_bank_account(pool, user_id, org, {
                 "resAccount": acc_num,
@@ -540,28 +726,25 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
                 "resAccountBalance": "0",
             })
             if bank_account_id:
-                saved = await _upsert_bank_txs(pool, bank_account_id, txs)
-                bank_saved += saved
+                bank_saved += await _upsert_bank_txs(pool, bank_account_id, txs, start_date, end_date)
 
     # 카드 저장
-    for (org, _), result in zip(card_orgs, card_results):
+    for (cid, org), result in zip(card_meta, card_results):
         if isinstance(result, Exception):
-            log.error(f"카드 조회 실패 {org}: {result}")
+            log.error(f"카드 조회 실패 cid={cid} org={org}: {result}")
             continue
         card_map: dict[str, list] = {}
         for tx in result:
             card_map.setdefault(tx.get("resCardNo", ""), []).append(tx)
-
         for card_no, txs in card_map.items():
             card_id = await _upsert_card(pool, user_id, org, {
                 "resCardNo": card_no,
                 "resCardName": txs[0].get("resCardName", ""),
             })
             if card_id:
-                saved = await _upsert_card_txs(pool, card_id, txs)
-                card_saved += saved
+                card_saved += await _upsert_card_txs(pool, card_id, txs, start_date, end_date)
 
-    # transactions 병합
+    # transactions 병합 (해당 기간 DELETE → INSERT, 멱등)
     merged = await _merge_to_transactions(pool, user_id, start_date, end_date)
 
     # 카테고리 매핑 — 룰베이스 → 기타 남은 건 LLM 자동 체이닝

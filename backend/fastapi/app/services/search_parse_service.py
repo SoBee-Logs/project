@@ -72,7 +72,12 @@ _SYSTEM_PROMPT = """당신은 한국 금융상품 검색 어시스턴트입니�
    통신/SKT/KT/LG유플러스/휴대폰요금 → 통신,
    쇼핑몰/앱결제/간편결제/카카오페이/네이버페이 → 온라인)
 - keywords: 핵심 한국어 키워드 1~3개 (짧을수록 좋음).
-- ai_text: 친근한 한국어 1~2문장으로 검색 결과를 소개하는 문구."""
+- ai_text: 친근한 한국어 3~4문장으로 작성. 반드시 아래 순서로 구성:
+  1) 검색 의도 파악 ("~을 찾고 계시는군요!" 형태)
+  2) 어떤 기준으로 상품을 추천하는지 이유 (카테고리·혜택 방식·금리 등)
+  3) 선택 시 도움이 되는 실용 팁 1가지
+  중요: 각 문장은 반드시 20자 이내로 간결하게 작성하고, 문장마다 줄바꿈 없이 이어서 작성.
+  예) "카페 할인 카드를 찾고 계시는군요! 카페 혜택이 강한 카드들을 모아봤어요. 자주 갈수록 절약 효과가 커요. 연회비와 비교해 골라보세요." """
 
 
 def _detect_proper_noun_category(query: str) -> str | None:
@@ -92,7 +97,7 @@ async def parse_search_query(query: str) -> dict:
             ],
             response_format={"type": "json_object"},
             temperature=0.3,
-            max_tokens=300,
+            max_tokens=500,
         )
         result = json.loads(response.choices[0].message.content)
 

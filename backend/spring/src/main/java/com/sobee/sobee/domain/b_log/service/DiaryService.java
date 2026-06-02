@@ -22,6 +22,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @Service
@@ -59,8 +60,9 @@ public class DiaryService {
         List<Photo> todayPhotos = pgList.stream()
                 .map(PhotoGroups::getPhoto)
                 .filter(photo -> photo.getUserId().equals(userId))
-                .filter(photo -> photo.getCreatedAt() != null 
-                        && photo.getCreatedAt().toLocalDate().equals(targetDate))  // 날짜 필터 추가
+                .filter(photo -> photo.getCreatedAt() != null
+                        && photo.getCreatedAt().toLocalDate().equals(targetDate))
+                .sorted(Comparator.comparing(Photo::getCreatedAt).reversed())
                 .collect(Collectors.toList());
 
         // 사진 없으면 일기 생성 차단
