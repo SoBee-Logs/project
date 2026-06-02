@@ -94,13 +94,15 @@ const getCompanyDomain = (company) => {
 };
 
 function CompanyLogo({ src, company, fallbackEmoji, size, bg }) {
-    const domain = !src ? getCompanyDomain(company) : null;
+    const domain = getCompanyDomain(company);
     const [stage, setStage] = useState(0);
 
-    const srcs = src ? [src] : domain ? [
-        `https://logo.clearbit.com/${domain}`,
-        `https://www.google.com/s2/favicons?domain=${domain}&sz=256`,
-    ] : [];
+    // apple-touch-icon(180×180) → 백엔드 URL(faviconV2) → Google faviconV2 순으로 시도, 중복 제거
+    const srcs = [
+        domain && `https://www.${domain}/apple-touch-icon.png`,
+        src,
+        domain && `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${domain}&size=256`,
+    ].filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i);
 
     if (srcs.length === 0 || stage >= srcs.length) {
         return (
