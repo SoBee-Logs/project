@@ -33,8 +33,7 @@ function EmptyMonthModal({ year, month, onClose }) {
   )
 }
 
-function CategoryDonut({ categoryList }) {
-  const [selectedCat, setSelectedCat] = useState(null)
+function CategoryDonut({ categoryList, selectedCat, onSelect }) {
   return (
     <div className="flex justify-center">
       <div className="relative" style={{ width: 240, height: 240 }}>
@@ -44,7 +43,7 @@ function CategoryDonut({ categoryList }) {
             cx={115} cy={115}
             innerRadius={72} outerRadius={110}
             dataKey="value"
-            onClick={(data) => setSelectedCat(prev => prev?.name === data.name ? null : data)}
+            onClick={(data) => onSelect(prev => prev?.name === data.name ? null : data)}
             style={{ cursor: 'pointer' }}
           >
             {categoryList.map((entry, i) => (
@@ -403,6 +402,7 @@ export default function Report() {
   const [sheetTop, setSheetTop] = useState(() => getSheetTop())
   const [isDragging, setIsDragging] = useState(false)
   const [selectedWeek, setSelectedWeek] = useState('전체')
+  const [selectedCat, setSelectedCat] = useState(null)
 
   const minTop = 0
   const maxTop = getSheetTop()
@@ -548,16 +548,18 @@ export default function Report() {
           bottom: 0,
           transition: isDragging ? 'none' : 'top 0.35s cubic-bezier(0.32,0.72,0,1)',
         }}
-        onTouchStart={(e) => onDragStart(e.touches[0].clientY)}
         onTouchMove={(e) => onDragMove(e.touches[0].clientY)}
         onTouchEnd={(e) => onDragEnd(e.changedTouches[0].clientY)}
-        onMouseDown={(e) => onDragStart(e.clientY)}
         onMouseMove={(e) => { if (dragStartY.current !== null) onDragMove(e.clientY) }}
         onMouseUp={(e) => onDragEnd(e.clientY)}
         onMouseLeave={(e) => { if (dragStartY.current !== null) onDragEnd(e.clientY) }}
       >
         {/* 드래그 핸들 */}
-        <div className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing select-none">
+        <div
+          className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing select-none"
+          onTouchStart={(e) => onDragStart(e.touches[0].clientY)}
+          onMouseDown={(e) => onDragStart(e.clientY)}
+        >
           <div className="w-10 h-1 rounded-full bg-gray-300" />
         </div>
 
@@ -810,19 +812,7 @@ export default function Report() {
               </div>
 
               {weekCatList.length > 0 ? (
-                <>
-                  <CategoryDonut categoryList={weekCatList} />
-                  <div className="border-t border-gray-100 mt-3 pt-3 flex flex-col gap-1.5">
-                    {weekCatList.slice(0, 5).map((cat) => (
-                      <div key={cat.name} className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat.color }} />
-                        <span className="text-[11px] text-gray-600 flex-1">{cat.name}</span>
-                        <span className="text-[11px] font-bold text-gray-800">{cat.amount.toLocaleString()}원</span>
-                        <span className="text-[10px] text-gray-400">({cat.value}%)</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
+                <CategoryDonut categoryList={weekCatList} selectedCat={selectedCat} onSelect={setSelectedCat} />
               ) : (
                 <p className="text-center text-xs text-gray-400 py-8">해당 주에 결제 내역이 없어요</p>
               )}
