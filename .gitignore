@@ -24,3 +24,8 @@ logs/
 
 venv/
 *.pem
+
+# Python
+__pycache__/
+*.pyc
+*.pyo

@@ -1,15 +1,43 @@
 import asyncio
+import logging
 
+import aiohttp
 from fastapi import APIRouter
+
+log = logging.getLogger(__name__)
+
+
+async def _trigger_airflow_sync(user_id: int, days: int) -> None:
+    """Airflow sobee_transaction_sync DAG 트리거 (회원가입 시 초기 sync)."""
+    from app.core.config import settings
+    url = f"{settings.AIRFLOW_URL}/api/v1/dags/sobee_transaction_sync/dagRuns"
+    try:
+        async with aiohttp.ClientSession() as session:
+            res = await session.post(
+                url,
+                json={"conf": {"user_id": user_id, "days": days}},
+                auth=aiohttp.BasicAuth(settings.AIRFLOW_USER, settings.AIRFLOW_PASSWORD),
+                timeout=aiohttp.ClientTimeout(total=10),
+            )
+            if res.status in (200, 201):
+                log.info(f"Airflow 트리거 완료: user_id={user_id} days={days}")
+            else:
+                body = await res.text()
+                log.warning(f"Airflow 트리거 실패 ({res.status}): {body} — 로컬 sync로 fallback")
+                asyncio.create_task(sync_transactions(user_id, days=days))
+    except Exception as e:
+        log.warning(f"Airflow 연결 실패: {e} — 로컬 sync로 fallback")
+        asyncio.create_task(sync_transactions(user_id, days=days))
 from app.models.schemas import (
     SyncRequest, SyncResponse,
     MappingRequest, MappingResponse,
     PersonaGenerateRequest, AvatarResponse,
     DiaryGenerateRequest, DiaryGenerateResponse,
     RegisterAccountRequest, RegisterAccountResponse,
+    ConnectedIdListResponse, ConnectedIdInfo,
     ParseSearchRequest, ParseSearchResponse,
 )
-from app.services.sync_service import sync_transactions, register_account, INITIAL_SYNC_DAYS
+from app.services.sync_service import sync_transactions, sync_transactions_env, register_account, list_connected_ids, INITIAL_SYNC_DAYS
 from app.services.mapping_service import run_mapping
 from app.services.avatar_service import _generate_and_save_avatar
 from app.services.diary_service import generate_diary
@@ -59,37 +87,79 @@ async def accounts_setup():
     return {"results": results}
 
 
+@router.get("/accounts/{user_id}", response_model=ConnectedIdListResponse)
+async def accounts_list(user_id: int):
+    """
+    유저의 connected_id 목록과 각 connected_id에 등록된 기관 목록 조회.
+    응답 예시:
+      {
+        "user_id": 1,
+        "connected_ids": [
+          {
+            "connected_id": "cid_abc",
+            "institutions": [
+              {"businessType": "BK", "organization": "0020"},
+              {"businessType": "CD", "organization": "0301"}
+            ]
+          }
+        ]
+      }
+    """
+    entries = list_connected_ids(user_id)
+    return ConnectedIdListResponse(
+        user_id=user_id,
+        connected_ids=[ConnectedIdInfo(**e) for e in entries],
+    )
+
+
 @router.post("/accounts/register", response_model=RegisterAccountResponse)
 async def accounts_register(request: RegisterAccountRequest):
     """
-    유저 금융기관 계정 등록 (최초 1회).
-    connected_id를 발급받아 Secrets Manager에 저장.
-    등록 완료 후 최근 30일 transactions 초기 sync를 백그라운드로 트리거.
+    금융기관 계정 등록.
+
+    connected_id 미전달: /account/create → 새 connected_id 발급
+      → 최초 등록 또는 다른 인증수단(인증서 vs ID/PW)으로 추가할 때 사용
+
+    connected_id 전달: /account/add → 기존 connected_id에 기관 추가
+      → 인증서 하나로 여러 은행/카드를 하나의 connected_id로 묶을 때 사용
+
+    등록 완료 후 최근 30일 transactions 초기 sync 백그라운드 트리거.
     login_id / login_pw는 CODEF에만 전달되며 저장되지 않음.
     """
-    await register_account(
+    cid = await register_account(
         user_id=request.user_id,
         business_type=request.business_type,
         org_code=request.org_code,
         login_id=request.login_id,
         login_pw=request.login_pw,
+        connected_id=request.connected_id,
     )
-    asyncio.create_task(sync_transactions(request.user_id, days=INITIAL_SYNC_DAYS))
+    asyncio.create_task(_trigger_airflow_sync(request.user_id, days=INITIAL_SYNC_DAYS))
+    action = "기관 추가" if request.connected_id else "connected_id 발급"
     return RegisterAccountResponse(
         user_id=request.user_id,
         business_type=request.business_type,
         org_code=request.org_code,
-        message="connected_id 발급 및 저장 완료. 초기 30일 sync 백그라운드 실행 중.",
+        connected_id=cid,
+        message=f"{action} 완료. Airflow 초기 30일 sync 트리거됨.",
     )
 
 
 @router.post("/transactions/sync", response_model=SyncResponse)
 async def transactions_sync(request: SyncRequest):
-    from app.services.sync_service import DAILY_SYNC_DAYS
+    from app.services.sync_service import (
+        DAILY_SYNC_DAYS, sync_transactions, sync_transactions_env,
+    )
     days = request.days if request.days is not None else DAILY_SYNC_DAYS
-    result = await sync_transactions(request.user_id, days=days)
+    try:
+        if request.mode == "env":
+            result = await sync_transactions_env(request.user_id, days=days)
+        else:
+            result = await sync_transactions(request.user_id, days=days)
+    except ValueError as e:
+        return SyncResponse(message=f"skip (연동 계정 없음): {e}")
     msg = (
-        f"sync 완료 | 기간:{result['period']} "
+        f"sync 완료 [{request.mode}] | 기간:{result['period']} "
         f"계좌:{result['bank_saved']} 카드:{result['card_saved']} "
         f"transactions:{result['transactions_merged']}"
     )
@@ -105,9 +175,24 @@ async def mapping_run(request: MappingRequest):
 @router.post("/persona/generate", response_model=AvatarResponse)
 async def persona_generate(request: PersonaGenerateRequest):
     from app.services.avatar_service import _get_last_week_range
+    from app.db.connection import get_pool
+    import aiomysql
+
     start, end = request.start_date, request.end_date
     if not start or not end:
         start, end = _get_last_week_range()
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT COUNT(*) FROM transactions WHERE user_id = %s AND payment_date BETWEEN %s AND %s",
+                (request.user_id, start, end),
+            )
+            row = await cur.fetchone()
+    if not row or row[0] == 0:
+        return AvatarResponse(avatar_title="", avatar_description="", avatar_image="")
+
     return await _generate_and_save_avatar(request.user_id, start, end)
 
 

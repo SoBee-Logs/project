@@ -12,6 +12,9 @@ export default defineConfig({
     tailwindcss(),
     basicSsl(),
   ],
+  optimizeDeps: {
+    include: ['heic2any']  // ← 추가
+  },
   server: {
     https: true,
     host: true,

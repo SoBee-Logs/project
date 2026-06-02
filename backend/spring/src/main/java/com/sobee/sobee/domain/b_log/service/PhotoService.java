@@ -53,6 +53,7 @@ public class PhotoService {
     private final PhotoVlmResultRepository photoVlmResultRepository;
     private final PersonaTransactionRepository personaTransactionRepository;
     private final TransactionRepository transactionRepository;
+    private final LlmMatchingClient llmMatchingClient;
 
     private static final DateTimeFormatter TAKEN_AT_FORMATTER = new DateTimeFormatterBuilder()
             .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
@@ -155,7 +156,7 @@ public class PhotoService {
                     ? metadata.getTakenAt().format(TIME_FORMATTER) : "";
 
             // emoji, text 추출
-            EmotionsText emotionsText = emotionsTextRepository.findByPhoto(photo).orElse(null);
+            EmotionsText emotionsText = emotionsTextRepository.findByPhotoId(photo.getPhotoId()).orElse(null);
             String emoji = emotionsText != null && emotionsText.getEmoji() != null
                     ? emotionsText.getEmoji().getEmoji() : null;
             String text = emotionsText != null ? emotionsText.getText() : null;
@@ -237,18 +238,83 @@ public class PhotoService {
 
     // DiaryService가 일기 생성 시점에 호출 — 미매핑 사진 1건 매핑 시도
     public void performMatchingForPhoto(Long photoId, Long userId) {
+        // VLM 결과 조회
         PhotoVlmResult vlm = photoVlmResultRepository
                 .findFirstByPhotoIdOrderByVlmIdDesc(photoId)
                 .orElse(null);
         if (vlm == null) return;
-        // photo_metadata.taken_at이 saveVlmResult에서 EXIF 시간으로 이미 업데이트됨
-        // taken_at null이면 matchTransaction 내부에서 created_at으로 폴백
-        matchTransaction(photoId, userId, vlm, null);
+    
+        // photo_metadata 조회 (taken_at, 위도/경도)
+        PhotoMetadata metadata = photoMetadataRepository
+                .findByPhotoPhotoId(photoId).orElse(null);
+        if (metadata == null) return;
+    
+        // 촬영 날짜 결정 (taken_at 우선, 없으면 created_at)
+        LocalDateTime takenDateTime = metadata.getTakenAt() != null
+                ? metadata.getTakenAt()
+                : metadata.getCreatedAt();
+        if (takenDateTime == null) return;
+    
+        String takenDateStr = takenDateTime.toLocalDate().format(DATE_FORMATTER);
+    
+        // 같은 날 결제 후보 조회
+        List<Transaction> candidates = transactionRepository
+                .findOutgoingByUserIdAndDate(userId, takenDateStr);
+        if (candidates.isEmpty()) return;
+    
+        // 이미 매핑된 결제 제거
+        Set<String> mappedIds = Set.copyOf(
+                personaTransactionRepository.findPaymentIdsByUserId(userId));
+        List<Transaction> available = candidates.stream()
+                .filter(t -> !mappedIds.contains(String.valueOf(t.getId().getPaymentId())))
+                .collect(Collectors.toList());
+        if (available.isEmpty()) return;
+    
+        // FastAPI LLM 매핑 요청
+        LlmMatchingClient.MatchRequest req = LlmMatchingClient.MatchRequest.builder()
+                .photo_id(photoId)
+                .user_id(userId)
+                .vlm_data(LlmMatchingClient.VlmData.builder()
+                        .category(vlm.getVlmCategory())
+                        .item_name(vlm.getVlmItemName())
+                        .price_estimate(vlm.getVlmPriceEstimate() != null
+                                ? vlm.getVlmPriceEstimate().doubleValue() : null)
+                        .store_type(vlm.getVlmStoreType())
+                        .store_name(vlm.getVlmStoreName())
+                        .description(vlm.getVlmDescription())
+                        .taken_at(takenDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+                        .latitude(metadata.getLatitude() != null
+                                ? metadata.getLatitude().doubleValue() : null)
+                        .longitude(metadata.getLongitude() != null
+                                ? metadata.getLongitude().doubleValue() : null)
+                        .build())
+                .candidates(available.stream()
+                        .map(t -> LlmMatchingClient.TransactionCandidate.builder()
+                                .payment_id(t.getId().getPaymentId())
+                                .payment_out(t.getPaymentOut())
+                                .payment_time(t.getPaymentTime())
+                                .payment_place(t.getPaymentPlace())
+                                .payment_category(t.getPaymentCategory())
+                                .payment_address(t.getPaymentAddress())
+                                .build())
+                        .collect(Collectors.toList()))
+                .build();
+    
+        Long matchedPaymentId = llmMatchingClient.match(req);
+        if (matchedPaymentId == null) return;  // 미매핑
+    
+        // persona_transaction 저장
+        PersonaTransaction mapping = PersonaTransaction.builder()
+                .vlmId(vlm.getVlmId())
+                .photoId(photoId)
+                .paymentId(matchedPaymentId)
+                .userId(userId)
+                .build();
+        personaTransactionRepository.save(mapping);
+        
     }
-
-    // EXIF datetime 문자열 파싱 — offset 포함("2026-05-15 12:43:38+09:00") 및 미포함("2026-05-15 12:43:38") 모두 처리
-    // offset 있으면 해당 timezone → KST(+09:00) 변환, 없으면 로컬 시각으로 그대로 사용
-    private LocalDateTime parseExifDateTime(String raw) {
+    // EXIF datetime 문자열 파싱 — offset 포함/미포함 모두 처리
+private LocalDateTime parseExifDateTime(String raw) {
         String normalized = raw.trim().substring(0, 19);
         LocalDateTime ldt = LocalDateTime.parse(normalized,
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
@@ -261,110 +327,5 @@ public class PhotoService {
             } catch (Exception ignored) {}
         }
         return ldt;
-    }
-
-    // VLM의 실제 촬영 일시(EXIF) 또는 photo_metadata.taken_at 기준으로 결제 내역을 찾아 persona_transaction에 저장
-    private String matchTransaction(Long photoId, Long userId, PhotoVlmResult vlmResult, String vlmTakenAt) {
-
-        // ① 촬영 일시 결정 — takenDateTime(LocalDateTime) 및 takenDate(LocalDate) 동시 획득
-        LocalDateTime takenDateTime = null;
-        LocalDate takenDate = null;
-
-        if (vlmTakenAt != null && !vlmTakenAt.isBlank()) {
-            try {
-                String normalized = vlmTakenAt.trim().substring(0, 19);
-                takenDateTime = LocalDateTime.parse(normalized,
-                        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-                takenDate = takenDateTime.toLocalDate();
-            } catch (Exception ignored) {
-                // 파싱 실패 시 photo_metadata로 폴백
-            }
-        }
-
-        if (takenDateTime == null) {
-            PhotoMetadata metadata = photoMetadataRepository
-                    .findByPhotoPhotoId(photoId).orElse(null);
-            if (metadata == null) return null;
-            // 1순위: taken_at (EXIF 촬영 시간), 2순위: created_at (업로드 시간)
-            takenDateTime = metadata.getTakenAt() != null
-                    ? metadata.getTakenAt()
-                    : metadata.getCreatedAt();
-            if (takenDateTime == null) return null;
-            takenDate = takenDateTime.toLocalDate();
-        }
-
-        // ② 같은 날 해당 유저의 지출 내역 조회
-        String takenDateStr = takenDate.format(DATE_FORMATTER);
-        List<Transaction> candidates = transactionRepository
-                .findOutgoingByUserIdAndDate(userId, takenDateStr);
-        if (candidates.isEmpty()) return null;
-
-        // ③ 이미 매핑된 paymentId 후보에서 제거 (1:1 강제 매핑)
-        Set<String> mappedIds = Set.copyOf(personaTransactionRepository.findPaymentIdsByUserId(userId));
-        List<Transaction> available = candidates.stream()
-                .filter(t -> !mappedIds.contains(String.valueOf(t.getId().getPaymentId())))
-                .collect(Collectors.toList());
-        if (available.isEmpty()) return null;
-
-        // ④ 가격 기반 매핑
-        Transaction best = null;
-
-        if (vlmResult.getVlmPriceEstimate() != null) {
-            double estimatedPrice = vlmResult.getVlmPriceEstimate().doubleValue();
-            Transaction priceBest = available.stream()
-                    .min(Comparator.comparingDouble(t ->
-                            Math.abs(t.getPaymentOut() - estimatedPrice)))
-                    .orElse(null);
-            if (priceBest != null) {
-                double diff = Math.abs(priceBest.getPaymentOut() - estimatedPrice);
-                if (estimatedPrice <= 0 || diff <= estimatedPrice * 0.8) {
-                    best = priceBest;
-                }
-                // diff > 80%면 best = null → 시간 기반 폴백으로 넘어감
-            }
-        }
-
-        // ⑤ 시간 기반 폴백 — ±2시간 이내 가장 시간차 적은 결제 내역 선택
-        if (best == null) {
-            final LocalDateTime photoTime = takenDateTime;
-            final LocalDate photoDate = takenDate;
-            best = available.stream()
-                    .filter(t -> {
-                        if (t.getPaymentTime() == null || t.getPaymentTime().isBlank()) return false;
-                        try {
-                            LocalTime txTime = LocalTime.parse(
-                                    t.getPaymentTime().trim().substring(0, 5),
-                                    DateTimeFormatter.ofPattern("HH:mm"));
-                            LocalDateTime txDateTime = photoDate.atTime(txTime);
-                            return Math.abs(Duration.between(photoTime, txDateTime).toMinutes()) <= 360;
-                        } catch (Exception e) {
-                            return false;
-                        }
-                    })
-                    .min(Comparator.comparingLong(t -> {
-                        try {
-                            LocalTime txTime = LocalTime.parse(
-                                    t.getPaymentTime().trim().substring(0, 5),
-                                    DateTimeFormatter.ofPattern("HH:mm"));
-                            LocalDateTime txDateTime = photoDate.atTime(txTime);
-                            return Math.abs(Duration.between(photoTime, txDateTime).toMinutes());
-                        } catch (Exception e) {
-                            return Long.MAX_VALUE;
-                        }
-                    }))
-                    .orElse(null);
-            if (best == null) return null;
-        }
-
-        // ⑥ persona_transaction에 매핑 결과 저장
-        PersonaTransaction mapping = PersonaTransaction.builder()
-                .vlmId(vlmResult.getVlmId())
-                .photoId(photoId)
-                .paymentId(best.getId().getPaymentId())
-                .userId(userId)
-                .build();
-        personaTransactionRepository.save(mapping);
-
-        return String.valueOf(best.getId().getPaymentId());
     }
 }
