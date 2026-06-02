@@ -571,17 +571,17 @@ export default function Report() {
           let explaneObj = null
           try { explaneObj = JSON.parse(persona?.avatarExplane ?? '') } catch {}
 
-          // 새 포맷: {emoji, background, time, item} / 구 포맷: {header_text, content_text}
           const isNewFormat = explaneObj && ('emoji' in explaneObj || 'background' in explaneObj)
           const descText = isNewFormat
             ? explaneObj?.background?.header ?? ''
             : (explaneObj?.content_text ?? '')
 
-          const bannerPills = [
-            categoryList[0] && `${categoryList[0].name} ${categoryList[0].amount.toLocaleString()}원`,
-            txData?.payment_total_num && `${txData.payment_total_num}건 결제`,
-            txData?.vlm_items?.length > 0 && '사진 소비 기록 있음',
-          ].filter(Boolean)
+          const traitTags = txData ? [
+            categoryList[0] && `${categoryList[0].name} 집중`,
+            peakTime && `${peakTime.icon} ${peakTime.label}`,
+            lifecycle?.life_stage_code && `${lifecycle.life_stage_code}`,
+            txData.vlm_items?.length > 0 && `📸 사진 소비 ${txData.vlm_items.length}건`,
+          ].filter(Boolean) : []
 
           return (
             <div className="rounded-2xl bg-[#1e73be] text-white p-4 flex flex-col gap-3">
@@ -599,11 +599,11 @@ export default function Report() {
                   )}
                 </div>
               </div>
-              {bannerPills.length > 0 && (
+              {traitTags.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {bannerPills.map((pill, i) => (
+                  {traitTags.map((tag, i) => (
                     <span key={i} className="text-[11px] font-semibold bg-white/20 text-white rounded-full px-3 py-1">
-                      {pill}
+                      {tag}
                     </span>
                   ))}
                 </div>
@@ -628,50 +628,6 @@ export default function Report() {
           )}
         </div>
 
-        {/* 아바타 생성 기반 데이터 카드 */}
-        {txData && (() => {
-          const traits = [
-            {
-              icon: '🍽️',
-              label: '소비 습관',
-              value: categoryList[0]
-                ? `${categoryList[0].name} 집중 (${Math.round((categoryList[0].amount / txData.payment_out) * 100)}%)`
-                : '-',
-            },
-            {
-              icon: '⏰',
-              label: '활동 시간대',
-              value: peakTime ? `${peakTime.icon} ${peakTime.label} (${peakTime.pct}%)` : '-',
-            },
-            {
-              icon: '🧬',
-              label: '생애주기',
-              value: lifecycle?.life_stage_code ?? '-',
-            },
-            {
-              icon: '📸',
-              label: '사진 소비',
-              value: txData.vlm_items?.length > 0
-                ? `${txData.vlm_items.slice(0, 2).join(', ')}${txData.vlm_items.length > 2 ? ` 외 ${txData.vlm_items.length - 2}개` : ''}`
-                : '기록 없음',
-            },
-          ]
-
-          return (
-            <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
-              <p className="text-xs text-gray-500 font-semibold mb-3">🐝 이 아바타가 만들어진 이유</p>
-              <div className="flex flex-col gap-2">
-                {traits.map(({ icon, label, value }) => (
-                  <div key={label} className="flex items-start gap-2">
-                    <span className="text-sm shrink-0">{icon}</span>
-                    <span className="text-[11px] text-gray-400 w-16 shrink-0 pt-0.5">{label}</span>
-                    <span className="text-[12px] font-semibold text-gray-800 leading-snug">{value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        })()}
 
         {/* AI 상품 추천 */}
         <div ref={aiRecommendRef} className="flex flex-col gap-2">
