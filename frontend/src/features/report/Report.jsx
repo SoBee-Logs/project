@@ -77,6 +77,37 @@ function CategoryDonut({ categoryList }) {
   )
 }
 
+function CardImage({ src, alt, containerW, containerH }) {
+  const [landscape, setLandscape] = useState(false)
+  useEffect(() => {
+    const img = new Image()
+    img.onload = () => setLandscape(img.naturalWidth > img.naturalHeight)
+    img.src = src
+  }, [src])
+
+  return landscape ? (
+    <div style={{ width: containerW, height: containerH, flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
+      <div style={{
+        width: containerH, height: containerW,
+        position: 'absolute',
+        left: (containerW - containerH) / 2,
+        top: (containerH - containerW) / 2,
+        transform: 'rotate(90deg)',
+        transformOrigin: 'center center',
+        overflow: 'hidden',
+      }}>
+        <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          onError={(e) => { e.currentTarget.style.display = 'none' }} />
+      </div>
+    </div>
+  ) : (
+    <div style={{ width: containerW, height: containerH, overflow: 'hidden', flexShrink: 0 }}>
+      <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        onError={(e) => { e.currentTarget.style.display = 'none' }} />
+    </div>
+  )
+}
+
 function RecommendCard({ item }) {
   const navigate = useNavigate()
   const { product_name, product_img_url, product_type } = item
@@ -85,32 +116,55 @@ function RecommendCard({ item }) {
   return (
     <div
       onClick={() => navigate('/product/detail', { state: { item } })}
-      className="rounded-2xl border border-gray-100 p-4 shadow-sm flex gap-3 items-center cursor-pointer active:bg-gray-50"
+      className="rounded-2xl border border-gray-100 p-4 shadow-sm flex gap-3 items-start cursor-pointer active:bg-gray-50"
     >
-      <div className="shrink-0 w-12 rounded-lg overflow-hidden shadow-md"
-        style={{ height: 76, background: 'linear-gradient(135deg, #1e73be, #0e3f78)' }}
-      >
-        {product_img_url ? (
-          <img
-            src={product_img_url}
-            alt={product_name}
-            className="w-full h-full object-cover"
-            onError={(e) => { e.currentTarget.style.display = 'none' }}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-2xl">
-            {product_type === 'card' ? '💳' : '🏦'}
+      {product_type === 'card' ? (
+        <div className="shrink-0 rounded-lg overflow-hidden shadow-md self-center"
+          style={{ background: 'linear-gradient(135deg, #2A7FD8, #0E3F78)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
+        >
+          {product_img_url ? (
+            <CardImage src={product_img_url} alt={product_name} containerW={72} containerH={110} />
+          ) : (
+            <div style={{ width: 72, height: 110 }} className="flex items-center justify-center text-2xl">💳</div>
+          )}
+        </div>
+      ) : (
+        <div className="shrink-0 rounded-lg overflow-hidden shadow-md self-center"
+          style={{ width: 72, height: 72, background: product_img_url ? '#fff' : 'linear-gradient(135deg, #1D9E75, #0A6B4E)' }}
+        >
+          {product_img_url ? (
+            <img
+              src={product_img_url}
+              alt={product_name}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 8, display: 'block' }}
+              onError={(e) => { e.currentTarget.parentElement.style.background = 'linear-gradient(135deg, #1D9E75, #0A6B4E)'; e.currentTarget.style.display = 'none' }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-2xl">🏦</div>
+          )}
+        </div>
+      )}
+      <div className="flex-1 min-w-0 flex flex-col self-stretch">
+        <div>
+          <span className="text-[10px] bg-blue-100 text-[#1e73be] rounded-full px-2 py-0 font-semibold leading-[18px] inline-block">{label}</span>
+          <div className="flex items-center gap-1 mt-px">
+            <p className="text-sm font-bold text-gray-900 truncate flex-1">{product_name}</p>
+            {product_type === 'savings' && item.content?.header && (
+              <span className="text-[11px] font-semibold text-[#1D9E75] shrink-0">{item.content.header.replace('우대금리 최대 ', '최대 ')}</span>
+            )}
+          </div>
+        </div>
+        {item.reason && (
+          <div className="flex-1 flex items-center">
+            <p className="text-[11px] text-[#1e73be] leading-snug" style={{ wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
+              {product_type === 'savings'
+                ? item.reason.replace(/\s*\(최고 연 [\d.]+%\)/, '')
+                : item.reason}
+            </p>
           </div>
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <span className="text-[10px] bg-blue-100 text-[#1e73be] rounded-full px-2 py-0.5 font-semibold">{label}</span>
-        <p className="text-sm font-bold text-gray-900 mt-1 truncate">{product_name}</p>
-        {item.reason && (
-          <p className="text-[11px] text-[#1e73be] mt-0.5 leading-snug line-clamp-2">{item.reason}</p>
-        )}
-      </div>
-      <span className="text-gray-300 text-sm shrink-0">›</span>
+      <span className="text-gray-300 text-sm shrink-0 self-center">›</span>
     </div>
   )
 }
@@ -175,6 +229,7 @@ export default function Report() {
   const [lifecycle,     setLifecycle]     = useState(null)
   const [txData,        setTxData]        = useState(null)
   const [recommendData, setRecommendData] = useState(null)
+  const [recommendRefreshing, setRecommendRefreshing] = useState(false)
   const [loading,       setLoading]       = useState(true)
   const [error,         setError]         = useState(null)
   const [isEmptyMonth,  setIsEmptyMonth]  = useState(false)
@@ -281,6 +336,20 @@ export default function Report() {
     }
     fetchAll()
   }, [selectedYear, selectedMonth])
+
+  const fetchRecommend = async () => {
+    setRecommendRefreshing(true)
+    setRecommendData(null)
+    try {
+      const res = await fetch(`/api/report/ai-insight?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`)
+      const data = await res.json()
+      setRecommendData(data)
+    } catch {
+      setRecommendData({ error: true })
+    } finally {
+      setRecommendRefreshing(false)
+    }
+  }
 
   // ✅ 팔레트 기반 categoryList
   const categoryList = txData
@@ -443,6 +512,7 @@ export default function Report() {
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {isEmptyMonth && (
         <EmptyMonthModal
@@ -665,6 +735,74 @@ export default function Report() {
               ? <p className="text-center text-xs text-gray-400">추천 상품을 불러오는 중...</p>
               : <p className="text-center text-xs text-gray-400">추천 상품을 불러올 수 없어요</p>
           }
+        {/* AI 상품 추천 */}
+        <div ref={aiRecommendRef} className="flex flex-col gap-2">
+          <div className="flex items-center gap-1">
+            <p className="text-xs text-gray-500 font-semibold">🤖 AI 상품 추천</p>
+            <button
+              onClick={fetchRecommend}
+              disabled={recommendRefreshing}
+              className="w-7 h-7 flex items-center justify-center rounded-full active:bg-gray-100 transition-colors"
+              style={{ color: '#8494A8' }}
+            >
+              <svg
+                width="15" height="15" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+                style={{ animation: recommendRefreshing ? 'spin 0.7s linear infinite' : 'none', opacity: recommendRefreshing ? 0.4 : 1 }}
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+            </button>
+          </div>
+          {recommendRefreshing || recommendData === null ? (
+            <>
+              {/* 카드 스켈레톤 */}
+              <div className="rounded-2xl border border-gray-100 p-4 shadow-sm flex gap-3 items-start animate-pulse">
+                <div className="shrink-0 rounded-lg bg-gray-200 self-center" style={{ width: 72, height: 110 }} />
+                <div className="flex-1 flex flex-col self-stretch">
+                  <div>
+                    <div className="h-[18px] bg-gray-200 rounded-full w-16 mb-1" />
+                    <div className="h-4 bg-gray-200 rounded-full w-3/4 mt-1" />
+                  </div>
+                  <div className="flex-1 flex items-center">
+                    <div className="w-full flex flex-col gap-1.5">
+                      <div className="h-2.5 bg-gray-100 rounded-full w-full" />
+                      <div className="h-2.5 bg-gray-100 rounded-full w-4/5" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* 예적금 스켈레톤 */}
+              <div className="rounded-2xl border border-gray-100 p-4 shadow-sm flex gap-3 items-start animate-pulse">
+                <div className="shrink-0 rounded-lg bg-gray-200 self-center" style={{ width: 72, height: 72 }} />
+                <div className="flex-1 flex flex-col self-stretch">
+                  <div>
+                    <div className="h-[18px] bg-gray-200 rounded-full w-20 mb-1" />
+                    <div className="flex items-center gap-1 mt-1">
+                      <div className="h-4 bg-gray-200 rounded-full flex-1" />
+                      <div className="h-4 bg-gray-200 rounded-full w-12 shrink-0" />
+                    </div>
+                  </div>
+                  <div className="flex-1 flex items-center">
+                    <div className="w-full flex flex-col gap-1.5">
+                      <div className="h-2.5 bg-gray-100 rounded-full w-full" />
+                      <div className="h-2.5 bg-gray-100 rounded-full w-2/3" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : recommendData?.recommned?.length > 0 ? (
+            <>
+              {recommendData.message && (
+                <p className="text-[11px] text-gray-400 leading-relaxed px-1">{recommendData.message}</p>
+              )}
+              {recommendData.recommned.map((item, i) => <RecommendCard key={i} item={item} />)}
+            </>
+          ) : (
+            <div className="rounded-2xl border border-gray-100 p-4 shadow-sm text-center text-xs text-gray-400">추천 상품을 불러올 수 없어요</div>
+          )}
         </div>
 
         {/* ③ 이번 달 소비 장면 (VLM 기반) */}

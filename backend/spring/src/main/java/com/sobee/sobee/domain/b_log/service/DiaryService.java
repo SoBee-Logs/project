@@ -127,7 +127,7 @@ public class DiaryService {
 
         // 감정 데이터 — 전체 수집 후 텍스트 합치기
         List<EmotionsText> allEmotions = todayPhotos.stream()
-        .map(p -> emotionsTextRepository.findByPhoto(p).orElse(null))
+        .map(p -> emotionsTextRepository.findByPhotoId(p.getPhotoId()).orElse(null))
         .filter(Objects::nonNull)
         .collect(Collectors.toList());
 
@@ -158,7 +158,7 @@ public class DiaryService {
         .tags(Collections.singletonList("#" + group.getGroupName()))
         .group_description(group.getGroupDescription())
         .build();
-
+        
         FastApiDiaryResponse faRes;
         try {
             faRes = callFastApiDiary(faReq);

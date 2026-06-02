@@ -277,8 +277,10 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
-            onClick={() => navigate('/camera')}
-            className="rounded-2xl flex flex-col cursor-pointer border-0 text-left"
+            onClick={() => navigate('/camera', { 
+              state: { myGroups: feedPreviews } //groups 재호출 하지 않도록
+          })}
+            className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
             style={{
               background: '#EBF5FF',
               borderRadius: '14px',
@@ -296,17 +298,17 @@ export default function Home() {
           </button>
 
           <button
-            type="button"
-            onClick={async () => {
-              const token = localStorage.getItem("token")
-              const res = await fetch('/api/groups', {
-                headers: { Authorization: `Bearer ${token}` },
+            type="button" //consumption-log로 이동할 때 selectedRooms와 myGroups 상태를 함께 전달
+            onClick={() => {
+              const roomIds = feedPreviews.map(f => f.groupId)
+              navigate('/consumption-log', { 
+                  state: { 
+                      selectedRooms: roomIds,
+                      myGroups: feedPreviews
+                  } 
               })
-              const groups = await res.json()
-              const roomIds = groups.map(g => g.groupId)
-              navigate('/consumption-log', { state: { selectedRooms: roomIds } })
-            }}
-            className="rounded-2xl flex flex-col cursor-pointer border-0 text-left"
+          }}
+            className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
             style={{
               background: '#EBF5FF',
               borderRadius: '14px',
