@@ -34,6 +34,9 @@ class LifecycleResponse(BaseModel):
 class SyncRequest(BaseModel):
     user_id: int
     days: Optional[int] = None  # None → daily default (3일), 30 → 최초 가입 시
+    mode: Literal["secrets", "env"] = "secrets"
+    # secrets: AWS Secrets Manager (기본, Airflow 운영)
+    # env:     CODEF_CARD/BANK_ACCOUNTS ENV JSON 배열 (팀원 테스트용)
 
 class SyncResponse(BaseModel):
     message: str
@@ -51,16 +54,28 @@ class PersonaGenerateRequest(BaseModel):
 
 class RegisterAccountRequest(BaseModel):
     user_id: int
-    business_type: str   # "BK" | "CD"
-    org_code: str        # 기관코드 e.g. "0020"
+    business_type: str        # "BK" | "CD"
+    org_code: str             # 기관코드 e.g. "0020"
     login_id: str
     login_pw: str
+    connected_id: Optional[str] = None
+    # None  → /account/create: 새 connected_id 발급 (최초 또는 별도 인증수단)
+    # 전달  → /account/add:    기존 connected_id에 기관 추가 (동일 인증수단)
 
 class RegisterAccountResponse(BaseModel):
     user_id: int
     business_type: str
     org_code: str
+    connected_id: str
     message: str
+
+class ConnectedIdInfo(BaseModel):
+    connected_id: str
+    institutions: List[dict]  # [{"businessType": "BK", "organization": "0020"}, ...]
+
+class ConnectedIdListResponse(BaseModel):
+    user_id: int
+    connected_ids: List[ConnectedIdInfo]
 
 class DiaryGenerateRequest(BaseModel):
     user_id: int
