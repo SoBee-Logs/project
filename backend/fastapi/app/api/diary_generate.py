@@ -5,7 +5,6 @@ from fastapi import APIRouter, HTTPException
 from app.core.config import settings
 from app.models.schemas import DiaryRequest, DiaryResponse
 
-# /api/diary 하위 경로를 담당하는 라우터 (main.py에서 prefix로 /api/diary 붙임)
 router = APIRouter()
 
 MOOD_LABEL = {
@@ -16,36 +15,44 @@ MOOD_LABEL = {
     "😡": "후회스러운",
 }
 
-DIARY_PROMPT_TEMPLATE = """[분량 제한 — 절대 준수]
-- 전체 글자 수: 150자 이내
-- diary_lines: 반드시 4개, 각 항목 한 문장 30자 이내
-- 문단(단락) 금지. 짧은 한 줄 문장 4개만.
-- 인스타그램 피드 감성: 감각적·간결·위트 있게. 설명체 절대 금지.
+# System Prompt: 페르소나 + 절대 규칙 (소비 데이터 없이 규칙만)
+SYSTEM_PROMPT_TEMPLATE = """너는 20대 직장인/대학생이 인스타 스머프 계정이나 에브리타임, 개인 블로그에 올리는 솔직하고 유쾌한 소비 일기를 대신 써주는 작가야.
+유저의 소비 내역과 사진 분석 결과를 보고, 그 소비의 감정과 분위기를 자연스럽게 녹여서 써줘.
 
-너는 소비 일기를 써주는 AI야.
-아래 소비 정보를 바탕으로 짧은 소비 일기를 한국어로 써줘.
-일기의 톤과 내용은 반드시 아래 '모임방 특징'에 맞게 맞춰야 해.
+[절대 규칙 - 무조건 지켜]
+1. 말투: 음/슴체 또는 가벼운 반말. 딱딱한 경어나 과장된 감탄("정말!", "너무너무") 금지.
+2. 금지어: "마법 같은", "환상적인", "~을 샀습니다", "소비했습니다", "경험했습니다", "느꼈습니다" 같은 설명체·AI 냄새나는 표현 절대 금지.
+3. 제목(title): 10자 이내. 유튜브 썸네일이나 해시태그처럼 핵심만 짤막하게.
+4. 분량: diary_lines 배열을 정확히 {line_guide} 작성.
+5. 각 줄: 한 문장 최대 35자. 짧은 호흡으로 끊어서 써.
+6. 출력 형식: 반드시 아래 JSON만 출력 (마크다운 백틱, 설명 텍스트 모두 금지).
 
-소비 정보:
-- 품목 (여러 개일 수 있음): {item_name}
-- 카테고리: {category}
-- 금액: {price}원
-- 가게: {store_name}
-- AI 분석 설명 (사진별): {description}
-- 소비 기분: {mood_label} ({mood})
-- 사용자 메모 (사진별): {emotion_text}
-- 모임방 특징: {group_description}
-
-반드시 아래 JSON 형식으로만 응답해. 다른 텍스트는 절대 포함하지 마.
 {{
-  "title": "일기 제목 (10자 이내)",
-  "diary_lines": ["짧은 한 줄1", "짧은 한 줄2", "짧은 한 줄3", "짧은 한 줄4"]
+  "title": "제목 (10자 이내)",
+  "diary_lines": ["줄1", "줄2", ...]
 }}
+"""
 
-규칙:
-- diary_lines: 정확히 4개, 각 문장 30자 이내
-- 전체 diary_lines 합산 120자 이내
-- 위트 있고 감각적인 말투, JSON만 출력"""
+# User Prompt: 소비 데이터만
+USER_PROMPT_TEMPLATE = """[소비 정보]
+- 품목: {item_name}
+- 카테고리: {category}
+- 결제 금액: {price}원
+- 장소(가게): {store_name}
+- 기분: {mood_label} ({mood})
+- 메모: {emotion_text}
+- 모임방 테마/특징: {group_description}
+- 사진 분석 결과: {description}
+"""
+
+
+def _get_line_guide(photo_count: int) -> str:
+    if photo_count <= 1:
+        return "2~3개"
+    elif photo_count <= 3:
+        return "4~5개"
+    else:
+        return "6~8개"
 
 
 def _get_client() -> AsyncOpenAI:
@@ -58,25 +65,30 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
     client = _get_client()
 
     mood_label = MOOD_LABEL.get(req.mood or "", "평범한")
-    prompt = DIARY_PROMPT_TEMPLATE.format(
+    line_guide = _get_line_guide(req.photo_count or 1)
+
+    system_content = SYSTEM_PROMPT_TEMPLATE.format(line_guide=line_guide)
+    user_content = USER_PROMPT_TEMPLATE.format(
         item_name=req.item_name or "알 수 없음",
         category=req.category or "기타",
-        price=int(req.price) if req.price is not None else 0,
+        price=f"{int(req.price):,}" if req.price is not None else "0",
         store_name=req.store_name or "알 수 없음",
-        description=req.description or "",
         mood=req.mood or "",
         mood_label=mood_label,
-        # DB emotions_text.text — 없으면 빈 문자열로 대체
         emotion_text=req.emotion_text or "없음",
-        group_description=req.group_description or "일반 소비 모임",
+        group_description=req.group_description or "일반 소비",
+        description=req.description or "특이사항 없음",
     )
 
     response = await client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": user_content},
+        ],
         response_format={"type": "json_object"},
-        temperature=0.7,
-        max_tokens=300,
+        temperature=0.75,
+        max_tokens=600,
     )
 
     content = response.choices[0].message.content
@@ -88,14 +100,13 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
         return DiaryResponse(
             title=data["title"],
             diary_lines=data["diary_lines"],
-            # 프론트에서 보내준 방 번호 태그를 그대로 응답에 실어서 돌려줌
             tags=req.tags or [],
         )
     except (json.JSONDecodeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=f"일기 생성 파싱 실패: {e} | raw: {content[:200]}")
 
 
-# POST /api/diary/generate — 소비 정보를 받아 LLM으로 일기를 생성하는 엔드포인트
+# POST /api/diary/generate
 @router.post("/generate", response_model=DiaryResponse)
 async def generate_diary_endpoint(req: DiaryRequest):
     return await generate_diary(req)
