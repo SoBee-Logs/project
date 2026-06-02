@@ -1,10 +1,36 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 
 const BLUE = '#3B82F6'
 const GRAY = '#6b7280'
 
 export default function BottomNav({ floating = false }) {
   const location = useLocation()
+
+  // 리포트 탭 경고 Red Dot — WARNING/DANGER 상태인 방이 하나라도 있으면 표시
+  const [hasAlert, setHasAlert] = useState(false)
+
+  useEffect(() => {
+    const checkAlerts = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        if (!token) return
+        const res = await fetch('/api/report/alert', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        // SAFE가 아닌 항목이 하나라도 있으면 Red Dot 표시
+        const active = data.some(
+          (a) => a.budgetStatus !== 'SAFE' || a.diaryStatus !== 'SAFE'
+        )
+        setHasAlert(active)
+      } catch {
+        // 조회 실패 시 Red Dot 미표시
+      }
+    }
+    checkAlerts()
+  }, [location.pathname])
 
   const tabs = [
     {
@@ -56,7 +82,13 @@ export default function BottomNav({ floating = false }) {
             to={tab.path}
             className="flex flex-col items-center justify-center gap-0.5 w-full h-full"
           >
-            {tab.icon(active)}
+            {/* 리포트 탭에만 Red Dot 표시 */}
+            <div className="relative">
+              {tab.icon(active)}
+              {tab.path === '/report' && hasAlert && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
+              )}
+            </div>
             <span className="text-[11px] font-medium" style={{ color: active ? BLUE : GRAY }}>
               {tab.label}
             </span>

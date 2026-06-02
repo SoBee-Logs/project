@@ -18,4 +18,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, Transa
             @Param("userId") Long userId,
             @Param("date") String date
     );
+
+    // 특정 유저의 날짜 범위 내 지출 합계 조회 (주간 AlertBoard 계산용)
+    // paymentDate가 VARCHAR이므로 문자열 BETWEEN 비교 사용
+    @Query("SELECT COALESCE(SUM(t.paymentOut), 0) FROM Transaction t " +
+            "WHERE t.id.userId = :userId " +
+            "AND t.paymentDate BETWEEN :startDate AND :endDate " +
+            "AND t.paymentOut > 0")
+    Long sumOutgoingByUserIdAndDateRange(
+            @Param("userId") Long userId,
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate
+    );
 }

@@ -43,7 +43,7 @@ export default function Home() {
     console.error("토큰 디코딩 실패", e)
   }
 
-  const { ref: feedRef, dragging: feedDragging, onMouseDown, onMouseMove, onMouseUp, onMouseLeave } = useDragScroll()
+  const { ref: feedRef, dragging: feedDragging, onMouseDown, onMouseMove, onMouseUp, onMouseLeave, onClickCapture } = useDragScroll()
 
   const [showPopup, setShowPopup] = useState(() => {
     return localStorage.getItem(`mydataConnected_${userId}`) !== "true"
@@ -340,6 +340,7 @@ export default function Home() {
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseLeave}
+            onClickCapture={onClickCapture}
           >
             {feedPreviews.map((item) => (
               <button
