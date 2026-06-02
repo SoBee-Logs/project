@@ -262,7 +262,7 @@ export default function Report() {
         ])
 
         if (lcRes.status === 'fulfilled') setLifecycle(lcRes.value)
-        else setLifecycle({ lifecycle_stage: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' })
+        else setLifecycle({ life_stage_code: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' })
 
         if (txRes.status === 'fulfilled') setTxData(txRes.value)
 

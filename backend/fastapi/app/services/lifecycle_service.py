@@ -134,12 +134,17 @@ async def get_lifecycle(user_id: int) -> LifecycleResponse:
 
     life_stage_code = row[0]
 
-    # life_stage_code 비어있음 (아직 예측 전)
+    # life_stage_code 비어있음 → 자동 예측 트리거
     if not life_stage_code:
-        return LifecycleResponse(
-            life_stage_code="생애주기 없음",
-            description="아직 생애주기 분석이 완료되지 않았어요."
-        )
+        try:
+            from app.models.schemas import LifecycleRequest
+            predicted = await predict_lifecycle(LifecycleRequest(user_id=user_id))
+            return predicted
+        except Exception:
+            return LifecycleResponse(
+                life_stage_code="생애주기 없음",
+                description="아직 생애주기 분석이 완료되지 않았어요."
+            )
 
     # 한글 라벨 변환
     lifecycle_label = LIFECYCLE_KO.get(life_stage_code, life_stage_code)
