@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getUserId } from '../../common/hooks/useAuth'
+import AlertBoard from './AlertBoard'
 import {
   PieChart, Pie, Cell, Tooltip,
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
@@ -447,6 +448,9 @@ export default function Report() {
             ))}
           </div>
         </div>
+
+        {/* 주간 목표 달성 현황 AlertBoard */}
+        <AlertBoard />
 
         {/* AI 상품 추천 */}
         <div ref={aiRecommendRef} className="flex flex-col gap-2">

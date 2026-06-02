@@ -17,6 +17,11 @@ export default defineConfig({
     host: true,
     allowedHosts: true,
     watch: { usePolling: true },
+    hmr: {
+      protocol: 'wss',
+      host: 'localhost',
+      clientPort: 3000,
+    },
     proxy: {
       '/api/vlm': {
         target: FASTAPI,
@@ -30,6 +35,11 @@ export default defineConfig({
       },
       '/api/lifecycle': {
         target: FASTAPI,
+        changeOrigin: true,
+        headers: { origin: 'http://localhost:5173' },
+      },
+      '/api/report/alert': {
+        target: SPRING,
         changeOrigin: true,
         headers: { origin: 'http://localhost:5173' },
       },
