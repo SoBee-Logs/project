@@ -38,19 +38,19 @@ public class SearchService {
         // 은행
         Map.entry("경남은행",               String.format(FV, "knbank.co.kr")),
         Map.entry("광주은행",               String.format(FV, "kjbank.com")),
-        Map.entry("국민은행",               String.format(FV, "kbstar.com")),
+        Map.entry("국민은행",               "https://www.kbstar.com/openimg/favi_ipad_n201512.png"),
         Map.entry("농협은행주식회사",        String.format(FV, "nonghyup.com")),
         Map.entry("부산은행",               String.format(FV, "busanbank.co.kr")),
-        Map.entry("수협은행",               String.format(FV, "suhyup.co.kr")),
+        Map.entry("수협은행",               "https://www.suhyup.co.kr/Web-home/_UI/images/suhyup.jpg"),
         Map.entry("신한은행",               String.format(FV, "shinhan.com")),
-        Map.entry("아이엠뱅크",             String.format(FV, "imbank.co.kr")),
+        Map.entry("아이엠뱅크",             "https://www.imbank.co.kr/img/fnm/imbank.png"),
         Map.entry("우리은행",               String.format(FV, "wooribank.com")),
         Map.entry("전북은행",               String.format(FV, "jbbank.co.kr")),
-        Map.entry("제주은행",               String.format(FV, "jejubank.co.kr")),
-        Map.entry("주식회사 카카오뱅크",     String.format(FV, "kakaobank.com")),
-        Map.entry("주식회사 케이뱅크",       String.format(FV, "kbanknow.com")),
+        Map.entry("제주은행",               "https://www.jejubank.co.kr/hmpg/images/comm/jeju_bank_thumbnail.png"),
+        Map.entry("주식회사 카카오뱅크",     "https://www.kakaobank.com/view/images/kkb_og_img.png"),
+        Map.entry("주식회사 케이뱅크",       "https://www.kbanknow.com/resource/img/favicon.svg"),
         Map.entry("주식회사 하나은행",       "https://www.hanabank.com/apple-touch-icon.png"),
-        Map.entry("중소기업은행",            String.format(FV, "ibk.co.kr")),
+        Map.entry("중소기업은행",            "https://www.ibk.co.kr/img/common/ic_bm_ios.png"),
         Map.entry("토스뱅크 주식회사",       String.format(FV, "tossbank.com")),
         Map.entry("한국산업은행",            String.format(FV, "kdb.co.kr")),
         Map.entry("한국스탠다드차타드은행",  String.format(FV, "standardchartered.co.kr")),
@@ -60,9 +60,9 @@ public class SearchService {
         Map.entry("교보생명",               String.format(FV, "kyobo.co.kr")),
         Map.entry("메트라이프",             String.format(FV, "metlife.co.kr")),
         Map.entry("삼성화재",               String.format(FV, "samsungfire.com")),
-        Map.entry("신한라이프",             String.format(FV, "shinhanlife.co.kr")),
+        Map.entry("신한라이프",             "https://www.shinhanlife.co.kr/resources/images/fav/favicon_ci_shinhan_30.svg"),
         Map.entry("카카오페이손해보험",      String.format(FV, "kakaopayins.com")),
-        Map.entry("캐롯손해보험",           "https://www.carrotins.com/apple-touch-icon.png")
+        Map.entry("캐롯손해보험",           "https://www.carrotins.com/static/images/share/new-official-v2.png")
     );
 
     // GPT 카테고리 → 실제 DB cate_name 매핑 (카테고리 간 중복 최소화)
