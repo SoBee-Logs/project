@@ -133,22 +133,60 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
             .assign(
                 payment_date=lambda d: d['payment_date'].astype(str),
                 payment_time=lambda d: d['payment_time'].apply(
-                    lambda t: str(t)[:5] if t is not None else None
+                    lambda t: str(t)[:5] if pd.notna(t) else None
                 ),
                 payment_place=lambda d: d['payment_place'].fillna('-'),
+                payment_out=lambda d: d['payment_out'].fillna(0).astype(int),
             )
             .to_dict('records')
         )
         category_transactions[cat_name] = records
+
+    # VLM 아이템 — persona_transaction과 매핑된 photo_vlm_results에서 이번 달 아이템 추출
+    vlm_items = []
+    vlm_summary = {}
+    try:
+        vlm_df = pd.read_sql(text("""
+            SELECT pvr.vlm_item_name, pvr.vlm_category, pvr.vlm_store_name
+            FROM persona_transaction pt
+            JOIN transactions t ON pt.payment_id = t.payment_id
+            JOIN photo_vlm_results pvr ON pt.vlm_id = pvr.vlm_id
+            WHERE pt.user_id = :user_id
+              AND t.payment_date BETWEEN :start AND :end
+              AND pvr.vlm_item_name IS NOT NULL
+              AND pvr.vlm_item_name != ''
+        """), engine, params={
+            "user_id": user_id,
+            "start": first_day,
+            "end": last_day,
+        })
+        if not vlm_df.empty:
+            vlm_items = vlm_df['vlm_item_name'].dropna().unique().tolist()
+    except Exception as e:
+        print(f"[VLM ERROR] {e}")
+
+    # avatar_change_reason — users 테이블에서 직접 조회
+    avatar_change_reason = None
+    try:
+        cr_df = pd.read_sql(text("""
+            SELECT avatar_change_reason FROM users WHERE user_id = :user_id
+        """), engine, params={"user_id": user_id})
+        if not cr_df.empty:
+            avatar_change_reason = cr_df.iloc[0]['avatar_change_reason']
+    except Exception:
+        pass
 
     return {
         "payment_out":           int(df['payment_out'].sum()),
         "payment_total_num":     len(df),
         "payment_days":          df['payment_date'].nunique(),
         "category_price":        df.groupby('payment_category')['payment_out'].sum().astype(int).to_dict(),
-        "category_transactions": category_transactions,  # ✅ 추가
+        "category_transactions": category_transactions,
         "timepattern_price":     df.groupby('time_label')['payment_out'].sum().astype(int).to_dict(),
         "weekly_price":          weekly_price,
         "weekly_categories":     top3_categories,
         "category_colors":       CATEGORY_COLORS,
+        "vlm_items":             vlm_items,
+        "vlm_summary":           vlm_summary,
+        "avatar_change_reason":  avatar_change_reason,
     }

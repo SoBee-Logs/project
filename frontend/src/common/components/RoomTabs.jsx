@@ -14,6 +14,9 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
   const { ref: scrollRef, dragging, onMouseDown, onMouseMove, onMouseUp, onMouseLeave } = useDragScroll()
   const [newRoomName, setNewRoomName] = useState('')
   const [newRoomDesc, setNewRoomDesc] = useState('')
+  const [newRoomCategory, setNewRoomCategory] = useState('')
+  const [newTargetBudget, setNewTargetBudget] = useState('')
+  const [newTargetDiaryCount, setNewTargetDiaryCount] = useState('')
   const [joinCode, setJoinCode] = useState('')
   const [currentCode, setCurrentCode] = useState('')
   const [currentRoomId, setCurrentRoomId] = useState(null)
@@ -71,6 +74,10 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
         body: JSON.stringify({
           groupName: newRoomName,
           groupDescription: newRoomDesc,
+          // 카테고리 및 목표값 (미입력 시 null로 전송)
+          category: newRoomCategory || null,
+          targetBudget: newTargetBudget ? parseInt(newTargetBudget) : null,
+          targetDiaryCount: newTargetDiaryCount ? parseInt(newTargetDiaryCount) : null,
         }),
       })
       const data = await res.json()
@@ -85,6 +92,9 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
       setRooms([...rooms, newRoom])
       setNewRoomName('')
       setNewRoomDesc('')
+      setNewRoomCategory('')
+      setNewTargetBudget('')
+      setNewTargetDiaryCount('')
       setShowCreatePopup(false)
       setCurrentCode(data.groupCode)
       setShowCodePopup(true)
@@ -229,35 +239,100 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
       </nav>
 
       {showCreatePopup && (
-        <div style={popupStyle}>
-          <div style={cardStyle}>
+        <div style={popupStyle} onClick={() => setShowCreatePopup(false)}>
+          <div style={{ ...cardStyle, maxWidth: '320px', maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '4px' }}>모임 만들기</h3>
             <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>함께 소비를 기록해봐요!</p>
+
+            {/* 모임 이름 */}
             <input
               placeholder="모임 이름 (5자 이내)"
               value={newRoomName}
-              onChange={(e) => {
-                if (e.target.value.length <= 5) setNewRoomName(e.target.value)
-              }}
+              onChange={(e) => { if (e.target.value.length <= 5) setNewRoomName(e.target.value) }}
               style={inputStyle}
             />
             <p style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '12px', textAlign: 'right' }}>
               {newRoomName.length}/5
             </p>
+
+            {/* 모임 소개 */}
             <input
               placeholder="모임 소개 (15자 이내)"
               value={newRoomDesc}
-              onChange={(e) => {
-                if (e.target.value.length <= 15) setNewRoomDesc(e.target.value)
-              }}
+              onChange={(e) => { if (e.target.value.length <= 15) setNewRoomDesc(e.target.value) }}
               style={inputStyle}
             />
             <p style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '16px', textAlign: 'right' }}>
               {newRoomDesc.length}/15
             </p>
+
+            {/* 카테고리 선택 */}
+            <p style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>카테고리 (선택)</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: '16px' }}>
+              {[
+                { value: 'EXERCISE', label: '🏃운동' },
+                { value: 'HOBBY',    label: '🎨취미' },
+                { value: 'TRAVEL',   label: '✈️여행' },
+                { value: 'FAMILY',   label: '👨‍👩‍👧가족' },
+                { value: 'DAILY',    label: '☀️일상' },
+                { value: 'FOOD',     label: '🍜음식' },
+                { value: 'PET',      label: '🐾반려' },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setNewRoomCategory(prev => prev === value ? '' : value)}
+                  style={{
+                    padding: '6px 2px',
+                    borderRadius: '8px',
+                    border: newRoomCategory === value ? '2px solid #0083CA' : '1.5px solid #e5e7eb',
+                    background: newRoomCategory === value ? '#E8F4FD' : 'white',
+                    color: newRoomCategory === value ? '#0083CA' : '#6b7280',
+                    fontSize: '10px',
+                    fontWeight: newRoomCategory === value ? '700' : '400',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* 주간 목표 입력 */}
+            <p style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>주간 목표 (선택)</p>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <div style={{ flex: 1 }}>
+                <input
+                  type="number"
+                  placeholder="예산 (원)"
+                  value={newTargetBudget}
+                  onChange={(e) => setNewTargetBudget(e.target.value)}
+                  style={{ ...inputStyle, marginTop: 0, marginBottom: 0 }}
+                />
+                <p style={{ fontSize: '10px', color: '#9ca3af', marginTop: '3px' }}>💸 소비 한도</p>
+              </div>
+              <div style={{ flex: 1 }}>
+                <input
+                  type="number"
+                  placeholder="횟수"
+                  value={newTargetDiaryCount}
+                  onChange={(e) => setNewTargetDiaryCount(e.target.value)}
+                  style={{ ...inputStyle, marginTop: 0, marginBottom: 0 }}
+                />
+                <p style={{ fontSize: '10px', color: '#9ca3af', marginTop: '3px' }}>✍️ 일기 목표</p>
+              </div>
+            </div>
+
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
-                onClick={() => { setShowCreatePopup(false); setNewRoomName(''); setNewRoomDesc('') }}
+                onClick={() => {
+                  setShowCreatePopup(false)
+                  setNewRoomName('')
+                  setNewRoomDesc('')
+                  setNewRoomCategory('')
+                  setNewTargetBudget('')
+                  setNewTargetDiaryCount('')
+                }}
                 style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: '14px' }}
               >취소</button>
               <button

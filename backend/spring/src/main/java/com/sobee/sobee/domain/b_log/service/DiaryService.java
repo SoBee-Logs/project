@@ -127,7 +127,7 @@ public class DiaryService {
 
         // 감정 데이터 — 전체 수집 후 텍스트 합치기
         List<EmotionsText> allEmotions = todayPhotos.stream()
-        .map(p -> emotionsTextRepository.findByPhoto(p).orElse(null))
+        .map(p -> emotionsTextRepository.findByPhotoId(p.getPhotoId()).orElse(null))
         .filter(Objects::nonNull)
         .collect(Collectors.toList());
 
@@ -146,19 +146,21 @@ public class DiaryService {
 
         // FastApiDiaryRequest 빌드 부분 수정
         FastApiDiaryRequest faReq = FastApiDiaryRequest.builder()
-        .item_name(combinedItemName.isEmpty() ? null : combinedItemName)  // 전체
+        .item_name(combinedItemName.isEmpty() ? null : combinedItemName)
         .category(bestVlm != null ? bestVlm.getVlmCategory() : null)
         .price(bestVlm != null && bestVlm.getVlmPriceEstimate() != null
                 ? bestVlm.getVlmPriceEstimate().intValue() : null)
         .store_name(bestVlm != null ? bestVlm.getVlmStoreName() : null)
-        .description(combinedDescription.isEmpty() ? null : combinedDescription)  // 전체
+        .description(combinedDescription.isEmpty() ? null : combinedDescription)
         .matched(matched)
         .mood(moodEmoji)
-        .emotion_text(combinedEmotionText.isEmpty() ? null : combinedEmotionText)  // 전체
+        .emotion_text(combinedEmotionText.isEmpty() ? null : combinedEmotionText)
         .tags(Collections.singletonList("#" + group.getGroupName()))
         .group_description(group.getGroupDescription())
+        // 모임방 카테고리 — FastAPI에서 카테고리별 일기 테마 적용에 사용
+        .room_category(group.getCategory() != null ? group.getCategory().name() : null)
         .build();
-
+        
         FastApiDiaryResponse faRes;
         try {
             faRes = callFastApiDiary(faReq);
@@ -322,6 +324,8 @@ public class DiaryService {
         private String emotion_text;
         private List<String> tags;
         private String group_description;
+        // 모임방 카테고리 (EXERCISE, HOBBY 등) — FastAPI 일기 테마 주입용
+        private String room_category;
     }
 
     @Getter

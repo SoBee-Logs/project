@@ -27,6 +27,10 @@ public class GroupService {
                 .groupDescription(dto.getGroupDescription())
                 .groupCode(code)
                 .max(10)
+                // 카테고리 및 목표값 저장 (선택 사항이므로 null 허용)
+                .category(dto.getCategory())
+                .targetBudget(dto.getTargetBudget())
+                .targetDiaryCount(dto.getTargetDiaryCount())
                 .build();
         Group saved = groupRepository.save(group);
 
@@ -75,6 +79,9 @@ public class GroupService {
                 .groupName(group.getGroupName())
                 .groupDescription(group.getGroupDescription())
                 .groupCode(group.getGroupCode())
+                .category(group.getCategory())
+                .targetBudget(group.getTargetBudget())
+                .targetDiaryCount(group.getTargetDiaryCount())
                 .build();
     }
 
