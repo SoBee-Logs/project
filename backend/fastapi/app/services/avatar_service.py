@@ -1,11 +1,13 @@
+import asyncio
 import base64
 import io
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import boto3
-from openai import AsyncOpenAI
+from openai import OpenAI
 from PIL import Image
 from fastapi import HTTPException
 
@@ -15,49 +17,119 @@ from app.db.user_repository import update_user_avatar
 from app.models.schemas import AvatarRequest, AvatarResponse
 
 _AVATAR_PROMPT = """
+Preserve the mascot's core identity — body colors (sky blue upper, yellow lower), wings, antennae, and overall silhouette — from the reference image.
+The character may freely change pose, gesture, expression, clothing, and interaction with props.
+Do not create a completely different bee character, but allow natural variation in posture and presentation.
+
 A single wide illustration in Pixar-style soft 3D clay render. Overall canvas: 16:9 landscape (wide horizontal).
 
-The scene contains TWO elements seamlessly combined:
+CRITICAL COMPOSITION RULE — HIGHEST PRIORITY, NON-NEGOTIABLE:
+FULL BODY SHOT ONLY. Wide camera. Zoomed-out. Long-shot composition.
+The character (antennae tip to feet) occupies 40–50% of the total canvas height.
+At least 20–25% empty space above the antennae. At least 20–25% empty space below the feet.
+ABSOLUTELY NO CROPPING. Every body part — antennae, wings, arms, hands, legs, feet — must remain fully inside the canvas.
+If in doubt, zoom out further and make the character smaller.
+DO NOT create a close-up or medium shot. DO NOT zoom in on the face.
+The surrounding environment should occupy more visual space than the character itself.
 
-1. CHARACTER (centered horizontally and vertically on the canvas — the character is the focal point of the entire composition):
-A cute chubby bee-inspired mascot character in high-quality 3D render style, based on a simple flat illustration design.
-The character has a rounded blob-shaped body with a soft matte clay texture, pastel blue upper body, and a yellow-and-blue striped belly.
-Small translucent wings on both sides, short blue antennae on top of the head, tiny black dot eyes, and a warm smiling face.
-Rounded yellow feet and tiny stubby arms.
-Pixar-style 3D character design, clean topology, soft global illumination, subtle ambient occlusion, smooth shading, toy-like proportions, highly appealing mascot design.
-Front-facing full body pose, placed exactly at the horizontal and vertical center of the canvas. The ENTIRE character from the tip of the antennae to the bottom of the feet must be fully visible — do not cut off any part of the body.
-Minimal but expressive facial features, soft lighting, modern mobile app mascot aesthetic, polished 3D animation studio quality.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. CHARACTER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Consumer persona traits applied to the character:
-- Lifestyle: {lifestyle}
-- Consumption habits: {consumption_habit}
-- Active time pattern: {time_pattern}
-- Personality vibe: {personality}
+Cute, round bee mascot in Pixar-style soft 3D clay render. Centered horizontally and vertically.
+Very chubby soft oval body. Upper: bright sky blue. Lower: yellow. Middle: bold yellow + thick dark navy stripe.
+Short rounded arms and legs, yellow feet. Dark navy antennae with sky-blue ball tips. Semi-transparent white wings.
+Face: small glossy black round eyes, soft light pink blush on cheeks, wide smiling mouth with small pink tongue.
 
-Based on these traits, naturally generate on the character:
-- fitting fashion and accessories
-- matching facial expression and pose
-- suitable props and items
+DO NOT change: body shape, colors (blue/yellow), wings, antennae.
 
-2. BACKGROUND (fills the entire canvas behind and around the character):
-A richly detailed environment that reflects the persona's lifestyle and active time pattern.
-Same Pixar 3D clay render art style and color palette as the character — fully cohesive visual language.
-Cozy, vibrant, and emotionally expressive setting. Soft pastel colors, warm lighting.
-The background wraps symmetrically around the centered character — balanced left and right, with depth and context extending in all directions.
+Consumer persona traits — apply ONLY to the following 4 elements:
 
-The character and background must feel like one seamlessly integrated scene — not a composited cutout.
-Final result: a premium wide banner card for a mobile finance app, cute and emotionally appealing, with the mascot character prominently centered.
+Lifestyle: {lifestyle}
+Consumption habits: {consumption_habit}
+Active time pattern: {time_pattern}
+Personality vibe (derived from the user's most frequently used emoji): {personality}
+
+1. CLOTHING: ONE outfit matching lifestyle and consumption habits.
+   Keep base bee body (blue/yellow) visible — only add clothing on top.
+   Clothing and accessories must harmonize with the mascot's blue and yellow body.
+   Prefer soft, pastel, finance-app-friendly colors. Avoid neon or clashing colors.
+   Examples: casual streetwear, office wear, sporty outfit, cozy homewear, trendy fashion
+
+2. FACIAL EXPRESSION: One clear emotion matching the personality vibe.
+   Reflect the emotional vibe conveyed by the user's emoji input.
+   Must be immediately recognizable at small mobile-app sizes.
+   Examples: cheerful smile, cool confident look, relaxed calm, excited energetic, curious.
+
+3. POSE/MOTION: One dynamic pose reflecting the time pattern and personality.
+   Examples: walking confidently, sitting relaxed, holding something up, waving, stretching.
+
+4. PROPS: ONE iconic prop the character is holding or interacting with.
+   From: {top_category} ({props_hint}). Immediately recognizable. Occupies less than 15% of the image area.
+   Never cover the bee mascot's body.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. BACKGROUND
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Background fills the canvas behind and around the character.
+Reflects the persona's lifestyle and active time of day: {time_pattern}.
+
+Time-based mood:
+- dawn (0–5h): quiet blue-tinted city streets, calm early morning atmosphere
+- morning (5–10h): bright fresh sunlight, energetic start of day
+- lunch (10–15h): vibrant daytime activity, bright and lively
+- evening (15–20h): soft sunset ambience, warm but balanced lighting
+- late night (20–24h): city lights, calm deep-blue atmosphere
+
+Background should be simple and supportive.
+Use soft shapes and light environmental cues.
+Avoid highly detailed people, crowds, tiny objects, or intricate scenery.
+The mascot receives significantly more visual detail than the background.
+Background characters, if present, should appear as soft silhouettes — no detailed faces or clothing.
+
+Requirements:
+* Bright, clean, balanced lighting — no overly warm or yellow cast
+* Soft pastel palette, balanced left-right composition
+* Seamlessly integrated with the character — not a composited cutout
+
+Clean and appealing mobile-app illustration quality.
+Prioritize mascot readability over ultra-high background detail.
 """
+
 
 _ANALYSIS_PROMPT = """
 다음은 사용자의 최근 결제 내역 요약입니다:
 {summary}
 
+이번 아바타 생성에 반영된 핵심 데이터:
+- 대표 이모지: {emoji_input}
+- 결제 카테고리 1위: {top_category}
+- 주 활동 시간대: {dominant_slot} {slot_emoji}
+- VLM 분석 소비 아이템: {top_items}
+
 이 소비 데이터를 분석하여 아래 JSON 형식으로만 응답하세요 (다른 설명 없이):
 {{
     "title": "아바타 타이틀 (예: '야행성 도시 탐험가'처럼 2-4단어의 감성적 한국어 별명)",
     "description": "이 페르소나를 한 문장으로 소개하는 설명. 캐릭터의 성격과 라이프스타일 중심으로.",
-    "change_reason": "이번 주 소비 데이터에서 눈에 띄는 패턴을 근거로, 아바타가 이렇게 선정된 이유를 2문장 이내 한국어로 서술. 실제 데이터 수치 언급.",
+    "change_reason": {{
+        "emoji": {{
+            "header": "[대표 이모지 실제 문자] 활기찬 표정",
+            "context": "이번 달 사진에 가장 많이 입력한 이모지가 [이모지]예요. 아바타 표정에 [구체적 표정 설명]으로 반영됐어요."
+        }},
+        "background": {{
+            "header": "[카테고리명]을 사랑하는 탐험가",
+            "context": "이번 달 결제 카테고리 1위가 [카테고리명]이네요. 아바타 배경과 의상에 [구체적으로 어떻게] 반영됐어요!"
+        }},
+        "time": {{
+            "header": "[시간대명]의 탐험가 [시간대 이모지]",
+            "context": "[시간대명]에 가장 많이 결제했네요! 아바타 배경 분위기가 [구체적으로 어떤 분위기]로 표현됐어요!"
+        }},
+        "item": {{
+            "header": "[아이템1] & [아이템2]",
+            "context": "[아이템들] 사진을 많이 찍었네요! 아바타 캐릭터 손에 [아이템] 들고 있는 거 보이시죠?"
+        }}
+    }},
     "lifestyle": "Lifestyle description in English (2-3 sentences)",
     "consumption_habit": "Consumption habit description in English (2-3 sentences)",
     "time_pattern": "Active time pattern description in English (1-2 sentences)",
@@ -65,9 +137,111 @@ _ANALYSIS_PROMPT = """
 }}
 """
 
+TIME_SLOTS = {
+    "새벽": {"range": (0, 4),   "emoji": "🌅", "en": "dawn (0-5h)"},
+    "아침": {"range": (5, 9),   "emoji": "☀️", "en": "morning (5-10h)"},
+    "점심": {"range": (10, 14), "emoji": "🍽️", "en": "lunch time (10-15h)"},
+    "저녁": {"range": (15, 19), "emoji": "🌃", "en": "evening (15-20h)"},
+    "심야": {"range": (20, 23), "emoji": "🌙", "en": "late night (20-24h)"},
+}
+
+CATEGORY_PROPS_MAP = {
+    "경조/선물":  "gift box, bouquet",
+    "교육/학습":  "textbook, pencil, notebook",
+    "교통":       "transit card, bus pass",
+    "금융":       "coin, credit card, piggy bank",
+    "문화/여가":  "movie ticket, popcorn",
+    "뷰티/미용":  "makeup brush, perfume bottle",
+    "생활":       "grocery bag, household items",
+    "술/유흥":    "cocktail glass, beer mug",
+    "식비":       "fork and knife, food tray",
+    "여행/숙박":  "luggage, passport, camera",
+    "온라인쇼핑": "shopping bag, delivery box",
+    "의료/건강":  "vitamin bottle, running shoes",
+    "주거/통신":  "smartphone, wifi router",
+    "카페/간식":  "coffee cup, dessert plate",
+    "패션/쇼핑":  "shopping bag, clothing tag",
+    "기타":       "a recognizable item related to the spending category",
+}
+
+
+def _classify_time_slot(hour: int) -> str:
+    for slot, info in TIME_SLOTS.items():
+        start, end = info["range"]
+        if start <= hour <= end:
+            return slot
+    return "심야"
+
+
+def _get_props_hint(category: str) -> str:
+    return CATEGORY_PROPS_MAP.get(category, CATEGORY_PROPS_MAP["기타"])
+
+
+def _extract_persona_elements(transactions: list[dict], vlm_items: list[str], emoji: str) -> dict:
+    category_spend: dict[str, int] = defaultdict(int)
+    slot_count: dict[str, int] = defaultdict(int)
+
+    for t in transactions:
+        category = (t.get("payment_category") or "기타").strip() or "기타"
+        category_spend[category] += int(t.get("payment_out") or 0)
+
+        hour = _extract_hour(t.get("payment_time"))
+        if hour is not None:
+            slot_count[_classify_time_slot(hour)] += 1
+
+    top_category = max(category_spend, key=lambda k: category_spend[k]) if category_spend else "기타"
+    dominant_slot = max(slot_count, key=lambda k: slot_count[k]) if slot_count else "심야"
+
+    return {
+        "top_category": top_category,
+        "dominant_slot": dominant_slot,
+        "props_hint": _get_props_hint(top_category),
+        "emoji": emoji if emoji else "😊",
+    }
+
+
+def _build_transaction_summary(
+    transactions: list[dict],
+    vlm_items: list[str],
+    vlm_descriptions: list[str],
+) -> str:
+    category_spend: dict[str, int] = defaultdict(int)
+    slot_count: dict[str, int] = defaultdict(int)
+    place_count: dict[str, int] = defaultdict(int)
+
+    for t in transactions:
+        category = (t.get("payment_category") or "기타").strip() or "기타"
+        category_spend[category] += int(t.get("payment_out") or 0)
+
+        hour = _extract_hour(t.get("payment_time"))
+        if hour is not None:
+            slot_count[_classify_time_slot(hour)] += 1
+
+        place = (t.get("payment_place") or "").strip()
+        if place:
+            place_count[place] += 1
+
+    top_categories = sorted(category_spend.items(), key=lambda x: x[1], reverse=True)[:5]
+    dominant_slot = max(slot_count, key=lambda k: slot_count[k]) if slot_count else "심야"
+    slot_emoji = TIME_SLOTS.get(dominant_slot, {}).get("emoji", "")
+    top_places = sorted(place_count.items(), key=lambda x: x[1], reverse=True)[:3]
+
+    lines = [
+        f"총 결제 건수: {len(transactions)}건",
+        f"카테고리별 지출 (상위 5): " + ", ".join(f"{c} {a:,}원" for c, a in top_categories),
+        f"주 활동 시간대: {dominant_slot} {slot_emoji}",
+        f"자주 방문 가맹점: " + ", ".join(p for p, _ in top_places),
+    ]
+    if vlm_items:
+        lines.append("소비 항목 (VLM 분석): " + ", ".join(vlm_items[:10]))
+    if vlm_descriptions:
+        lines.append("소비 사진 설명: " + " / ".join(vlm_descriptions[:5]))
+
+    return "\n".join(lines)
+
+
 
 def _extract_hour(payment_time) -> int | None:
-    """aiomysql TIME → timedelta, 또는 None 처리"""
     if payment_time is None:
         return None
     if hasattr(payment_time, "total_seconds"):
@@ -78,92 +252,28 @@ def _extract_hour(payment_time) -> int | None:
         return None
 
 
-def _build_transaction_summary(transactions: list[dict], vlm_descriptions: list[str] | None = None) -> str:
-    category_spend: dict[str, int] = defaultdict(int)
-    time_buckets = {"morning (6-12)": 0, "afternoon (12-18)": 0, "evening (18-22)": 0, "night (22-6)": 0}
-    place_count: dict[str, int] = defaultdict(int)
-
-    for t in transactions:
-        category = (t.get("payment_category") or "기타").strip() or "기타"
-        amount = int(t.get("payment_out") or 0)
-        category_spend[category] += amount
-
-        hour = _extract_hour(t.get("payment_time"))
-        if hour is not None:
-            if 6 <= hour < 12:
-                time_buckets["morning (6-12)"] += 1
-            elif 12 <= hour < 18:
-                time_buckets["afternoon (12-18)"] += 1
-            elif 18 <= hour < 22:
-                time_buckets["evening (18-22)"] += 1
-            else:
-                time_buckets["night (22-6)"] += 1
-
-        place = (t.get("payment_place") or "").strip()
-        if place:
-            place_count[place] += 1
-
-    top_categories = sorted(category_spend.items(), key=lambda x: x[1], reverse=True)[:5]
-    dominant_time = max(time_buckets, key=lambda k: time_buckets[k])
-    top_places = sorted(place_count.items(), key=lambda x: x[1], reverse=True)[:3]
-
-    lines = [
-        f"총 결제 건수: {len(transactions)}건",
-        f"카테고리별 지출 (상위 5): " + ", ".join(f"{c} {a:,}원" for c, a in top_categories),
-        f"주 활동 시간대: {dominant_time}",
-        f"자주 방문 가맹점: " + ", ".join(p for p, _ in top_places),
-    ]
-    if vlm_descriptions:
-        lines.append("소비 사진 설명: " + " / ".join(vlm_descriptions[:10]))
-    return "\n".join(lines)
+_REFERENCE_IMAGE_PATH = Path(__file__).parent.parent / "resource" / "wibee.png"
 
 
-async def _analyze_persona(summary: str) -> dict:
-    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-    prompt = _ANALYSIS_PROMPT.format(summary=summary)
+def _generate_image_sync(prompt: str) -> bytes:
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"},
-    )
+    with open(_REFERENCE_IMAGE_PATH, "rb") as ref:
+        response = client.images.edit(
+            model="gpt-image-2",
+            image=ref,
+            prompt=prompt,
+            size="1536x1024",
+            quality="medium",
+            n=1,
+        )
 
-    return json.loads(response.choices[0].message.content)
-
-
-def _crop_to_ratio(image_bytes: bytes, width_ratio: int, height_ratio: int) -> bytes:
-    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    w, h = img.size
-    target = width_ratio / height_ratio
-    current = w / h
-
-    if current > target:
-        new_w = int(h * target)
-        left = (w - new_w) // 2
-        img = img.crop((left, 0, left + new_w, h))
-    elif current < target:
-        new_h = int(w / target)
-        top = (h - new_h) // 2
-        img = img.crop((0, top, w, top + new_h))
-
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
+    image_bytes = base64.b64decode(response.data[0].b64_json)
+    return image_bytes
 
 
 async def _generate_image(prompt: str) -> bytes:
-    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
-    response = await client.images.generate(
-        model="gpt-image-1",
-        prompt=prompt,
-        size="1536x1024",  # 3:2 landscape, 16:9로 크롭
-        quality="high",
-        n=1,
-    )
-
-    image_bytes = base64.b64decode(response.data[0].b64_json)
-    return _crop_to_ratio(image_bytes, width_ratio=16, height_ratio=9)
+    return await asyncio.to_thread(_generate_image_sync, prompt)
 
 
 def _upload_to_s3(image_bytes: bytes, user_id: int) -> str:
@@ -191,8 +301,49 @@ def _get_last_week_range() -> tuple[str, str]:
     return last_monday.strftime("%Y-%m-%d"), last_sunday.strftime("%Y-%m-%d")
 
 
+def _analyze_persona_sync(
+    summary: str,
+    emoji_input: str,
+    top_category: str,
+    dominant_slot: str,
+    slot_emoji: str,
+    top_items: str,
+) -> dict:
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    prompt = _ANALYSIS_PROMPT.format(
+        summary=summary,
+        emoji_input=emoji_input,
+        top_category=top_category,
+        dominant_slot=dominant_slot,
+        slot_emoji=slot_emoji,
+        top_items=top_items,
+    )
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+    )
+
+    return json.loads(response.choices[0].message.content)
+
+
+async def _analyze_persona(
+    summary: str,
+    emoji_input: str,
+    top_category: str,
+    dominant_slot: str,
+    slot_emoji: str,
+    top_items: str,
+) -> dict:
+    return await asyncio.to_thread(
+        _analyze_persona_sync,
+        summary, emoji_input, top_category, dominant_slot, slot_emoji, top_items,
+    )
+
+
 async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str) -> AvatarResponse:
-    """B(전체 결제) + A∩C(매핑된 VLM description) → 페르소나 생성 → S3 업로드 → users 저장"""
+    # 1. transactions 조회
     transactions = await get_transactions_by_date_range(user_id, start_date, end_date)
     if not transactions:
         raise HTTPException(
@@ -200,28 +351,55 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
             detail=f"No transactions found for user_id={user_id} ({start_date}~{end_date})"
         )
 
+    # 2. VLM 매핑 데이터 조회 및 추출
     mapped = await get_mapped_transactions_with_vlm(user_id, start_date, end_date)
+    vlm_items = list(dict.fromkeys(r["vlm_item_name"] for r in mapped if r.get("vlm_item_name")))  # 중복 제거
     vlm_descriptions = [r["vlm_description"] for r in mapped if r.get("vlm_description")]
+    emoji = next((r["emoji"] for r in mapped if r.get("emoji")), "😊")
 
-    summary = _build_transaction_summary(transactions, vlm_descriptions)
-    analysis = await _analyze_persona(summary)
+    # 3. 페르소나 핵심 요소 추출
+    elements = _extract_persona_elements(transactions, vlm_items, emoji)
+    top_category = elements["top_category"]
+    dominant_slot = elements["dominant_slot"]
+    props_hint = elements["props_hint"]
+    slot_en = TIME_SLOTS.get(dominant_slot, {}).get("en", dominant_slot)
+    slot_emoji = TIME_SLOTS.get(dominant_slot, {}).get("emoji", "")
+    top_items = " & ".join(vlm_items[:2]) if vlm_items else top_category
 
+    # 4. LLM 소비 분석 (change_reason 구조 포함)
+    summary = _build_transaction_summary(transactions, vlm_items, vlm_descriptions)
+    analysis = await _analyze_persona(
+        summary=summary,
+        emoji_input=emoji,
+        top_category=top_category,
+        dominant_slot=dominant_slot,
+        slot_emoji=slot_emoji,
+        top_items=top_items,
+    )
+
+    # 5. 이미지 프롬프트 조립
+    time_pattern = f"{slot_en} — {analysis['time_pattern']}"
     prompt = _AVATAR_PROMPT.format(
         lifestyle=analysis["lifestyle"],
         consumption_habit=analysis["consumption_habit"],
-        time_pattern=analysis["time_pattern"],
+        time_pattern=time_pattern,
         personality=analysis["personality"],
+        top_category=top_category,
+        props_hint=props_hint,
     )
 
+    # 6. 이미지 생성 및 S3 업로드
     image_bytes = await _generate_image(prompt)
     avatar_image_url = _upload_to_s3(image_bytes, user_id)
 
+    # 7. DB 저장 (모두 LLM 분석 결과로 통일)
+    change_reason = analysis["change_reason"]
     await update_user_avatar(
         user_id=user_id,
         avatar_name=analysis["title"],
-        avatar_explane=analysis["description"],
+        avatar_explain=analysis["description"],
         avatar_img_url=avatar_image_url,
-        avatar_change_reason=analysis["change_reason"],
+        avatar_change_reason=json.dumps(change_reason, ensure_ascii=False) if isinstance(change_reason, dict) else change_reason,
     )
 
     return AvatarResponse(
