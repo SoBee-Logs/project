@@ -422,7 +422,7 @@ export default function Report() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-bold text-base leading-tight">{persona?.avatarName ?? '분석 중...'}</p>
-            <p className="text-xs text-blue-100 mt-0.5 leading-relaxed">{persona?.avatarExplane ?? ''}</p>
+            <p className="text-xs text-blue-100 mt-0.5 leading-relaxed">{persona?.avatarExplain ?? ''}</p>
           </div>
         </div>
 
