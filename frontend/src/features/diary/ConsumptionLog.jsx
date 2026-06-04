@@ -126,6 +126,7 @@ export default function ConsumptionLog() {
               maxDate={today}
               locale="ko-KR"
               calendarType="gregory"
+              formatDay={(locale, date) => date.getDate()}  // ← 추가 ("일" 제거)
             />
             <button
               type="button"
