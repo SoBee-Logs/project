@@ -195,6 +195,18 @@ public class PhotoService {
     @Transactional
     public PhotoVlmResultResponse saveVlmResult(Long photoId, Long userId, PhotoVlmResultRequest request) {
 
+        // groups를 JSON 문자열로 변환
+        String groupsJson = null;
+        if (request.getGroups() != null) {
+                try {
+                groupsJson = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .writeValueAsString(request.getGroups());
+                } catch (Exception e) {
+                groupsJson = null;
+                }
+        }
+
+        // VLM 분석 결과 저장
         PhotoVlmResult vlmResult = PhotoVlmResult.builder()
                 .photoId(photoId)
                 .vlmCategory(request.getCategory())
@@ -206,6 +218,7 @@ public class PhotoService {
                 .vlmDescription(request.getDescription())
                 .vlmConfidence(request.getConfidence() != null ? request.getConfidence() : "low")
                 .vlmAddress(request.getAddress())
+                .vlmGroups(groupsJson)
                 .build();
         photoVlmResultRepository.save(vlmResult);
 

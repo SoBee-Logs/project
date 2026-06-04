@@ -17,32 +17,30 @@ export default function CameraPage() {
   const [imageFile, setImageFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [loadingStep, setLoadingStep] = useState('')  // 'upload' | 'analyze'
+  const [loadingStep, setLoadingStep] = useState('')
+  // const [rooms, setRooms] = useState([])
   const [rooms, setRooms] = useState(
     groupsFromState.map(g => ({ id: g.groupId, label: g.groupName }))
 )
   // VLM 분석 상태 — 사진 선택 즉시 백그라운드 분석
+
   const [vlmData, setVlmData] = useState(null)
   const [vlmLoading, setVlmLoading] = useState(false)
-  // GPS 위치 정보 상태 — 실제 기기 좌표를 업로드 시 함께 전달하기 위해 사용
-  const [gpsCoords, setGpsCoords] = useState(null)   // { latitude, longitude } 또는 null
-  const [gpsLoading, setGpsLoading] = useState(false) // 위치 수집 중 여부
-  const [gpsError, setGpsError] = useState(null)      // 오류 메시지 또는 null
-  // VLM Promise 참조 — handleNext에서 분석 완료까지 실제로 await하기 위해 사용
+  const [gpsCoords, setGpsCoords] = useState(null)
+  const [gpsLoading, setGpsLoading] = useState(false)
+  const [gpsError, setGpsError] = useState(null)
   const vlmPromiseRef = useRef(null)
   const fileInputRef = useRef(null)
 
   // 컴포넌트 마운트 시 실제 기기 GPS 위치 요청
   useEffect(() => {
     if (!navigator.geolocation) {
-      // GPS 자체를 지원하지 않는 환경 — 폴백 좌표(서울시청)로 대체
       setGpsError('이 기기는 위치 정보를 지원하지 않아요. 기본 위치로 대체합니다.')
       return
     }
     setGpsLoading(true)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        // 성공: 실제 기기 좌표 저장
         setGpsCoords({
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
@@ -50,7 +48,6 @@ export default function CameraPage() {
         setGpsLoading(false)
       },
       (err) => {
-        // 실패: 권한 거부(code 1) 또는 타임아웃 — 폴백 좌표 사용 + 사용자 안내
         let msg = '위치 정보를 가져올 수 없어요. 기본 위치로 대체합니다.'
         if (err.code === 1) msg = '위치 권한이 거부되었어요. 기본 위치로 대체합니다.'
         setGpsError(msg)
@@ -66,8 +63,6 @@ export default function CameraPage() {
     )
   }
 
-  // 사진 선택 즉시 VLM 분석 실행 — 사용자가 기분/모임 선택하는 동안 백그라운드 처리
-  // Promise를 ref에 저장해 handleNext에서 완료될 때까지 실제로 await 가능하게 함
   const runVlmAnalysis = (file) => {
     setVlmLoading(true)
     setVlmData(null)
@@ -80,18 +75,17 @@ export default function CameraPage() {
         if (res.ok) {
           const data = await res.json()
           setVlmData(data)
-          return data   // handleNext에서 await 시 결과값으로 받음
+          return data
         }
         return null
       } catch {
-        // VLM 실패해도 사진 선택/업로드는 계속 진행
         return null
       } finally {
         setVlmLoading(false)
       }
     })()
 
-    vlmPromiseRef.current = promise  // Promise 보존
+    vlmPromiseRef.current = promise
   }
 
   const handleImageChange = async (e) => {
@@ -122,7 +116,6 @@ export default function CameraPage() {
       runVlmAnalysis(file)
     }
   }
-  
 
   const handleNext = async () => {
     if (selectedRooms.length === 0 || !imageFile) return
@@ -131,7 +124,6 @@ export default function CameraPage() {
     try {
       const token = localStorage.getItem("token")
 
-      // ① 사진 업로드
       setLoadingStep('upload')
 
       // EXIF에서 촬영 시각 추출 — 여러 태그를 순서대로 탐색
@@ -176,6 +168,9 @@ export default function CameraPage() {
         finalVlmData = await vlmPromiseRef.current
       }
 
+      console.log('[VLM] finalVlmData:', finalVlmData)
+      console.log('[VLM] photoId:', result.photoId)
+
       if (result.photoId && finalVlmData?.category) {
         try {
           await fetch(`/api/photos/${result.photoId}/vlm-result`, {
@@ -186,8 +181,10 @@ export default function CameraPage() {
             },
             body: JSON.stringify(finalVlmData),
           })
-        } catch {
-          // VLM 저장 실패해도 이동 계속
+          const vlmSaveBody = await vlmSaveRes.json().catch(() => null)
+          console.log('[VLM] 저장 응답 status:', vlmSaveRes.status, '| body:', vlmSaveBody)
+        } catch (e) {
+          console.error('[VLM] 저장 요청 실패:', e)
         }
       }
 
@@ -196,7 +193,7 @@ export default function CameraPage() {
           text,
           mood: MOOD_EMOJIS[selectedMood],
           imageUrl: result.imageUrl,
-          selectedRooms: [],  // ← 빈 배열로 변경 (LoadingPage에서 전체 그룹 조회)
+          selectedRooms: [],
           photoId: result.photoId,
           imageFile,
         },
@@ -242,53 +239,6 @@ export default function CameraPage() {
               <span>📷</span>
             </span>
           )}
-          {previewUrl && vlmData?.item_name && (
-            <div className="absolute bottom-4 left-0 right-0 flex flex-wrap justify-center gap-2 px-3 z-10">
-              {vlmData.item_name.split(',').map((item, i) => (
-                <div
-                  key={i}
-                  className="relative text-[10px] font-bold px-2.5 py-1.5 shadow-md"
-                  style={{
-                    background: 'rgba(255,255,255,0.9)',
-                    color: '#0073BC',
-                    backdropFilter: 'blur(4px)',
-                    border: '1px solid rgba(0,115,188,0.2)',
-                    borderRadius: '8px',
-                  }}
-                >
-                  {item.trim()}
-                  {/* 말풍선 꼬리 */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: '-6px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      width: 0,
-                      height: 0,
-                      borderLeft: '5px solid transparent',
-                      borderRight: '5px solid transparent',
-                      borderTop: '6px solid rgba(255,255,255,0.9)',
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: '-8px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      width: 0,
-                      height: 0,
-                      borderLeft: '6px solid transparent',
-                      borderRight: '6px solid transparent',
-                      borderTop: '7px solid rgba(0,115,188,0.2)',
-                      zIndex: -1,
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -299,7 +249,6 @@ export default function CameraPage() {
           />
         </figure>
 
-        {/* GPS 위치 수집 상태 배지 — 로딩 중 또는 오류 시만 표시 */}
         {gpsLoading && (
           <div className="flex items-center gap-2 text-gray-500 text-[12px] px-1">
             <span className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin shrink-0" />
@@ -313,7 +262,6 @@ export default function CameraPage() {
           </div>
         )}
 
-        {/* VLM 분석 결과 카드 — 사진 선택 직후 표시 */}
         {(vlmLoading || vlmData) && (
           <div className="rounded-2xl bg-[#F0F7FF] border border-sky-100 px-4 py-3">
             {vlmLoading ? (
@@ -324,23 +272,11 @@ export default function CameraPage() {
             ) : (
               <>
                 <p className="text-[11px] font-bold text-sky-600 mb-2">🤖 AI 분석 결과</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-3">
                   {vlmData.category && (
                     <div className="text-[11px] text-gray-600">
                       <span className="text-gray-400">카테고리</span>
                       <span className="block font-semibold text-gray-800">{vlmData.category}</span>
-                    </div>
-                  )}
-                  {vlmData.secondary_category && (
-                    <div className="text-[11px] text-gray-600">
-                      <span className="text-gray-400">서브 카테고리</span>
-                      <span className="block font-semibold text-gray-800">{vlmData.secondary_category}</span>
-                    </div>
-                  )}
-                  {vlmData.item_name && (
-                    <div className="text-[11px] text-gray-600">
-                      <span className="text-gray-400">품목</span>
-                      <span className="block font-semibold text-gray-800">{vlmData.item_name}</span>
                     </div>
                   )}
                   {vlmData.price && (
@@ -376,6 +312,42 @@ export default function CameraPage() {
                     </div>
                   )}
                 </div>
+
+                {vlmData.groups && vlmData.groups.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-bold text-sky-600 mb-1.5">📦 소비 그룹</p>
+                    <div className="flex flex-col gap-2">
+                      {vlmData.groups.map((group, i) => (
+                        <div
+                          key={i}
+                          className="rounded-xl bg-white px-3 py-2 border border-sky-100"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-bold text-[#0073BC]">
+                              #{group.group_id} {group.store ?? '가게 미상'}
+                            </span>
+                            <span className="text-[10px] font-bold text-gray-500">
+                              {group.category}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mb-1">
+                            {group.items.map((item, j) => (
+                              <span
+                                key={j}
+                                className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#EBF5FF] text-[#0073BC]"
+                              >
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="text-[10px] font-semibold text-gray-700 text-right">
+                            {group.price.toLocaleString()}원
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
