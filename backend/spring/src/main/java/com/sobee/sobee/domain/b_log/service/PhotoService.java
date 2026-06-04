@@ -94,7 +94,8 @@ public class PhotoService {
                 .imageUrl(imageUrl)
                 .fileName(request.getImage().getOriginalFilename())
                 .build();
-        photoRepository.save(photo);
+
+        photo = photoRepository.save(photo);
 
         LocalDateTime takenAt = parseTakenAt(request.getTakenAt());
         PhotoMetadata metadata = PhotoMetadata.builder()
@@ -134,6 +135,7 @@ public class PhotoService {
                 .takenAt(takenAt)
                 .createdAt(photo.getCreatedAt())
                 .build();
+        
     }
 
     @Transactional(readOnly = true)
