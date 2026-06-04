@@ -29,7 +29,7 @@ async def get_user_avatar(user_id: int) -> dict | None:
         return None
     return {
         "avatarName": row[0],
-        "avatarExplane": row[1],
+        "avatarExplain": row[1],
         "avatarImgUrl": row[2],
     }
 
@@ -37,7 +37,7 @@ async def get_user_avatar(user_id: int) -> dict | None:
 async def update_user_avatar(
     user_id: int,
     avatar_name: str,
-    avatar_explane: str,
+    avatar_explain: str,
     avatar_img_url: str,
     avatar_change_reason: str,
 ) -> None:
@@ -48,12 +48,12 @@ async def update_user_avatar(
                 """
                 UPDATE users
                 SET avatar_name = %s,
-                    avatar_explane = %s,
+                    avatar_explain = %s,
                     avatar_img_url = %s,
                     avatar_change_reason = %s,
                     updated_at = %s
                 WHERE user_id = %s
                 """,
-                (avatar_name, avatar_explane, avatar_img_url, avatar_change_reason, datetime.now(), user_id),
+                (avatar_name, avatar_explain, avatar_img_url, avatar_change_reason, datetime.now(), user_id),
             )
         await conn.commit()
