@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDragScroll } from '../../common/hooks/useDragScroll'
 import StatusBar from '../../common/components/StatusBar'
+import SettingsDrawer from './SettingsDrawer'
 import { jwtDecode } from 'jwt-decode'
 import cameraHalo from '../../assets/camera_3d_halo.png'
 import receiptHalo from '../../assets/receipt_3d_halo.png'
@@ -48,6 +49,7 @@ export default function Home() {
   const [showPopup, setShowPopup] = useState(() => {
     return localStorage.getItem(`mydataConnected_${userId}`) !== "true"
   })
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState("마이데이터 연동 중")
   const [selected, setSelected] = useState([])
@@ -338,7 +340,7 @@ export default function Home() {
             </svg>
             <span className="text-[11px] flex-1" style={{ color: '#0073BC' }}>궁금한 걸 자유롭게 물어보세요!</span>
           </button>
-          <button type="button" className="w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer border-0" style={{ background: '#F0F6FF' }}>
+          <button type="button" onClick={() => setSettingsOpen(true)} className="w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer border-0" style={{ background: '#F0F6FF' }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0073BC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -347,17 +349,27 @@ export default function Home() {
         </header>
 
         {/* 페르소나 이미지 */}
-        <figure className="relative w-full mt-1 mb-0 m-0 px-3">
-          <img
-            src={persona?.avatarImgUrl ?? '/persona-bee.png'}
-            alt="페르소나 꿀벌 아바타"
-            className="w-full h-auto block rounded-2xl"
-          />
-          <div className="absolute bottom-0 left-3 right-3 h-20 bg-gradient-to-t from-black/40 to-transparent rounded-b-2xl" />
-          <div className="absolute bottom-3 left-6 text-white">
-            <span className="block text-[10px] font-extrabold opacity-80">나의 소비 페르소나</span>
-            <span className="block text-[16px] font-extrabold leading-tight">{persona?.avatarName ?? '분석 중...'}</span>
-          </div>
+        <figure className="relative w-full mt-1 mb-0 m-0 px-3 min-h-[240px]">
+          {persona?.avatarImgUrl ? (
+            <>
+              <img
+                src={persona.avatarImgUrl}
+                alt="페르소나 꿀벌 아바타"
+                className="w-full h-auto block rounded-2xl"
+              />
+              <div className="absolute bottom-0 left-3 right-3 h-20 bg-gradient-to-t from-black/40 to-transparent rounded-b-2xl" />
+              <div className="absolute bottom-3 left-6 text-white">
+                <span className="block text-[10px] font-extrabold opacity-80">나의 소비 페르소나</span>
+                <span className="block text-[16px] font-extrabold leading-tight">{persona.avatarName}</span>
+              </div>
+            </>
+          ) : (
+            <div className="w-full min-h-[240px] rounded-2xl bg-gray-100 flex flex-col items-center justify-center gap-2">
+              <span className="text-3xl">🐝</span>
+              <p className="text-sm font-medium text-gray-400">아직 아바타가 생성되지 않았습니다</p>
+              <p className="text-xs text-gray-300">소비 사진을 찍으면 분석을 시작해요!</p>
+            </div>
+          )}
         </figure>
 
         {/* 금융상품 추천 버튼 */}
@@ -492,6 +504,9 @@ export default function Home() {
           </div>
         )}
       </section>
+
+      {/* 설정 드로어 */}
+      <SettingsDrawer isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </main>
   )
 }
