@@ -5,8 +5,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from app.core.config import settings
-from app.api.vlm import reverse_geocode  # 위도경도 → 주소 변환 함수 재사용
+from app.api.vlm import reverse_geocode
 from langsmith import traceable
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
@@ -36,7 +37,7 @@ class MappingRequest(BaseModel):
     candidates: List[TransactionCandidate]
 
 class MappingResponse(BaseModel):
-    payment_id: Optional[int] = None  # null이면 미매핑
+    payment_id: Optional[int] = None
     reason: Optional[str] = None
 
 MAPPING_PROMPT = """너는 소비 사진과 결제 내역을 매핑하는 AI야.
@@ -46,19 +47,40 @@ MAPPING_PROMPT = """너는 소비 사진과 결제 내역을 매핑하는 AI야.
 [사진 분석 결과]
 - 카테고리: {category}
 - 품목: {item_name}
-- 추정 금액: {price_estimate}원
+- 사진 설명: {description} ← 사진에서 직접 추출한 정보이므로 매핑 판단 시 적극 활용
+- 추정 금액: {price_estimate}원 (※ 추정값이므로 실제와 다를 수 있음)
 - 가게 유형: {store_type}
 - 가게명: {store_name}
-- 설명: {description}
 - 촬영 시각: {taken_at}
 - 촬영 위치: {location}
 
 [결제 후보 목록]
 {candidates}
 
+[카테고리 대응 관계]
+- 요식업 → 한식, 중식, 양식, 일식, 분식, 패스트푸드, 치킨, 피자, 버거, 고기, 해산물 등 식당 관련 결제 포함
+- 카페/디저트 → 커피전문점, 카페, 제과점, 베이커리, 아이스크림 등 포함
+- 유통/마트 → 대형마트, 슈퍼마켓, 편의점, 백화점 등 포함
+- 편의점 → 편의점, 슈퍼 등 포함
+- 교통 → 주유소, 대중교통, 택시, 주차, 고속도로 등 포함
+- 문화/레져 → 영화관, 공연, 스포츠, 게임, 놀이공원 등 포함
+- 의류/잡화 → 옷, 신발, 가방, 액세서리, 화장품 등 포함
+- 보건/의료 → 병원, 약국, 헬스, 뷰티 등 포함
+- 기타 → 위 카테고리에 해당하지 않는 결제
+
+[매핑 판단 방법]
+각 결제 후보에 대해 아래 항목을 평가하고, 종합 점수가 가장 높은 결제 1개를 선택해줘.
+
+- 카테고리/가게 유형 일치 여부 (35점) — 위 카테고리 대응 관계 참고
+- 사진 설명과 결제 장소/품목의 연관성 (25점) — 사진 설명을 적극 활용해 장소명, 음식명, 상황을 결제 내역과 비교
+- 촬영 시각과 결제 시간의 근접도 (25점)
+- 촬영 위치와 결제 장소/주소의 유사도 (10점)
+- 금액 유사도 — 추정값이므로 2배 이내 차이면 허용 (5점)
+
+종합 점수가 50점 미만이면 매핑하지 않고 null을 반환해.
+
 규칙:
 - 반드시 아래 JSON 형식으로만 응답해
-- 매핑할 수 없으면 payment_id를 null로 반환
 - payment_id는 반드시 후보 목록에 있는 값만 사용
 
 {{
@@ -73,21 +95,34 @@ def _get_client() -> AsyncOpenAI:
     return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 
+def _to_kst(taken_at: Optional[str]) -> Optional[str]:
+    """DB에 UTC로 저장된 taken_at을 KST(-9시간)로 변환 -> 이후 db에 애초에 kst 시간으로 저장하도록 수정 에정"""
+    if not taken_at:
+        return None
+    try:
+        dt = datetime.fromisoformat(taken_at) - timedelta(hours=9)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return taken_at
+
+
 @router.post("/match", response_model=MappingResponse)
-@traceable(name="사진-결제 매핑")  # ← 추가
+@traceable(name="사진-결제 매핑")
 async def match_photo_to_transaction(req: MappingRequest):
-    # 후보 없으면 바로 미매핑 반환
     if not req.candidates:
         return MappingResponse(payment_id=None, reason="결제 후보 없음")
 
     client = _get_client()
 
-    # 위도경도 → 주소 변환 (있을 때만 실행)
+    # 위도경도 → 주소 변환
     location = "알 수 없음"
     if req.vlm_data.latitude and req.vlm_data.longitude:
         address = reverse_geocode(req.vlm_data.latitude, req.vlm_data.longitude)
         if address:
             location = address
+
+    # taken_at UTC → KST 변환
+    taken_at_kst = _to_kst(req.vlm_data.taken_at) or "알 수 없음"
 
     # 후보 목록 텍스트 변환
     candidates_text = "\n".join([
@@ -104,7 +139,7 @@ async def match_photo_to_transaction(req: MappingRequest):
         store_type=req.vlm_data.store_type or "알 수 없음",
         store_name=req.vlm_data.store_name or "알 수 없음",
         description=req.vlm_data.description or "",
-        taken_at=req.vlm_data.taken_at or "알 수 없음",
+        taken_at=taken_at_kst,
         location=location,
         candidates=candidates_text,
     )
@@ -126,10 +161,19 @@ async def match_photo_to_transaction(req: MappingRequest):
         payment_id = data.get("payment_id")
         reason = data.get("reason")
 
-        # 후보에 없는 payment_id면 미매핑
+        if payment_id is not None:
+            try:
+                payment_id = int(payment_id)
+            except (ValueError, TypeError):
+                payment_id = None
+
         valid_ids = {c.payment_id for c in req.candidates}
+
         if payment_id not in valid_ids:
-            return MappingResponse(payment_id=None, reason="유효하지 않은 payment_id")
+            payment_id = None
+            reason = "유효하지 않은 payment_id"
+
+        print(f"[매핑 결과] photo_id={req.photo_id} → payment_id={payment_id} | taken_at_kst={taken_at_kst} | {reason}")
 
         return MappingResponse(payment_id=payment_id, reason=reason)
     except json.JSONDecodeError:
