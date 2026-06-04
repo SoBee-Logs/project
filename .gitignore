@@ -24,6 +24,7 @@ logs/
 
 venv/
 *.pem
+tmp/
 
 # Python
 __pycache__/
