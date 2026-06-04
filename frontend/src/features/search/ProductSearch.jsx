@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const WOORI_NAVY = "#042C53";
@@ -10,10 +10,14 @@ const FASTAPI_BASE = import.meta.env.VITE_FASTAPI_BASE_URL || "http://localhost:
 
 const getUserId = () => Number(localStorage.getItem("user_id")) || 1;
 
+// 컴포넌트 언마운트 후에도 메모리에 유지 (탭 이동 시 재검색 방지)
+let _searchStateCache = null;
+
 const api = {
-    search: (searchInput) =>
+    search: (searchInput, signal) =>
         fetch(`${BASE_URL}/api/search`, {
             method: "POST",
+            signal,
             headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -33,6 +37,87 @@ const FALLBACK_SUGGEST = [
     "금리 좋은 적금 상품 알려줘",
 ];
 
+// ─── Company Logo ─────────────────────────────────────────────────────────────
+const COMPANY_DOMAIN_MAP = [
+    // 은행
+    ["카카오뱅크",    "kakaobank.com"],
+    ["케이뱅크",      "kbanknow.com"],
+    ["토스뱅크",      "tossbank.com"],
+    ["KB국민",        "kbstar.com"],
+    ["신한",          "shinhan.com"],
+    ["우리",          "wooribank.com"],
+    ["하나",          "hanabank.com"],
+    ["NH농협",        "nonghyup.com"],
+    ["농협",          "nonghyup.com"],
+    ["IBK기업",       "ibk.co.kr"],
+    ["기업은행",      "ibk.co.kr"],
+    ["SC제일",        "standardchartered.co.kr"],
+    ["씨티",          "citibank.co.kr"],
+    ["수협",          "suhyup.co.kr"],
+    ["전북",          "jbbank.co.kr"],
+    ["광주",          "kjbank.com"],
+    ["제주",          "jejubank.co.kr"],
+    ["경남",          "knbank.co.kr"],
+    ["대구",          "dgb.co.kr"],
+    ["부산",          "busanbank.co.kr"],
+    ["산업은행",      "kdb.co.kr"],
+    ["우체국",        "epostbank.go.kr"],
+    ["신협",          "cu.co.kr"],
+    ["SBI저축",       "sbibank.co.kr"],
+    // 보험
+    ["삼성화재",      "samsungfire.com"],
+    ["삼성생명",      "samsunglife.com"],
+    ["현대해상",      "hi.co.kr"],
+    ["DB손해",        "db-ins.com"],
+    ["DB생명",        "dblife.co.kr"],
+    ["KB손해",        "kbinsure.co.kr"],
+    ["KB생명",        "kblife.co.kr"],
+    ["롯데손해",      "lotteins.co.kr"],
+    ["메리츠",        "meritzfire.com"],
+    ["한화손해",      "hwgeneralins.com"],
+    ["한화생명",      "hanwhalife.com"],
+    ["흥국화재",      "hkfire.co.kr"],
+    ["흥국생명",      "hklife.co.kr"],
+    ["교보",          "kyobo.co.kr"],
+    ["신한라이프",    "shinhanlife.co.kr"],
+    ["NH농협생명",    "nhlife.co.kr"],
+    ["동양생명",      "myangel.co.kr"],
+    ["미래에셋",      "miraeassetlife.com"],
+    ["AXA",           "axa.co.kr"],
+    ["MG손해",        "mggeneralins.com"],
+];
+
+const getCompanyDomain = (company) => {
+    if (!company) return null;
+    const entry = COMPANY_DOMAIN_MAP.find(([key]) => company.includes(key));
+    return entry ? entry[1] : null;
+};
+
+function CompanyLogo({ src, company, fallbackEmoji, size, bg }) {
+    const domain = getCompanyDomain(company);
+    const [stage, setStage] = useState(0);
+
+    // apple-touch-icon(180×180) → 백엔드 URL(faviconV2) → Google faviconV2 순으로 시도, 중복 제거
+    const srcs = [
+        domain && `https://www.${domain}/apple-touch-icon.png`,
+        src,
+        domain && `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${domain}&size=256`,
+    ].filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i);
+
+    if (srcs.length === 0 || stage >= srcs.length) {
+        return (
+            <div style={{ width: size, height: size, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(size * 0.38) }}>
+                {fallbackEmoji}
+            </div>
+        );
+    }
+    return (
+        <div style={{ width: size, height: size, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: Math.floor(size * 0.12) }}>
+            <img src={srcs[stage]} alt={company} style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={() => setStage(s => s + 1)} />
+        </div>
+    );
+}
+
 // ─── Product Card ─────────────────────────────────────────────────────────────
 const TYPE_ICON = {
     card:      { emoji: "💳", bg: "linear-gradient(135deg, #2A7FD8, #0E3F78)" },
@@ -40,7 +125,47 @@ const TYPE_ICON = {
     insurance: { emoji: "🛡️", bg: "linear-gradient(135deg, #7B5EA7, #4A3570)" },
 };
 
-function ProductCard({ item, onClick }) {
+function CardImage({ src, alt, containerW, containerH }) {
+    const [landscape, setLandscape] = useState(false);
+
+    useEffect(() => {
+        const img = new Image();
+        img.onload = () => setLandscape(img.naturalWidth > img.naturalHeight);
+        img.src = src;
+    }, [src]);
+
+    return landscape ? (
+        // 가로 이미지: layout은 portrait(containerW×containerH)로 잡고,
+        // 내부에 landscape 컨테이너를 중앙 배치 후 90도 회전
+        <div style={{ width: containerW, height: containerH, flexShrink: 0, overflow: "hidden", position: "relative" }}>
+            <div style={{
+                width: containerH, height: containerW,
+                position: "absolute",
+                left: (containerW - containerH) / 2,
+                top: (containerH - containerW) / 2,
+                transform: "rotate(90deg)",
+                transformOrigin: "center center",
+                overflow: "hidden",
+            }}>
+                <img
+                    src={src} alt={alt}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                />
+            </div>
+        </div>
+    ) : (
+        <div style={{ width: containerW, height: containerH, overflow: "hidden", flexShrink: 0 }}>
+            <img
+                src={src} alt={alt}
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
+            />
+        </div>
+    );
+}
+
+function ProductCard({ item, onClick, matchedCateNames = [] }) {
     const { product_name, product_company, product_img_url, product_type, is_discontinued, content } = item;
     const typeStyle = TYPE_ICON[product_type] || TYPE_ICON.card;
 
@@ -88,27 +213,13 @@ function ProductCard({ item, onClick }) {
                     </span>
                 </div>
             )}
-            <div
-                style={{
-                    width: 52,
-                    height: 80,
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    flexShrink: 0,
-                    alignSelf: "center",
-                    background: typeStyle.bg,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                }}
-            >
-                {product_img_url ? (
-                    <img
-                        src={product_img_url}
-                        alt={product_name}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        onError={(e) => { e.currentTarget.style.display = "none"; }}
-                    />
+            <div style={{ borderRadius: 8, overflow: "hidden", flexShrink: 0, alignSelf: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
+                {product_type !== "card" ? (
+                    <CompanyLogo src={product_img_url} company={product_company} fallbackEmoji={typeStyle.emoji} size={72} bg={typeStyle.bg} />
+                ) : product_img_url ? (
+                    <CardImage src={product_img_url} alt={product_name} containerW={72} containerH={110} />
                 ) : (
-                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+                    <div style={{ width: 72, height: 110, background: typeStyle.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
                         {typeStyle.emoji}
                     </div>
                 )}
@@ -125,11 +236,28 @@ function ProductCard({ item, onClick }) {
                     )
                 ) : (
                     <>
-                        {content?.header && (
+                        {product_type === "card" && content?.benefitGroups?.length > 0 ? (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+                                {content.benefitGroups.map((g, i) => {
+                                    const isMatched = matchedCateNames.includes(g.cateName);
+                                    return (
+                                        <span key={i} style={{
+                                            fontSize: 11, fontWeight: isMatched ? 700 : 500,
+                                            color: isMatched ? WOORI_BLUE : "#8494A8",
+                                            background: isMatched ? "#E8F0FA" : "#F4F7FB",
+                                            borderRadius: 6,
+                                            padding: "2px 7px",
+                                        }}>
+                                            {g.cateName}
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        ) : content?.header ? (
                             <p style={{ fontSize: 13, fontWeight: 600, color: WOORI_BLUE, margin: 0 }}>
                                 {content.header}
                             </p>
-                        )}
+                        ) : null}
                     </>
                 )}
             </div>
@@ -140,32 +268,21 @@ function ProductCard({ item, onClick }) {
 // ─── AI Insight Box ───────────────────────────────────────────────────────────
 function AIInsightBox({ text }) {
     if (!text) return null;
+    const formatted = text.replace(/([!?.])\s+/g, "$1\n");
     return (
         <div
             style={{
                 background: "linear-gradient(135deg, #EAF7F2, #E8F0FA)",
                 borderRadius: 14,
-                padding: "12px 16px",
-                display: "flex",
-                gap: 12,
-                alignItems: "flex-start",
+                padding: "12px 10px",
                 border: "1px solid #C8E6D8",
             }}
         >
-            <div
-                style={{
-                    width: 32, height: 32, borderRadius: "50%",
-                    background: `linear-gradient(135deg, ${WOORI_GREEN}, ${WOORI_BLUE})`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0, fontSize: 16,
-                }}
-            >
-                🤖
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <span style={{ fontSize: 18 }}>🤖</span>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: WOORI_GREEN }}>AI 분석 결과</p>
             </div>
-            <div>
-                <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: WOORI_GREEN }}>AI 분석 결과</p>
-                <p style={{ margin: 0, fontSize: 13, color: WOORI_NAVY, lineHeight: 1.6, whiteSpace: "pre-line" }}>{text}</p>
-            </div>
+            <p style={{ margin: 0, fontSize: 12, color: WOORI_NAVY, lineHeight: 1.65, wordBreak: "break-all", overflowWrap: "break-word", whiteSpace: "pre-line", width: "100%" }}>{formatted}</p>
         </div>
     );
 }
@@ -351,22 +468,36 @@ function DetailPage({ item, onBack }) {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
-                <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: WOORI_NAVY, padding: 0 }}>←</button>
+            <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
+            <div style={{ padding: "12px 20px", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
+                <button
+                    onClick={onBack}
+                    className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+                    style={{ border: "none", cursor: "pointer", background: "none" }}
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
+                </button>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+            <div className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 <div style={{ background: headerBg, borderRadius: 18, padding: "20px", display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
-                    <div style={{ width: 52, height: 80, borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
-                        {product_img_url
-                            ? <img src={product_img_url} alt={product_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            : <div style={{ width: "100%", height: "100%", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{headerEmoji}</div>
+                    <div style={{ borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
+                        {product_type !== "card"
+                            ? <CompanyLogo src={product_img_url} company={product_company} fallbackEmoji={headerEmoji} size={100} bg="rgba(255,255,255,0.15)" />
+                            : product_img_url
+                                ? <CardImage src={product_img_url} alt={product_name} containerW={100} containerH={154} />
+                                : <div style={{ width: 100, height: 154, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{headerEmoji}</div>
                         }
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ margin: "0 0 4px", fontSize: 12, color: "rgba(255,255,255,0.6)" }}>{product_company}</p>
                         <p style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 800, color: "#fff" }}>{product_name}</p>
-                        {content?.header && <p style={{ margin: "0 0 8px", fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{content.header}</p>}
+                        {product_type === "card" && content?.benefitGroups?.length > 0
+                            ? <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.9)", lineHeight: 1.6, wordBreak: "keep-all" }}>{content.benefitGroups.map(g => g.cateName).join(" · ")}</p>
+                            : content?.header && <p style={{ margin: "0 0 8px", fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{content.header}</p>
+                        }
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                             {content?.onlyOnline && <span style={{ fontSize: 11, background: "rgba(255,255,255,0.2)", color: "#fff", borderRadius: 6, padding: "3px 8px" }}>온라인 전용</span>}
                             {content?.isImpend   && <span style={{ fontSize: 11, background: "rgba(255,200,0,0.25)", color: "#FFD700", borderRadius: 6, padding: "3px 8px" }}>단종 임박</span>}
@@ -415,6 +546,8 @@ export default function ProductSearch() {
     const [query, setQuery] = useState(searchParams.get("q") || "");
     const [isSearched, setIsSearched] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const searchAbortRef = useRef(null);
+    const scrollRef = useRef(null);
     const [activePage, setActivePage] = useState(searchParams.get("detail") ? "detail" : "search");
     const [selectedItem, setSelectedItem] = useState(() => {
         if (searchParams.get("detail")) {
@@ -431,6 +564,7 @@ export default function ProductSearch() {
     );
     const [aiText, setAiText] = useState("");
     const [products, setProducts] = useState([]);
+    const [matchedCateNames, setMatchedCateNames] = useState([]);
     const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "card");
     const [error, setError] = useState(null);
 
@@ -457,17 +591,35 @@ export default function ProductSearch() {
 
     useEffect(() => {
         const initialQuery = searchParams.get("q");
-        if (initialQuery) handleSearch(initialQuery);
+        if (!initialQuery) return;
+
+        // 같은 쿼리의 캐시가 있으면 복원 (재검색 방지)
+        if (_searchStateCache && _searchStateCache.q === initialQuery) {
+            setProducts(_searchStateCache.products);
+            setAiText(_searchStateCache.aiText);
+            setMatchedCateNames(_searchStateCache.matchedCateNames || []);
+            setActiveTab(_searchStateCache.tab);
+            setIsSearched(true);
+            return;
+        }
+        handleSearch(initialQuery);
     }, []);
 
     const handleSearch = async (q) => {
         const searchQuery = q || query;
         if (!searchQuery.trim()) return;
+
+        // 이전 요청 취소
+        if (searchAbortRef.current) searchAbortRef.current.abort();
+        const controller = new AbortController();
+        searchAbortRef.current = controller;
+
         setQuery(searchQuery);
         setSearchParams({ q: searchQuery, tab: activeTab });
         setIsLoading(true);
         setError(null);
         setAiText("");
+        setProducts([]);
 
         // 최근 질문 localStorage 저장 (중복 제거 + 최대 5개)
         const updated = [searchQuery, ...recentQuestions.filter((r) => r !== searchQuery)].slice(0, 5);
@@ -475,20 +627,35 @@ export default function ProductSearch() {
         localStorage.setItem("recentQuestions", JSON.stringify(updated));
 
         try {
-            const data = await api.search(searchQuery);
+            const data = await api.search(searchQuery, controller.signal);
+            if (controller.signal.aborted) return;
             setAiText(data.AI_text || data.ai_text || "");
             const fetched = data.products || [];
+            const cateNames = data.matched_cate_names || [];
             setProducts(fetched);
+            setMatchedCateNames(cateNames);
             setIsSearched(true);
             const firstTab = ["card", "savings", "insurance"].find(t => fetched.some(p => p.product_type === t)) || "card";
             setActiveTab(firstTab);
             setSearchParams({ q: searchQuery, tab: firstTab });
+            _searchStateCache = { q: searchQuery, products: fetched, aiText: data.AI_text || data.ai_text || "", matchedCateNames: cateNames, tab: firstTab };
         } catch (e) {
+            if (e.name === "AbortError") return;
             setError("검색 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
         } finally {
-            setIsLoading(false);
+            if (!controller.signal.aborted) setIsLoading(false);
         }
     };
+
+    // 언마운트 시 진행 중인 검색 요청 취소
+    useEffect(() => {
+        return () => { if (searchAbortRef.current) searchAbortRef.current.abort(); };
+    }, []);
+
+    // 탭 전환 시 스크롤 초기화
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    }, [activeTab]);
 
     const handleBack = () => {
         if (activePage === "detail") {
@@ -527,15 +694,18 @@ export default function ProductSearch() {
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#F4F7FB", fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif" }}>
+        <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#F4F7FB", fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif", position: "relative" }}>
 
             {/* Header */}
-            <div style={{ padding: "16px 20px 0", background: "#fff", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
+            <div style={{ padding: "16px 20px 0", background: "#fff", flexShrink: 0 }}>
                 <button
                     onClick={handleBack}
-                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: WOORI_NAVY, padding: "0 0 8px 0", display: "block" }}
+                    className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+                    style={{ border: "none", cursor: "pointer", background: "none", marginBottom: 8 }}
                 >
-                    ←
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
                 </button>
                 <h1 style={{ margin: "0 0 2px", fontSize: 22, fontWeight: 800, color: WOORI_NAVY, letterSpacing: "-0.5px" }}>
                     상품 찾기
@@ -608,7 +778,7 @@ export default function ProductSearch() {
             )}
 
             {/* Body */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+            <div ref={scrollRef} className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", paddingBottom: isSearched && aiText ? "90px" : "16px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 {isLoading ? (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12 }}>
                         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -635,6 +805,7 @@ export default function ProductSearch() {
                                 <ProductCard
                                     key={i}
                                     item={item}
+                                    matchedCateNames={matchedCateNames}
                                     onClick={(it) => {
                         sessionStorage.setItem("searchSelectedItem", JSON.stringify(it));
                         setSearchParams({ q: query, tab: activeTab, detail: "1" });
@@ -644,10 +815,27 @@ export default function ProductSearch() {
                                 />
                             ))
                         ) : (
-                            <div style={{ textAlign: "center", padding: "40px 0", color: "#8494A8", fontSize: 14 }}>
-                                <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
-                                이 카테고리에 결과가 없어요<br />
-                                <span style={{ fontSize: 12 }}>다른 탭을 확인해보세요</span>
+                            <div>
+                                <div style={{ textAlign: "center", padding: "40px 0 24px", color: "#8494A8", fontSize: 14 }}>
+                                    <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+                                    이 카테고리에 결과가 없어요<br />
+                                    <span style={{ fontSize: 12 }}>다른 탭을 확인해보세요</span>
+                                </div>
+                                {suggestedQuestions.length > 0 && (
+                                    <div style={{ marginBottom: 24 }}>
+                                        <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 700, color: WOORI_NAVY }}>추천 질문</p>
+                                        {suggestedQuestions.map((q, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => handleSearch(getQuestionText(q))}
+                                                style={{ width: "100%", background: "#fff", border: "1.5px solid #EEF1F5", borderRadius: 12, padding: "12px 14px", textAlign: "left", fontSize: 13, color: WOORI_NAVY, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
+                                            >
+                                                <span style={{ fontSize: 14, color: WOORI_BLUE }}>✦</span>
+                                                {getQuestionText(q)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </>
@@ -681,16 +869,38 @@ export default function ProductSearch() {
                         {/* 최근 질문 - 있을 때만 표시 */}
                         {recentQuestions.length > 0 && (
                             <div>
-                                <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 700, color: WOORI_NAVY }}>최근 질문</p>
-                                {recentQuestions.map((q, i) => (
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: WOORI_NAVY }}>최근 질문</p>
                                     <button
-                                        key={i}
-                                        onClick={() => handleSearch(q)}
-                                        style={{ width: "100%", background: "#fff", border: "1.5px solid #EEF1F5", borderRadius: 12, padding: "12px 14px", textAlign: "left", fontSize: 13, color: WOORI_NAVY, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
+                                        onClick={() => {
+                                            setRecentQuestions([]);
+                                            localStorage.removeItem("recentQuestions");
+                                        }}
+                                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#8494A8", padding: 0 }}
                                     >
-                                        <span style={{ fontSize: 14, color: "#8494A8" }}>🕐</span>
-                                        {q}
+                                        전체 삭제
                                     </button>
+                                </div>
+                                {recentQuestions.map((q, i) => (
+                                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                                        <button
+                                            onClick={() => handleSearch(q)}
+                                            style={{ flex: 1, background: "#fff", border: "1.5px solid #EEF1F5", borderRadius: 12, padding: "12px 14px", textAlign: "left", fontSize: 13, color: WOORI_NAVY, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8 }}
+                                        >
+                                            <span style={{ fontSize: 14, color: "#8494A8" }}>🕐</span>
+                                            {q}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const updated = recentQuestions.filter((_, idx) => idx !== i);
+                                                setRecentQuestions(updated);
+                                                localStorage.setItem("recentQuestions", JSON.stringify(updated));
+                                            }}
+                                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#B0BEC5", padding: "4px", flexShrink: 0 }}
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
                         )}
@@ -698,10 +908,12 @@ export default function ProductSearch() {
                 )}
             </div>
 
-            {/* AI 분석 결과 - 하단 고정 */}
+            {/* AI 분석 결과 - 하단 오버레이 */}
             {isSearched && aiText && (
-                <div style={{ flexShrink: 0, padding: "12px 16px", background: "#fff", borderTop: "1px solid #EEF1F5" }}>
-                    <AIInsightBox text={aiText} />
+                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "10px 8px", background: "transparent", pointerEvents: "none", zIndex: 10 }}>
+                    <div style={{ pointerEvents: "auto" }}>
+                        <AIInsightBox text={aiText} />
+                    </div>
                 </div>
             )}
         </div>

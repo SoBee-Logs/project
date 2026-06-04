@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import StatusBar from '../../common/components/StatusBar'
-import BottomNav from '../../common/components/BottomNav'
+
 
 const toLocalDateStr = (date) => {
   const y = date.getFullYear()
@@ -16,11 +16,12 @@ export default function ConsumptionLog() {
   const navigate = useNavigate()
   const location = useLocation()
   const selectedRooms = location.state?.selectedRooms ?? []
+  const myGroups = location.state?.myGroups ?? []
   const [photos, setPhotos] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCalendar, setShowCalendar] = useState(false)
   const [selectedDate, setSelectedDate] = useState(toLocalDateStr(new Date()))
-  const [myGroups, setMyGroups] = useState([])
+  const isToday = selectedDate === toLocalDateStr(new Date())
 
   const today = new Date()
   today.setHours(23, 59, 59, 999)
@@ -36,27 +37,9 @@ export default function ConsumptionLog() {
   const toKoreanTime = (timeStr) => {
     if (!timeStr) return ''
     const [hour, minute] = timeStr.split(':').map(Number)
-    const date = new Date()
-    date.setUTCHours(hour, minute, 0, 0)
+    const date = new Date(2000, 0, 1, hour, minute, 0)
     return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
   }
-
-  useEffect(() => {
-    const fetchMyGroups = async () => {
-      try {
-        const token = localStorage.getItem("token")
-        if (!token) return
-        const res = await fetch('/api/groups', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        })
-        const data = await res.json()
-        setMyGroups(data)
-      } catch (err) {
-        console.error('모임 목록 조회 실패', err)
-      }
-    }
-    fetchMyGroups()
-  }, [])
 
   useEffect(() => {
     const fetchPhotos = async () => {
@@ -129,25 +112,26 @@ export default function ConsumptionLog() {
 
       {showCalendar && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-6"
           onClick={() => setShowCalendar(false)}
         >
           <div
-            className="bg-white rounded-2xl p-5 w-[320px]"
+            className="bg-white rounded-3xl p-6 w-full max-w-[340px] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-[14px] font-bold text-gray-900 mb-4 text-center">날짜 선택</p>
+            <p className="text-[15px] font-bold text-gray-900 mb-4 text-center">📅 날짜 선택</p>
             <Calendar
               onChange={handleDateChange}
               value={new Date(selectedDate + 'T00:00:00')}
               maxDate={today}
               locale="ko-KR"
               calendarType="gregory"
+              formatDay={(locale, date) => date.getDate()}  // ← 추가 ("일" 제거)
             />
             <button
               type="button"
               onClick={() => setShowCalendar(false)}
-              className="w-full mt-3 py-2.5 rounded-xl bg-gray-100 text-[13px] text-gray-600 font-medium"
+              className="w-full mt-4 py-3 rounded-2xl bg-gray-100 text-[13px] text-gray-600 font-semibold"
             >
               취소
             </button>
@@ -205,7 +189,7 @@ export default function ConsumptionLog() {
                       )}
                     </figure>
                     {photo.text && (
-                      <p className="text-[11px] text-gray-500 mt-1.5 mb-0 leading-relaxed line-clamp-2">
+                      <p className="text-[11px] text-gray-500 mt-1.5 mb-0 leading-relaxed line-clamp-2 whitespace-pre-wrap break-words break-keep">
                         {photo.text}
                       </p>
                     )}
@@ -217,19 +201,24 @@ export default function ConsumptionLog() {
         )}
       </div>
 
-      <footer className="fixed bottom-[72px] left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 py-3 bg-white border-t border-gray-100 z-10">
+      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 py-3 bg-white border-t border-gray-100 z-10">
+        {/* TODO: 테스트 완료 후 아래 주석 해제
+        {!isToday && (
+          <p className="text-center text-[11px] text-gray-400 mb-2">
+            과거 날짜의 일기는 생성할 수 없어요
+          </p>
+        )}
+        */}
         <button
           type="button"
           onClick={handleGenerate}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-[#00BFFF] text-white text-[14px] font-bold"
+          // TODO: 테스트 완료 후 disabled={!isToday} 로 되돌리기
+          disabled={false}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white text-[14px] font-bold bg-[#00BFFF]"
         >
           <span className="text-[11px]">▶</span> LLM 일기 생성
         </button>
       </footer>
-
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[375px] z-20">
-        <BottomNav floating />
-      </div>
     </main>
   )
 }

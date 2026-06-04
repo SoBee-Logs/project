@@ -1,9 +1,81 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 
 const WOORI_NAVY  = "#042C53"
 const WOORI_GREEN = "#1D9E75"
 const WOORI_BLUE  = "#1A6FBF"
+
+function CardImage({ src, alt, containerW, containerH }) {
+    const [landscape, setLandscape] = useState(false)
+    useEffect(() => {
+        const img = new Image()
+        img.onload = () => setLandscape(img.naturalWidth > img.naturalHeight)
+        img.src = src
+    }, [src])
+
+    return landscape ? (
+        <div style={{ width: containerW, height: containerH, flexShrink: 0, overflow: "hidden", position: "relative" }}>
+            <div style={{
+                width: containerH, height: containerW,
+                position: "absolute",
+                left: (containerW - containerH) / 2,
+                top: (containerH - containerW) / 2,
+                transform: "rotate(90deg)",
+                transformOrigin: "center center",
+                overflow: "hidden",
+            }}>
+                <img src={src} alt={alt} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    onError={(e) => { e.currentTarget.style.display = "none" }} />
+            </div>
+        </div>
+    ) : (
+        <div style={{ width: containerW, height: containerH, overflow: "hidden", flexShrink: 0 }}>
+            <img src={src} alt={alt} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                onError={(e) => { e.currentTarget.style.display = "none" }} />
+        </div>
+    )
+}
+
+const COMPANY_DOMAIN_MAP = [
+    ["카카오뱅크","kakaobank.com"],["케이뱅크","kbanknow.com"],["토스뱅크","tossbank.com"],
+    ["KB국민","kbstar.com"],["신한","shinhan.com"],["우리","wooribank.com"],
+    ["하나","hanabank.com"],["NH농협","nonghyup.com"],["농협","nonghyup.com"],
+    ["IBK기업","ibk.co.kr"],["기업은행","ibk.co.kr"],["SC제일","standardchartered.co.kr"],
+    ["씨티","citibank.co.kr"],["수협","suhyup.co.kr"],["전북","jbbank.co.kr"],
+    ["광주","kjbank.com"],["제주","jejubank.co.kr"],["경남","knbank.co.kr"],
+    ["대구","dgb.co.kr"],["부산","busanbank.co.kr"],["산업은행","kdb.co.kr"],
+    ["우체국","epostbank.go.kr"],["신협","cu.co.kr"],
+    ["삼성화재","samsungfire.com"],["삼성생명","samsunglife.com"],
+    ["현대해상","hi.co.kr"],["DB손해","db-ins.com"],["DB생명","dblife.co.kr"],
+    ["KB손해","kbinsure.co.kr"],["KB생명","kblife.co.kr"],["롯데손해","lotteins.co.kr"],
+    ["메리츠","meritzfire.com"],["한화손해","hwgeneralins.com"],["한화생명","hanwhalife.com"],
+    ["교보","kyobo.co.kr"],["신한라이프","shinhanlife.co.kr"],["NH농협생명","nhlife.co.kr"],
+    ["동양생명","myangel.co.kr"],["AXA","axa.co.kr"],
+]
+
+function CompanyLogo({ src, company, fallbackEmoji, size, bg }) {
+    const domain = COMPANY_DOMAIN_MAP.find(([key]) => (company || "").includes(key))?.[1]
+    const [stage, setStage] = useState(0)
+    const srcs = [
+        domain && `https://www.${domain}/apple-touch-icon.png`,
+        src,
+        domain && `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${domain}&size=256`,
+    ].filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i)
+
+    if (srcs.length === 0 || stage >= srcs.length) {
+        return (
+            <div style={{ width: size, height: size, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(size * 0.3) }}>
+                {fallbackEmoji}
+            </div>
+        )
+    }
+    return (
+        <div style={{ width: size, height: size, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: Math.floor(size * 0.12) }}>
+            <img src={srcs[stage]} alt={company} style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                onError={() => setStage(s => s + 1)} />
+        </div>
+    )
+}
 
 function buildDetailSections(productType, content) {
     if (!content) return [];
@@ -201,26 +273,39 @@ export default function ProductDetail() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#F4F7FB", fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif" }}>
+            <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
 
-            <div style={{ padding: "16px 20px", background: "#fff", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
-                <button onClick={() => navigate(-1)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: WOORI_NAVY, padding: 0 }}>←</button>
+            <div style={{ padding: "12px 20px", background: "#fff", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
+                <button
+                    onClick={() => navigate(-1)}
+                    className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+                    style={{ border: "none", cursor: "pointer", background: "none" }}
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
+                </button>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+            <div className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 <div style={{ background: headerBg, borderRadius: 18, padding: "20px", display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
-                    <div style={{ width: 52, height: 80, borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
-                        {product_img_url
-                            ? <img src={product_img_url} alt={product_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            : <div style={{ width: "100%", height: "100%", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{headerEmoji}</div>
+                    <div style={{ borderRadius: 8, overflow: "hidden", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
+                        {product_type !== "card"
+                            ? <CompanyLogo src={product_img_url} company={product_company} fallbackEmoji={headerEmoji} size={100} bg="rgba(255,255,255,0.15)" />
+                            : product_img_url
+                                ? <CardImage src={product_img_url} alt={product_name} containerW={100} containerH={154} />
+                                : <div style={{ width: 100, height: 154, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{headerEmoji}</div>
                         }
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ margin: "0 0 4px", fontSize: 12, color: "rgba(255,255,255,0.6)" }}>{product_company}</p>
                         <p style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 800, color: "#fff" }}>{product_name}</p>
-                        {content?.header && <p style={{ margin: "0 0 8px", fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{content.header}</p>}
+                        {product_type === "card" && content?.benefitGroups?.length > 0
+                            ? <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.9)", lineHeight: 1.6, wordBreak: "keep-all" }}>{content.benefitGroups.map(g => g.cateName).join(" · ")}</p>
+                            : content?.header && <p style={{ margin: "0 0 8px", fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{content.header}</p>
+                        }
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                             {content?.onlyOnline && <span style={{ fontSize: 11, background: "rgba(255,255,255,0.2)", color: "#fff", borderRadius: 6, padding: "3px 8px" }}>온라인 전용</span>}
-                            {content?.isImpend   && <span style={{ fontSize: 11, background: "rgba(255,200,0,0.25)", color: "#FFD700", borderRadius: 6, padding: "3px 8px" }}>단종 임박</span>}
                         </div>
                         {content?.url && (
                             <a href={content.url} target="_blank" rel="noopener noreferrer"

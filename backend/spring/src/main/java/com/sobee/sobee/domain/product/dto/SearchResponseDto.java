@@ -9,6 +9,7 @@ import java.util.List;
 public class SearchResponseDto {
     private String AI_text;
     private List<ProductDto> products;
+    private List<String> matched_cate_names;
 
     @Getter
     @Builder

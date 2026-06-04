@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useDragScroll } from '../../common/hooks/useDragScroll'
 import StatusBar from '../../common/components/StatusBar'
+import SettingsDrawer from './SettingsDrawer'
 import { jwtDecode } from 'jwt-decode'
 import cameraHalo from '../../assets/camera_3d_halo.png'
 import receiptHalo from '../../assets/receipt_3d_halo.png'
@@ -42,11 +44,19 @@ export default function Home() {
     console.error("토큰 디코딩 실패", e)
   }
 
+  const { ref: feedRef, dragging: feedDragging, onMouseDown, onMouseMove, onMouseUp, onMouseLeave, onClickCapture } = useDragScroll()
+
   const [showPopup, setShowPopup] = useState(() => {
     return localStorage.getItem(`mydataConnected_${userId}`) !== "true"
   })
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadingMsg, setLoadingMsg] = useState("마이데이터 연동 중")
   const [selected, setSelected] = useState([])
+  const [availableBankCodes, setAvailableBankCodes] = useState([])
+  const [availableCardCodes, setAvailableCardCodes] = useState([])
+  const pollTimerRef = useRef(null)
+  const timeoutTimerRef = useRef(null)
   const [persona, setPersona] = useState(null)
   const [feedPreviews, setFeedPreviews] = useState([])
   const [currentTime, setCurrentTime] = useState('')
@@ -65,11 +75,35 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    if (showPopup) {
+      fetch('/api/accounts/available', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data) {
+            setAvailableBankCodes(data.bank_codes || [])
+            setAvailableCardCodes(data.card_codes || [])
+          }
+        })
+        .catch(() => {})
+    }
+    return () => {
+      clearInterval(pollTimerRef.current)
+      clearTimeout(timeoutTimerRef.current)
+    }
+  }, [showPopup])
+
+  const fetchPersona = () => {
     if (!userId) return
     fetch(`/api/users/${userId}/persona`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setPersona(data) })
       .catch(() => {})
+  }
+
+  useEffect(() => {
+    fetchPersona()
   }, [userId])
 
   useEffect(() => {
@@ -115,14 +149,100 @@ export default function Home() {
     )
   }
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     if (selected.length === 0) return alert("최소 1개 이상 선택해주세요!")
+
+    const selectedBankCodes = selected.filter(c => BANKS.some(b => b.code === c))
+    const selectedCardCodes = selected.filter(c => CARDS.some(cd => cd.code === c))
+
+    // ENV에 없는 기관 사전 검증
+    const missingNames = [
+      ...selectedBankCodes
+        .filter(c => availableBankCodes.length > 0 && !availableBankCodes.includes(c))
+        .map(c => BANKS.find(b => b.code === c)?.name),
+      ...selectedCardCodes
+        .filter(c => availableCardCodes.length > 0 && !availableCardCodes.includes(c))
+        .map(c => CARDS.find(cd => cd.code === c)?.name),
+    ].filter(Boolean)
+
+    if (missingNames.length > 0) {
+      alert(`다음 기관의 연동 정보가 없습니다:\n${missingNames.join(', ')}\n\n다른 기관을 선택해주세요.`)
+      return
+    }
+
     setLoading(true)
-    setTimeout(() => {
-      localStorage.setItem(`mydataConnected_${userId}`, "true")
+    setLoadingMsg("마이데이터 연동 중")
+
+    try {
+      const res = await fetch('/api/accounts/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ bankCodes: selectedBankCodes, cardCodes: selectedCardCodes }),
+      })
+      const data = await res.json()
+
+      if (data.missing && data.missing.length > 0) {
+        setLoading(false)
+        const names = data.missing.map(code =>
+          BANKS.find(b => b.code === code)?.name ||
+          CARDS.find(cd => cd.code === code)?.name || code
+        )
+        alert(`다음 기관의 연동 정보가 없습니다:\n${names.join(', ')}`)
+        return
+      }
+
+      // 3분 타임아웃
+      timeoutTimerRef.current = setTimeout(() => {
+        clearInterval(pollTimerRef.current)
+        localStorage.setItem(`mydataConnected_${userId}`, "true")
+        setLoading(false)
+        setShowPopup(false)
+        fetchPersona()
+        alert("거래내역 동기화가 아직 완료되지 않았습니다.\n잠시 후 리포트에서 확인해주세요.")
+      }, 3 * 60 * 1000)
+
+      // 1단계: 트랜잭션 적재 완료 폴링 (3초 간격)
+      setLoadingMsg("거래내역 불러오는 중...")
+      const startAvatarPhase = () => {
+        setLoadingMsg("페르소나를 생성중입니다...")
+        pollTimerRef.current = setInterval(async () => {
+          try {
+            const r = await fetch(`/api/users/${userId}/persona`, {
+              headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+            })
+            const d = await r.json()
+            if (d?.avatarImgUrl) {
+              clearInterval(pollTimerRef.current)
+              clearTimeout(timeoutTimerRef.current)
+              setPersona(d)
+              localStorage.setItem(`mydataConnected_${userId}`, "true")
+              setLoading(false)
+              setShowPopup(false)
+            }
+          } catch {}
+        }, 5000)
+      }
+
+      pollTimerRef.current = setInterval(async () => {
+        try {
+          const r = await fetch('/api/accounts/sync-status', {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          })
+          const s = await r.json()
+          if (s.synced) {
+            clearInterval(pollTimerRef.current)
+            startAvatarPhase()
+          }
+        } catch {}
+      }, 3000)
+
+    } catch {
       setLoading(false)
-      setShowPopup(false)
-    }, 2000)
+      alert("연동 중 오류가 발생했습니다. 다시 시도해주세요.")
+    }
   }
 
   return (
@@ -141,8 +261,8 @@ export default function Home() {
           }}>
             {loading ? (
               <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <p style={{ color: "#0073BC", fontWeight: "bold", fontSize: "16px", marginBottom: "8px" }}>마이데이터 연동 중</p>
-                <p style={{ color: "#888", fontSize: "13px", marginBottom: "24px" }}>금융 데이터를 불러오고 있어요</p>
+                <p style={{ color: "#0073BC", fontWeight: "bold", fontSize: "16px", marginBottom: "8px" }}>{loadingMsg}</p>
+                <p style={{ color: "#888", fontSize: "13px", marginBottom: "24px" }}>잠시만 기다려주세요</p>
                 <div style={{
                   margin: "0 auto", width: "36px", height: "36px",
                   border: "4px solid #0073BC", borderTop: "4px solid transparent",
@@ -156,29 +276,37 @@ export default function Home() {
                 <p style={{ color: "#888", fontSize: "12px", marginBottom: "20px" }}>연동할 기관을 선택해주세요</p>
                 <p style={{ fontSize: "13px", fontWeight: "bold", color: "#333", marginBottom: "10px" }}>은행</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", marginBottom: "16px" }}>
-                  {BANKS.map((bank) => (
-                    <button key={bank.code} onClick={() => toggleSelect(bank.code)} style={{
-                      padding: "8px 6px", borderRadius: "8px",
-                      border: selected.includes(bank.code) ? "2px solid #0073BC" : "1.5px solid #eee",
-                      backgroundColor: selected.includes(bank.code) ? "#E8F4FD" : "white",
-                      color: selected.includes(bank.code) ? "#0073BC" : "#555",
-                      fontWeight: selected.includes(bank.code) ? "bold" : "normal",
-                      fontSize: "11px", cursor: "pointer",
-                    }}>{bank.name}</button>
-                  ))}
+                  {BANKS.map((bank) => {
+                    const isSelected = selected.includes(bank.code)
+                    const isAvailable = availableBankCodes.length === 0 || availableBankCodes.includes(bank.code)
+                    return (
+                      <button key={bank.code} onClick={() => isAvailable && toggleSelect(bank.code)} style={{
+                        padding: "8px 6px", borderRadius: "8px",
+                        border: isSelected ? "2px solid #0073BC" : "1.5px solid #eee",
+                        backgroundColor: isSelected ? "#E8F4FD" : isAvailable ? "white" : "#f5f5f5",
+                        color: isSelected ? "#0073BC" : isAvailable ? "#555" : "#ccc",
+                        fontWeight: isSelected ? "bold" : "normal",
+                        fontSize: "11px", cursor: isAvailable ? "pointer" : "not-allowed",
+                      }}>{bank.name}</button>
+                    )
+                  })}
                 </div>
                 <p style={{ fontSize: "13px", fontWeight: "bold", color: "#333", marginBottom: "10px" }}>카드사</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", marginBottom: "20px" }}>
-                  {CARDS.map((card) => (
-                    <button key={card.code} onClick={() => toggleSelect(card.code)} style={{
-                      padding: "8px 6px", borderRadius: "8px",
-                      border: selected.includes(card.code) ? "2px solid #0073BC" : "1.5px solid #eee",
-                      backgroundColor: selected.includes(card.code) ? "#E8F4FD" : "white",
-                      color: selected.includes(card.code) ? "#0073BC" : "#555",
-                      fontWeight: selected.includes(card.code) ? "bold" : "normal",
-                      fontSize: "11px", cursor: "pointer",
-                    }}>{card.name}</button>
-                  ))}
+                  {CARDS.map((card) => {
+                    const isSelected = selected.includes(card.code)
+                    const isAvailable = availableCardCodes.length === 0 || availableCardCodes.includes(card.code)
+                    return (
+                      <button key={card.code} onClick={() => isAvailable && toggleSelect(card.code)} style={{
+                        padding: "8px 6px", borderRadius: "8px",
+                        border: isSelected ? "2px solid #0073BC" : "1.5px solid #eee",
+                        backgroundColor: isSelected ? "#E8F4FD" : isAvailable ? "white" : "#f5f5f5",
+                        color: isSelected ? "#0073BC" : isAvailable ? "#555" : "#ccc",
+                        fontWeight: isSelected ? "bold" : "normal",
+                        fontSize: "11px", cursor: isAvailable ? "pointer" : "not-allowed",
+                      }}>{card.name}</button>
+                    )
+                  })}
                 </div>
                 <button onClick={handleConnect} style={{
                   width: "100%", padding: "14px", backgroundColor: "#0073BC", color: "white",
@@ -212,7 +340,7 @@ export default function Home() {
             </svg>
             <span className="text-[11px] flex-1" style={{ color: '#0073BC' }}>궁금한 걸 자유롭게 물어보세요!</span>
           </button>
-          <button type="button" className="w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer border-0" style={{ background: '#F0F6FF' }}>
+          <button type="button" onClick={() => setSettingsOpen(true)} className="w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer border-0" style={{ background: '#F0F6FF' }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0073BC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -221,17 +349,27 @@ export default function Home() {
         </header>
 
         {/* 페르소나 이미지 */}
-        <figure className="relative w-full mt-1 mb-0 m-0 px-3">
-          <img
-            src={persona?.avatarImgUrl ?? '/persona-bee.png'}
-            alt="페르소나 꿀벌 아바타"
-            className="w-full h-auto block rounded-2xl"
-          />
-          <div className="absolute bottom-0 left-3 right-3 h-20 bg-gradient-to-t from-black/40 to-transparent rounded-b-2xl" />
-          <div className="absolute bottom-3 left-6 text-white">
-            <span className="block text-[10px] font-light opacity-80">나의 소비 페르소나</span>
-            <span className="block text-[16px] font-extrabold leading-tight">{persona?.avatarName ?? '분석 중...'}</span>
-          </div>
+        <figure className="relative w-full mt-1 mb-0 m-0 px-3 min-h-[240px]">
+          {persona?.avatarImgUrl ? (
+            <>
+              <img
+                src={persona.avatarImgUrl}
+                alt="페르소나 꿀벌 아바타"
+                className="w-full h-auto block rounded-2xl"
+              />
+              <div className="absolute bottom-0 left-3 right-3 h-20 bg-gradient-to-t from-black/40 to-transparent rounded-b-2xl" />
+              <div className="absolute bottom-3 left-6 text-white">
+                <span className="block text-[10px] font-extrabold opacity-80">나의 소비 페르소나</span>
+                <span className="block text-[16px] font-extrabold leading-tight">{persona.avatarName}</span>
+              </div>
+            </>
+          ) : (
+            <div className="w-full min-h-[240px] rounded-2xl bg-gray-100 flex flex-col items-center justify-center gap-2">
+              <span className="text-3xl">🐝</span>
+              <p className="text-sm font-medium text-gray-400">아직 아바타가 생성되지 않았습니다</p>
+              <p className="text-xs text-gray-300">소비 사진을 찍으면 분석을 시작해요!</p>
+            </div>
+          )}
         </figure>
 
         {/* 금융상품 추천 버튼 */}
@@ -274,8 +412,10 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
-            onClick={() => navigate('/camera')}
-            className="rounded-2xl flex flex-col cursor-pointer border-0 text-left"
+            onClick={() => navigate('/camera', { 
+              state: { myGroups: feedPreviews } //groups 재호출 하지 않도록
+          })}
+            className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
             style={{
               background: '#EBF5FF',
               borderRadius: '14px',
@@ -293,17 +433,17 @@ export default function Home() {
           </button>
 
           <button
-            type="button"
-            onClick={async () => {
-              const token = localStorage.getItem("token")
-              const res = await fetch('/api/groups', {
-                headers: { Authorization: `Bearer ${token}` },
+            type="button" //consumption-log로 이동할 때 selectedRooms와 myGroups 상태를 함께 전달
+            onClick={() => {
+              const roomIds = feedPreviews.map(f => f.groupId)
+              navigate('/consumption-log', { 
+                  state: { 
+                      selectedRooms: roomIds,
+                      myGroups: feedPreviews
+                  } 
               })
-              const groups = await res.json()
-              const roomIds = groups.map(g => g.groupId)
-              navigate('/consumption-log', { state: { selectedRooms: roomIds } })
-            }}
-            className="rounded-2xl flex flex-col cursor-pointer border-0 text-left"
+          }}
+            className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
             style={{
               background: '#EBF5FF',
               borderRadius: '14px',
@@ -330,8 +470,15 @@ export default function Home() {
             아직 모임방이 없어요. 모임을 만들어보세요!
           </p>
         ) : (
-          <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
-            <style>{`div::-webkit-scrollbar { display: none; }`}</style>
+          <div
+            ref={feedRef}
+            className={`flex gap-3 overflow-x-auto pb-2 scrollbar-hide ${feedDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseLeave}
+            onClickCapture={onClickCapture}
+          >
             {feedPreviews.map((item) => (
               <button
                 key={item.groupId}
@@ -357,6 +504,9 @@ export default function Home() {
           </div>
         )}
       </section>
+
+      {/* 설정 드로어 */}
+      <SettingsDrawer isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </main>
   )
 }

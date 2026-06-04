@@ -56,6 +56,7 @@ public class SearchResultDto {
         private Boolean isDiscontinued;
         private List<String> topBenefitTitles;
         private List<BenefitItem> benefits;
+        private List<String> cateNames;
     }
 
     @Getter

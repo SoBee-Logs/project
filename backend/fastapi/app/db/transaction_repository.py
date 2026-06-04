@@ -10,7 +10,7 @@ async def get_transactions_by_date_range(user_id: int, start_date: str, end_date
             await cur.execute(
                 """
                 SELECT payment_id, payment_date, payment_time, payment_out, payment_in,
-                       payment_place, payment_category, payment_address
+                       payment_place, payment_category, payment_category_id, payment_address
                 FROM transactions
                 WHERE user_id = %s
                 AND payment_date BETWEEN %s AND %s
@@ -31,8 +31,8 @@ async def get_mapped_transactions_with_vlm(user_id: int, start_date: str, end_da
             await cur.execute(
                 """
                 SELECT t.payment_id, t.payment_date, t.payment_time, t.payment_out, t.payment_in,
-                       t.payment_place, t.payment_category, t.payment_address,
-                       pvr.vlm_description, et.emoji
+                       t.payment_place, t.payment_category, t.payment_category_id, t.payment_address,
+                       pvr.vlm_item_name, pvr.vlm_description, et.emoji
                 FROM persona_transaction pt
                 JOIN transactions t
                     ON pt.payment_id = t.payment_id

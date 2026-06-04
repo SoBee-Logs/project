@@ -12,15 +12,29 @@ async def get_all_user_ids() -> list[int]:
     return [row[0] for row in rows]
 
 
+async def get_user_life_stage(user_id: int) -> str | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT life_stage_code FROM users WHERE user_id = %s",
+                (user_id,),
+            )
+            row = await cur.fetchone()
+    return row[0] if row else None
+
+
 async def get_user_avatar(user_id: int) -> dict | None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
                 """
-                SELECT avatar_name, avatar_explane, avatar_img_url
-                FROM users
+                SELECT avatar_name, avatar_explain, avatar_img_url
+                FROM avatar
                 WHERE user_id = %s
+                ORDER BY avatar_created_at DESC
+                LIMIT 1
                 """,
                 (user_id,),
             )
@@ -29,7 +43,7 @@ async def get_user_avatar(user_id: int) -> dict | None:
         return None
     return {
         "avatarName": row[0],
-        "avatarExplane": row[1],
+        "avatarExplain": row[1],
         "avatarImgUrl": row[2],
     }
 
@@ -37,7 +51,7 @@ async def get_user_avatar(user_id: int) -> dict | None:
 async def update_user_avatar(
     user_id: int,
     avatar_name: str,
-    avatar_explane: str,
+    avatar_explain: str,
     avatar_img_url: str,
     avatar_change_reason: str,
 ) -> None:
@@ -46,14 +60,20 @@ async def update_user_avatar(
         async with conn.cursor() as cur:
             await cur.execute(
                 """
+                INSERT INTO avatar (user_id, avatar_name, avatar_explain, avatar_img_url, avatar_change_reason, avatar_created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (user_id, avatar_name, avatar_explain, avatar_img_url, avatar_change_reason, datetime.now()),
+            )
+            # users 테이블도 업데이트 (Spring persona 엔드포인트가 읽는 테이블)
+            await cur.execute(
+                """
                 UPDATE users
                 SET avatar_name = %s,
                     avatar_explane = %s,
-                    avatar_img_url = %s,
-                    avatar_change_reason = %s,
-                    updated_at = %s
+                    avatar_img_url = %s
                 WHERE user_id = %s
                 """,
-                (avatar_name, avatar_explane, avatar_img_url, avatar_change_reason, datetime.now(), user_id),
+                (avatar_name, avatar_explain, avatar_img_url, user_id),
             )
         await conn.commit()
