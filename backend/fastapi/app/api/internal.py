@@ -31,7 +31,6 @@ async def _trigger_airflow_sync(user_id: int, days: int) -> None:
 from app.models.schemas import (
     SyncRequest, SyncResponse,
     MappingRequest, MappingResponse,
-    PersonaGenerateRequest, AvatarResponse,
     DiaryGenerateRequest, DiaryGenerateResponse,
     RegisterAccountRequest, RegisterAccountResponse,
     ConnectedIdListResponse, ConnectedIdInfo,
@@ -43,7 +42,6 @@ from app.services.sync_service import (
     list_connected_ids, register_accounts_from_env, INITIAL_SYNC_DAYS,
 )
 from app.services.mapping_service import run_mapping
-from app.services.avatar_service import _generate_and_save_avatar
 from app.services.diary_service import generate_diary
 from app.db.user_repository import get_all_user_ids
 from app.services.search_parse_service import parse_search_query
@@ -221,32 +219,10 @@ async def transactions_sync(request: SyncRequest):
 
 @router.post("/mapping/run", response_model=MappingResponse)
 async def mapping_run(request: MappingRequest):
-    result = await run_mapping(request.user_id)
+    result = await run_mapping(request.user_id, request.start_date, request.end_date)
     return MappingResponse(message=result.get("message", "mapping complete"))
 
 
-@router.post("/persona/generate", response_model=AvatarResponse)
-async def persona_generate(request: PersonaGenerateRequest):
-    from app.services.avatar_service import _get_last_week_range
-    from app.db.connection import get_pool
-    import aiomysql
-
-    start, end = request.start_date, request.end_date
-    if not start or not end:
-        start, end = _get_last_week_range()
-
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(
-                "SELECT COUNT(*) FROM transactions WHERE user_id = %s AND payment_date BETWEEN %s AND %s",
-                (request.user_id, start, end),
-            )
-            row = await cur.fetchone()
-    if not row or row[0] == 0:
-        return AvatarResponse(avatar_title="", avatar_description="", avatar_image="")
-
-    return await _generate_and_save_avatar(request.user_id, start, end)
 
 
 @router.post("/diary/generate", response_model=DiaryGenerateResponse)
