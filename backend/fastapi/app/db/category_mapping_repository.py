@@ -12,10 +12,17 @@ async def find_mapping(
     payment_category: str,
     payment_place: Optional[str],
 ) -> Optional[dict]:
-    """category_mapping에서 매핑 1건 조회."""
+    """category_mapping에서 매핑 1건 조회.
+
+    우선순위:
+      tier2      : payment_category + payment_place 둘 다 일치
+      tier1      : payment_category 일치 + payment_place IS NULL (범용 룰)
+      tier_place : payment_place만 일치 (다른 payment_category로 이미 분류된 적 있음)
+    """
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
+            # tier2 / tier1: 기존 로직
             await cur.execute(
                 """
                 SELECT
@@ -30,6 +37,28 @@ async def find_mapping(
                 LIMIT 1
                 """,
                 (payment_category, payment_place),
+            )
+            row = await cur.fetchone()
+            if row:
+                return dict(row)
+
+            if not payment_place:
+                return None
+
+            # tier_place: payment_place만으로 재사용 (LLM 중복 호출 방지)
+            await cur.execute(
+                """
+                SELECT
+                    m.payment_category_id,
+                    c.category_name,
+                    'tier_place' AS matched_by
+                FROM category_mapping m
+                JOIN category_master c ON c.payment_category_id = m.payment_category_id
+                WHERE m.payment_place = %s
+                  AND m.payment_category_id != %s
+                LIMIT 1
+                """,
+                (payment_place, ETC_PAYMENT_CATEGORY_ID),
             )
             row = await cur.fetchone()
     return dict(row) if row else None
