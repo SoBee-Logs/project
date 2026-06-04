@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDragScroll } from '../../common/hooks/useDragScroll'
 import StatusBar from '../../common/components/StatusBar'
@@ -49,7 +49,12 @@ export default function Home() {
     return localStorage.getItem(`mydataConnected_${userId}`) !== "true"
   })
   const [loading, setLoading] = useState(false)
+  const [loadingMsg, setLoadingMsg] = useState("마이데이터 연동 중")
   const [selected, setSelected] = useState([])
+  const [availableBankCodes, setAvailableBankCodes] = useState([])
+  const [availableCardCodes, setAvailableCardCodes] = useState([])
+  const pollTimerRef = useRef(null)
+  const timeoutTimerRef = useRef(null)
   const [persona, setPersona] = useState(null)
   const [feedPreviews, setFeedPreviews] = useState([])
   const [currentTime, setCurrentTime] = useState('')
@@ -68,11 +73,35 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    if (showPopup) {
+      fetch('/api/accounts/available', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data) {
+            setAvailableBankCodes(data.bank_codes || [])
+            setAvailableCardCodes(data.card_codes || [])
+          }
+        })
+        .catch(() => {})
+    }
+    return () => {
+      clearInterval(pollTimerRef.current)
+      clearTimeout(timeoutTimerRef.current)
+    }
+  }, [showPopup])
+
+  const fetchPersona = () => {
     if (!userId) return
     fetch(`/api/users/${userId}/persona`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setPersona(data) })
       .catch(() => {})
+  }
+
+  useEffect(() => {
+    fetchPersona()
   }, [userId])
 
   useEffect(() => {
@@ -118,14 +147,100 @@ export default function Home() {
     )
   }
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     if (selected.length === 0) return alert("최소 1개 이상 선택해주세요!")
+
+    const selectedBankCodes = selected.filter(c => BANKS.some(b => b.code === c))
+    const selectedCardCodes = selected.filter(c => CARDS.some(cd => cd.code === c))
+
+    // ENV에 없는 기관 사전 검증
+    const missingNames = [
+      ...selectedBankCodes
+        .filter(c => availableBankCodes.length > 0 && !availableBankCodes.includes(c))
+        .map(c => BANKS.find(b => b.code === c)?.name),
+      ...selectedCardCodes
+        .filter(c => availableCardCodes.length > 0 && !availableCardCodes.includes(c))
+        .map(c => CARDS.find(cd => cd.code === c)?.name),
+    ].filter(Boolean)
+
+    if (missingNames.length > 0) {
+      alert(`다음 기관의 연동 정보가 없습니다:\n${missingNames.join(', ')}\n\n다른 기관을 선택해주세요.`)
+      return
+    }
+
     setLoading(true)
-    setTimeout(() => {
-      localStorage.setItem(`mydataConnected_${userId}`, "true")
+    setLoadingMsg("마이데이터 연동 중")
+
+    try {
+      const res = await fetch('/api/accounts/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ bankCodes: selectedBankCodes, cardCodes: selectedCardCodes }),
+      })
+      const data = await res.json()
+
+      if (data.missing && data.missing.length > 0) {
+        setLoading(false)
+        const names = data.missing.map(code =>
+          BANKS.find(b => b.code === code)?.name ||
+          CARDS.find(cd => cd.code === code)?.name || code
+        )
+        alert(`다음 기관의 연동 정보가 없습니다:\n${names.join(', ')}`)
+        return
+      }
+
+      // 3분 타임아웃
+      timeoutTimerRef.current = setTimeout(() => {
+        clearInterval(pollTimerRef.current)
+        localStorage.setItem(`mydataConnected_${userId}`, "true")
+        setLoading(false)
+        setShowPopup(false)
+        fetchPersona()
+        alert("거래내역 동기화가 아직 완료되지 않았습니다.\n잠시 후 리포트에서 확인해주세요.")
+      }, 3 * 60 * 1000)
+
+      // 1단계: 트랜잭션 적재 완료 폴링 (3초 간격)
+      setLoadingMsg("거래내역 불러오는 중...")
+      const startAvatarPhase = () => {
+        setLoadingMsg("페르소나를 생성중입니다...")
+        pollTimerRef.current = setInterval(async () => {
+          try {
+            const r = await fetch(`/api/users/${userId}/persona`, {
+              headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+            })
+            const d = await r.json()
+            if (d?.avatarImgUrl) {
+              clearInterval(pollTimerRef.current)
+              clearTimeout(timeoutTimerRef.current)
+              setPersona(d)
+              localStorage.setItem(`mydataConnected_${userId}`, "true")
+              setLoading(false)
+              setShowPopup(false)
+            }
+          } catch {}
+        }, 5000)
+      }
+
+      pollTimerRef.current = setInterval(async () => {
+        try {
+          const r = await fetch('/api/accounts/sync-status', {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          })
+          const s = await r.json()
+          if (s.synced) {
+            clearInterval(pollTimerRef.current)
+            startAvatarPhase()
+          }
+        } catch {}
+      }, 3000)
+
+    } catch {
       setLoading(false)
-      setShowPopup(false)
-    }, 2000)
+      alert("연동 중 오류가 발생했습니다. 다시 시도해주세요.")
+    }
   }
 
   return (
@@ -144,8 +259,8 @@ export default function Home() {
           }}>
             {loading ? (
               <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <p style={{ color: "#0073BC", fontWeight: "bold", fontSize: "16px", marginBottom: "8px" }}>마이데이터 연동 중</p>
-                <p style={{ color: "#888", fontSize: "13px", marginBottom: "24px" }}>금융 데이터를 불러오고 있어요</p>
+                <p style={{ color: "#0073BC", fontWeight: "bold", fontSize: "16px", marginBottom: "8px" }}>{loadingMsg}</p>
+                <p style={{ color: "#888", fontSize: "13px", marginBottom: "24px" }}>잠시만 기다려주세요</p>
                 <div style={{
                   margin: "0 auto", width: "36px", height: "36px",
                   border: "4px solid #0073BC", borderTop: "4px solid transparent",
@@ -159,29 +274,37 @@ export default function Home() {
                 <p style={{ color: "#888", fontSize: "12px", marginBottom: "20px" }}>연동할 기관을 선택해주세요</p>
                 <p style={{ fontSize: "13px", fontWeight: "bold", color: "#333", marginBottom: "10px" }}>은행</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", marginBottom: "16px" }}>
-                  {BANKS.map((bank) => (
-                    <button key={bank.code} onClick={() => toggleSelect(bank.code)} style={{
-                      padding: "8px 6px", borderRadius: "8px",
-                      border: selected.includes(bank.code) ? "2px solid #0073BC" : "1.5px solid #eee",
-                      backgroundColor: selected.includes(bank.code) ? "#E8F4FD" : "white",
-                      color: selected.includes(bank.code) ? "#0073BC" : "#555",
-                      fontWeight: selected.includes(bank.code) ? "bold" : "normal",
-                      fontSize: "11px", cursor: "pointer",
-                    }}>{bank.name}</button>
-                  ))}
+                  {BANKS.map((bank) => {
+                    const isSelected = selected.includes(bank.code)
+                    const isAvailable = availableBankCodes.length === 0 || availableBankCodes.includes(bank.code)
+                    return (
+                      <button key={bank.code} onClick={() => isAvailable && toggleSelect(bank.code)} style={{
+                        padding: "8px 6px", borderRadius: "8px",
+                        border: isSelected ? "2px solid #0073BC" : "1.5px solid #eee",
+                        backgroundColor: isSelected ? "#E8F4FD" : isAvailable ? "white" : "#f5f5f5",
+                        color: isSelected ? "#0073BC" : isAvailable ? "#555" : "#ccc",
+                        fontWeight: isSelected ? "bold" : "normal",
+                        fontSize: "11px", cursor: isAvailable ? "pointer" : "not-allowed",
+                      }}>{bank.name}</button>
+                    )
+                  })}
                 </div>
                 <p style={{ fontSize: "13px", fontWeight: "bold", color: "#333", marginBottom: "10px" }}>카드사</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", marginBottom: "20px" }}>
-                  {CARDS.map((card) => (
-                    <button key={card.code} onClick={() => toggleSelect(card.code)} style={{
-                      padding: "8px 6px", borderRadius: "8px",
-                      border: selected.includes(card.code) ? "2px solid #0073BC" : "1.5px solid #eee",
-                      backgroundColor: selected.includes(card.code) ? "#E8F4FD" : "white",
-                      color: selected.includes(card.code) ? "#0073BC" : "#555",
-                      fontWeight: selected.includes(card.code) ? "bold" : "normal",
-                      fontSize: "11px", cursor: "pointer",
-                    }}>{card.name}</button>
-                  ))}
+                  {CARDS.map((card) => {
+                    const isSelected = selected.includes(card.code)
+                    const isAvailable = availableCardCodes.length === 0 || availableCardCodes.includes(card.code)
+                    return (
+                      <button key={card.code} onClick={() => isAvailable && toggleSelect(card.code)} style={{
+                        padding: "8px 6px", borderRadius: "8px",
+                        border: isSelected ? "2px solid #0073BC" : "1.5px solid #eee",
+                        backgroundColor: isSelected ? "#E8F4FD" : isAvailable ? "white" : "#f5f5f5",
+                        color: isSelected ? "#0073BC" : isAvailable ? "#555" : "#ccc",
+                        fontWeight: isSelected ? "bold" : "normal",
+                        fontSize: "11px", cursor: isAvailable ? "pointer" : "not-allowed",
+                      }}>{card.name}</button>
+                    )
+                  })}
                 </div>
                 <button onClick={handleConnect} style={{
                   width: "100%", padding: "14px", backgroundColor: "#0073BC", color: "white",

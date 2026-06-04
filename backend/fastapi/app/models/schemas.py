@@ -160,6 +160,22 @@ class ParseSearchResponse(BaseModel):
     keywords: List[str]
     ai_text: str
 
+# ENV 기반 기관 등록
+class AvailableOrgsResponse(BaseModel):
+    bank_codes: List[str]
+    card_codes: List[str]
+
+class RegisterFromEnvRequest(BaseModel):
+    user_id: int
+    bank_codes: List[str]
+    card_codes: List[str]
+
+class RegisterFromEnvResponse(BaseModel):
+    user_id: int
+    registered: List[str]
+    missing: List[str]
+    message: str
+
 # VLM 소비 일기 생성 (diary 레포 이식)
 class DiaryRequest(BaseModel):
     item_name: Optional[str] = None

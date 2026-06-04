@@ -9,6 +9,11 @@ import {
   CartesianGrid, LabelList, ReferenceLine
 } from 'recharts'
 
+// 페이지 이동 시에도 캐시 유지 (컴포넌트 바깥 모듈 레벨)
+const _txCache = {}
+let _lifecycleCache = null
+let _personaCache = null
+
 export const CATEGORY_PALETTE = [
   '#1e73be', '#38BDF8', '#60a5fa', '#93c5fd', '#0ea5e9',
   '#3b82f6', '#7dd3fc', '#2563eb', '#6366f1', '#bfdbfe',
@@ -238,28 +243,25 @@ export default function Report() {
   const [selectedYear,  setSelectedYear]  = useState(today.getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1)
 
-  const [pendingYear,  setPendingYear]  = useState(null)
-  const [pendingMonth, setPendingMonth] = useState(null)
-  const [checkPending, setCheckPending] = useState(false)
+  const prevYearRef  = useRef(selectedYear)
+  const prevMonthRef = useRef(selectedMonth)
 
   const isCurrentMonth =
     selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
 
   const goPrev = () => {
-    const newYear  = selectedMonth === 1 ? selectedYear - 1 : selectedYear
-    const newMonth = selectedMonth === 1 ? 12 : selectedMonth - 1
-    setPendingYear(newYear)
-    setPendingMonth(newMonth)
-    setCheckPending(true)
+    prevYearRef.current  = selectedYear
+    prevMonthRef.current = selectedMonth
+    setSelectedYear(selectedMonth === 1 ? selectedYear - 1 : selectedYear)
+    setSelectedMonth(selectedMonth === 1 ? 12 : selectedMonth - 1)
   }
 
   const goNext = () => {
     if (isCurrentMonth) return
-    const newYear  = selectedMonth === 12 ? selectedYear + 1 : selectedYear
-    const newMonth = selectedMonth === 12 ? 1 : selectedMonth + 1
-    setPendingYear(newYear)
-    setPendingMonth(newMonth)
-    setCheckPending(true)
+    prevYearRef.current  = selectedYear
+    prevMonthRef.current = selectedMonth
+    setSelectedYear(selectedMonth === 12 ? selectedYear + 1 : selectedYear)
+    setSelectedMonth(selectedMonth === 12 ? 1 : selectedMonth + 1)
   }
 
   useEffect(() => {
@@ -270,67 +272,73 @@ export default function Report() {
     }
   }, [loading, location.state])
 
+  // lifecycle, persona는 월과 무관 — 캐시 있으면 즉시, 없으면 fetch 후 캐시
   useEffect(() => {
-    if (!checkPending || pendingYear === null || pendingMonth === null) return
-    const isPendingCurrentMonth =
-      pendingYear === today.getFullYear() && pendingMonth === today.getMonth() + 1
-    if (isPendingCurrentMonth) {
-      setSelectedYear(pendingYear)
-      setSelectedMonth(pendingMonth)
-      setCheckPending(false)
-      return
+    if (_lifecycleCache) {
+      setLifecycle(_lifecycleCache)
+    } else {
+      fetch(`/api/lifecycle/${USER_ID}`)
+        .then(r => r.json())
+        .then(data => { _lifecycleCache = data; setLifecycle(data) })
+        .catch(() => setLifecycle({ life_stage_code: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' }))
     }
-    const checkData = async () => {
-      try {
-        const res = await fetch(`/api/report/mydata/transaction?user_id=${USER_ID}&year=${pendingYear}&month=${pendingMonth}`)
-        const tx = await res.json()
-        if (!tx || (tx.payment_total_num === 0 && tx.payment_out === 0 && Object.keys(tx.category_price ?? {}).length === 0)) {
-          setIsEmptyMonth(true)
-        } else {
-          setSelectedYear(pendingYear)
-          setSelectedMonth(pendingMonth)
-        }
-      } catch {
-        setIsEmptyMonth(true)
-      } finally {
-        setCheckPending(false)
-      }
+
+    if (_personaCache) {
+      setPersona(_personaCache)
+    } else {
+      fetch(`/api/users/${USER_ID}/persona`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) { _personaCache = data; setPersona(data) } })
+        .catch(() => {})
     }
-    checkData()
-  }, [checkPending])
+  }, [USER_ID])
 
   useEffect(() => {
     const fetchAll = async () => {
+      const cacheKey = `${selectedYear}-${selectedMonth}`
+
+      // 이미 조회한 달은 캐시에서 즉시 표시
+      if (_txCache[cacheKey]) {
+        setTxData(_txCache[cacheKey])
+        setLoading(false)
+        setRecommendData(null)
+        fetch(`/api/report/ai-insight?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`)
+          .then(r => r.json())
+          .then(data => setRecommendData(data))
+          .catch(() => setRecommendData({ error: true }))
+        return
+      }
+
       try {
         setLoading(true)
         setTxData(null)
         setRecommendData(null)
 
-        fetch(`/api/users/${USER_ID}/persona`)
-          .then(r => r.ok ? r.json() : null)
-          .then(data => { if (data) setPersona(data) })
-          .catch(() => {})
+        const txRes = await fetch(
+          `/api/report/mydata/transaction?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`
+        ).then(r => r.json()).catch(() => null)
 
-        const [lcRes, txRes] = await Promise.allSettled([
-          fetch(`/api/lifecycle/${USER_ID}`).then(r => r.json()),
-          fetch(`/api/report/mydata/transaction?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`).then(r => r.json()),
-        ])
-
-        if (lcRes.status === 'fulfilled') setLifecycle(lcRes.value)
-        else setLifecycle({ life_stage_code: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' })
-
-        if (txRes.status === 'fulfilled') setTxData(txRes.value)
-
-        try {
-          const recRes = await fetch(`/api/report/ai-insight?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`)
-          const recData = await recRes.json()
-          setRecommendData(recData)
-        } catch {
-          setRecommendData({ error: true })
+        if (txRes) {
+          const isEmpty = !isCurrentMonth &&
+            txRes.payment_total_num === 0 && txRes.payment_out === 0 &&
+            Object.keys(txRes.category_price ?? {}).length === 0
+          if (isEmpty) {
+            setIsEmptyMonth(true)
+          } else {
+            _txCache[cacheKey] = txRes
+            setTxData(txRes)
+          }
         }
+
+        setLoading(false)
+
+        // AI 추천은 백그라운드 로드
+        fetch(`/api/report/ai-insight?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`)
+          .then(r => r.json())
+          .then(data => setRecommendData(data))
+          .catch(() => setRecommendData({ error: true }))
       } catch (e) {
         setError(e.message)
-      } finally {
         setLoading(false)
       }
     }
@@ -476,12 +484,12 @@ export default function Report() {
 
       {isEmptyMonth && (
         <EmptyMonthModal
-          year={pendingYear}
-          month={pendingMonth}
+          year={selectedYear}
+          month={selectedMonth}
           onClose={() => {
             setIsEmptyMonth(false)
-            setPendingYear(null)
-            setPendingMonth(null)
+            setSelectedYear(prevYearRef.current)
+            setSelectedMonth(prevMonthRef.current)
           }}
         />
       )}
