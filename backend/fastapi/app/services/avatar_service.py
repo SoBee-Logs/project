@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.db.transaction_repository import get_transactions_by_date_range, get_mapped_transactions_with_vlm
 from app.db.user_repository import update_user_avatar, get_user_life_stage
 from app.services.ai_insight_service import LIFE_STAGE_KO
+from app.services.category_mapping_service import STANDARD_CATEGORIES
 from app.models.schemas import AvatarRequest, AvatarResponse
 
 _AVATAR_PROMPT = """
@@ -131,20 +132,20 @@ _ANALYSIS_PROMPT = """
     "description": "이 페르소나를 한 문장으로 소개하는 설명. 캐릭터의 성격과 라이프스타일 중심으로.",
     "change_reason": {{
         "emoji": {{
-            "header": "[대표 이모지 실제 문자] 활기찬 표정",
-            "context": "이번 달 사진에 가장 많이 입력한 이모지가 [이모지]예요. 아바타 표정에 [구체적 표정 설명]으로 반영됐어요."
+            "header": "이모지를 실제 문자로 쓴 짧은 감성 한 줄 (예: '😊 에너지 넘치는 표정')",
+            "context": "이번 달 사진 속 대표 이모지를 보고 느낀 점을 MZ 말투로 한 문장. 아바타 표정에 어떻게 녹아들었는지 자연스럽게 풀어쓰기. 딱딱하지 않게, 친구한테 말하듯이."
         }},
         "background": {{
-            "header": "[카테고리명]을 사랑하는 탐험가",
-            "context": "이번 달 결제 카테고리 1위가 [카테고리명]이네요. 아바타 배경과 의상에 [구체적으로 어떻게] 반영됐어요!"
+            "header": "카테고리와 소비 스타일을 담은 감성 한 줄 (예: '카페 없인 못 사는 타입')",
+            "context": "1위 소비 카테고리가 아바타 배경과 의상에 어떻게 반영됐는지 MZ 말투로 한 문장. 데이터를 딱딱하게 나열하지 말고, 이 사람의 소비 성격을 콕 집어서 재밌게."
         }},
         "time": {{
-            "header": "[시간대명]의 탐험가 [시간대 이모지]",
-            "context": "[시간대명]에 가장 많이 결제했네요! 아바타 배경 분위기가 [구체적으로 어떤 분위기]로 표현됐어요!"
+            "header": "활동 시간대의 감성을 담은 한 줄 (예: '점심시간 = 황금시간대')",
+            "context": "주 활동 시간대가 아바타 배경 분위기에 어떻게 반영됐는지 MZ 말투로 한 문장. 시간대의 느낌과 이 사람의 라이프스타일을 연결해서 생동감 있게."
         }},
         "item": {{
-            "header": "[아이템1] & [아이템2]",
-            "context": "[아이템들] 사진을 많이 찍었네요! 아바타 캐릭터 손에 [아이템] 들고 있는 거 보이시죠?"
+            "header": "소비 아이템을 감각적으로 표현한 한 줄 (예: '아메리카노 & 마카롱 홀릭')",
+            "context": "VLM이 포착한 아이템이 아바타 손에 들려있다는 걸 MZ 말투로 한 문장. '이거 혹시 당신 얘기 아니에요?' 하는 느낌으로 공감 유도."
         }}
     }},
     "lifestyle": "Lifestyle description in English (2-3 sentences)",
@@ -161,6 +162,8 @@ TIME_SLOTS = {
     "저녁": {"range": (15, 19), "emoji": "🌃", "en": "evening (15-20h)"},
     "심야": {"range": (20, 23), "emoji": "🌙", "en": "late night (20-24h)"},
 }
+
+CATEGORY_ID_MAP: dict[int, str] = {cat_id: name for cat_id, name, _ in STANDARD_CATEGORIES}
 
 CATEGORY_PROPS_MAP = {
     "경조/선물":  "gift box, bouquet",
@@ -199,7 +202,8 @@ def _extract_persona_elements(transactions: list[dict], vlm_items: list[str], em
     slot_count: dict[str, int] = defaultdict(int)
 
     for t in transactions:
-        category = (t.get("payment_category") or "기타").strip() or "기타"
+        cat_id = t.get("payment_category_id")
+        category = CATEGORY_ID_MAP.get(cat_id, "기타") if cat_id else "기타"
         category_spend[category] += int(t.get("payment_out") or 0)
 
         hour = _extract_hour(t.get("payment_time"))
@@ -227,7 +231,8 @@ def _build_transaction_summary(
     place_count: dict[str, int] = defaultdict(int)
 
     for t in transactions:
-        category = (t.get("payment_category") or "기타").strip() or "기타"
+        cat_id = t.get("payment_category_id")
+        category = CATEGORY_ID_MAP.get(cat_id, "기타") if cat_id else "기타"
         category_spend[category] += int(t.get("payment_out") or 0)
 
         hour = _extract_hour(t.get("payment_time"))
