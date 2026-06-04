@@ -34,4 +34,11 @@ public class UserController {
     public ResponseEntity<UserPersonaDto> getPersona(@PathVariable Long userId) {
         return ResponseEntity.ok(userService.getPersona(userId));
     }
+
+    // 회원 탈퇴 — is_active = false (Soft Delete)
+    @DeleteMapping("/{userId}")
+    public ResponseEntity<String> deleteUser(@PathVariable Long userId) {
+        userService.deactivateUser(userId);
+        return ResponseEntity.ok("회원 탈퇴 완료");
+    }
 }

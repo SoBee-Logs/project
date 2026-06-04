@@ -27,6 +27,10 @@ public class GroupService {
                 .groupDescription(dto.getGroupDescription())
                 .groupCode(code)
                 .max(10)
+                // 카테고리 및 목표값 저장 (선택 사항이므로 null 허용)
+                .category(dto.getCategory())
+                .targetBudget(dto.getTargetBudget())
+                .targetDiaryCount(dto.getTargetDiaryCount())
                 .build();
         Group saved = groupRepository.save(group);
 
@@ -75,6 +79,9 @@ public class GroupService {
                 .groupName(group.getGroupName())
                 .groupDescription(group.getGroupDescription())
                 .groupCode(group.getGroupCode())
+                .category(group.getCategory())
+                .targetBudget(group.getTargetBudget())
+                .targetDiaryCount(group.getTargetDiaryCount())
                 .build();
     }
 
@@ -86,5 +93,17 @@ public class GroupService {
             sb.append(chars.charAt(random.nextInt(chars.length())));
         }
         return sb.toString();
+    }
+
+    public void leaveGroup(Long groupId, Long userId) {
+        UserGroup userGroup = userGroupRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new RuntimeException("모임에 참여하지 않은 사용자입니다."));
+        userGroupRepository.delete(userGroup);
+    
+        // 남은 멤버가 없으면 그룹 삭제
+        List<UserGroup> remaining = userGroupRepository.findByGroupId(groupId);
+        if (remaining.isEmpty()) {
+            groupRepository.deleteById(groupId);
+        }
     }
 }

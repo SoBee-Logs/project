@@ -9,6 +9,8 @@ class AvatarResponse(BaseModel):
     avatar_title: str
     avatar_description: str
     avatar_image: str  # S3 URL, 16:9 PNG, character + background combined
+    generated_period: str  # 이미지 생성에 사용된 날짜 범위 (예: "2026-05-25 ~ 2026-05-31")
+    change_reason_summary: str  # avatar_change_reason 생성에 사용된 핵심 요소 요약
 
 # 금융상품 추천
 class RecommendRequest(BaseModel):
@@ -34,6 +36,9 @@ class LifecycleResponse(BaseModel):
 class SyncRequest(BaseModel):
     user_id: int
     days: Optional[int] = None  # None → daily default (3일), 30 → 최초 가입 시
+    mode: Literal["secrets", "env"] = "secrets"
+    # secrets: AWS Secrets Manager (기본, Airflow 운영)
+    # env:     CODEF_CARD/BANK_ACCOUNTS ENV JSON 배열 (팀원 테스트용)
 
 class SyncResponse(BaseModel):
     message: str
@@ -51,16 +56,28 @@ class PersonaGenerateRequest(BaseModel):
 
 class RegisterAccountRequest(BaseModel):
     user_id: int
-    business_type: str   # "BK" | "CD"
-    org_code: str        # 기관코드 e.g. "0020"
+    business_type: str        # "BK" | "CD"
+    org_code: str             # 기관코드 e.g. "0020"
     login_id: str
     login_pw: str
+    connected_id: Optional[str] = None
+    # None  → /account/create: 새 connected_id 발급 (최초 또는 별도 인증수단)
+    # 전달  → /account/add:    기존 connected_id에 기관 추가 (동일 인증수단)
 
 class RegisterAccountResponse(BaseModel):
     user_id: int
     business_type: str
     org_code: str
+    connected_id: str
     message: str
+
+class ConnectedIdInfo(BaseModel):
+    connected_id: str
+    institutions: List[dict]  # [{"businessType": "BK", "organization": "0020"}, ...]
+
+class ConnectedIdListResponse(BaseModel):
+    user_id: int
+    connected_ids: List[ConnectedIdInfo]
 
 class DiaryGenerateRequest(BaseModel):
     user_id: int
@@ -143,6 +160,22 @@ class ParseSearchResponse(BaseModel):
     keywords: List[str]
     ai_text: str
 
+# ENV 기반 기관 등록
+class AvailableOrgsResponse(BaseModel):
+    bank_codes: List[str]
+    card_codes: List[str]
+
+class RegisterFromEnvRequest(BaseModel):
+    user_id: int
+    bank_codes: List[str]
+    card_codes: List[str]
+
+class RegisterFromEnvResponse(BaseModel):
+    user_id: int
+    registered: List[str]
+    missing: List[str]
+    message: str
+
 # VLM 소비 일기 생성 (diary 레포 이식)
 class DiaryRequest(BaseModel):
     item_name: Optional[str] = None
@@ -155,6 +188,8 @@ class DiaryRequest(BaseModel):
     matched: Optional[bool] = None
     tags: Optional[List[str]] = []
     group_description: Optional[str] = None
+    photo_count: Optional[int] = 1
+    room_category: Optional[str] = None     # 모임방 테마 카테고리 (EXERCISE, HOBBY 등)
 
 class DiaryResponse(BaseModel):
     title: str

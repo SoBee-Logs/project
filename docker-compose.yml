@@ -76,6 +76,8 @@ services:
       - FASTAPI_BASE_URL=http://fastapi:8000
       - ES_URI=http://elasticsearch:9200
       - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+      - TZ=Asia/Seoul
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
     restart: on-failure
     depends_on:
       elasticsearch:

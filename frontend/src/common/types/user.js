@@ -16,6 +16,6 @@
 /**
  * @typedef {Object} Persona
  * @property {string} avatarName
- * @property {string} avatarExplane
+ * @property {string} avatarExplain
  * @property {string} avatarImgUrl
  */

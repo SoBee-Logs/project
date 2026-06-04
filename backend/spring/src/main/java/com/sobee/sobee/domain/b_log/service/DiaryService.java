@@ -13,6 +13,7 @@ import com.sobee.sobee.domain.group.repository.GroupRepository;
 import com.sobee.sobee.domain.user.entity.User;
 import com.sobee.sobee.domain.user.repository.UserRepository;
 import lombok.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,11 +40,13 @@ public class DiaryService {
     private final PhotoRepository photoRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final PhotoService photoService;
 
-    private static final String FASTAPI_DIARY_URL = "http://localhost:8000/api/diary/generate";
+    @Value("${fastapi.base-url}/api/diary/generate")
+    private String fastapiDiaryUrl;
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @Transactional(readOnly = true)
+    @Transactional
     public DiaryGenerateResponse generateDiary(DiaryGenerateRequest req, Long userId) {
 
         Group group = groupRepository.findById(req.getGroupId())
@@ -56,14 +60,26 @@ public class DiaryService {
         List<Photo> todayPhotos = pgList.stream()
                 .map(PhotoGroups::getPhoto)
                 .filter(photo -> photo.getUserId().equals(userId))
-                .filter(photo -> photo.getCreatedAt() != null 
-                        && photo.getCreatedAt().toLocalDate().equals(targetDate))  // 날짜 필터 추가
+                .filter(photo -> photo.getCreatedAt() != null
+                        && photo.getCreatedAt().toLocalDate().equals(targetDate))
+                .sorted(Comparator.comparing(Photo::getCreatedAt).reversed())
                 .collect(Collectors.toList());
 
         // 사진 없으면 일기 생성 차단
                 if (todayPhotos.isEmpty()) {
                     throw new IllegalArgumentException("이 모임방에 등록된 사진이 없어 일기를 생성할 수 없습니다.");
                 }
+
+        // 미매핑 사진 일괄 매핑 (결제 동기화 완료 시점 보장)
+        for (Photo photo : todayPhotos) {
+            if (!personaTransactionRepository.existsByPhotoId(photo.getPhotoId())) {
+                try {
+                    photoService.performMatchingForPhoto(photo.getPhotoId(), userId);
+                } catch (Exception ignored) {
+                    // 개별 사진 매핑 실패해도 일기 생성 계속 진행
+                }
+            }
+        }
 
         // 매핑된 사진만 따로 필터링 (LLM 일기 생성용)
         List<Photo> matchedPhotos = todayPhotos.stream()
@@ -111,7 +127,7 @@ public class DiaryService {
 
         // 감정 데이터 — 전체 수집 후 텍스트 합치기
         List<EmotionsText> allEmotions = todayPhotos.stream()
-        .map(p -> emotionsTextRepository.findByPhoto(p).orElse(null))
+        .map(p -> emotionsTextRepository.findByPhotoId(p.getPhotoId()).orElse(null))
         .filter(Objects::nonNull)
         .collect(Collectors.toList());
 
@@ -130,19 +146,21 @@ public class DiaryService {
 
         // FastApiDiaryRequest 빌드 부분 수정
         FastApiDiaryRequest faReq = FastApiDiaryRequest.builder()
-        .item_name(combinedItemName.isEmpty() ? null : combinedItemName)  // 전체
+        .item_name(combinedItemName.isEmpty() ? null : combinedItemName)
         .category(bestVlm != null ? bestVlm.getVlmCategory() : null)
         .price(bestVlm != null && bestVlm.getVlmPriceEstimate() != null
                 ? bestVlm.getVlmPriceEstimate().intValue() : null)
         .store_name(bestVlm != null ? bestVlm.getVlmStoreName() : null)
-        .description(combinedDescription.isEmpty() ? null : combinedDescription)  // 전체
+        .description(combinedDescription.isEmpty() ? null : combinedDescription)
         .matched(matched)
         .mood(moodEmoji)
-        .emotion_text(combinedEmotionText.isEmpty() ? null : combinedEmotionText)  // 전체
+        .emotion_text(combinedEmotionText.isEmpty() ? null : combinedEmotionText)
         .tags(Collections.singletonList("#" + group.getGroupName()))
         .group_description(group.getGroupDescription())
+        // 모임방 카테고리 — FastAPI에서 카테고리별 일기 테마 적용에 사용
+        .room_category(group.getCategory() != null ? group.getCategory().name() : null)
         .build();
-
+        
         FastApiDiaryResponse faRes;
         try {
             faRes = callFastApiDiary(faReq);
@@ -162,7 +180,6 @@ public class DiaryService {
 
         return DiaryGenerateResponse.builder()
                 .title(faRes.getTitle())
-                .subtitle(faRes.getSubtitle())
                 .diaryLines(faRes.getDiary_lines())
                 .tags(faRes.getTags())
                 .roomId(req.getGroupId())
@@ -280,7 +297,7 @@ public class DiaryService {
         HttpEntity<FastApiDiaryRequest> entity = new HttpEntity<>(req, headers);
 
         ResponseEntity<FastApiDiaryResponse> response = restTemplate.exchange(
-                FASTAPI_DIARY_URL,
+                fastapiDiaryUrl,
                 HttpMethod.POST,
                 entity,
                 FastApiDiaryResponse.class
@@ -307,6 +324,8 @@ public class DiaryService {
         private String emotion_text;
         private List<String> tags;
         private String group_description;
+        // 모임방 카테고리 (EXERCISE, HOBBY 등) — FastAPI 일기 테마 주입용
+        private String room_category;
     }
 
     @Getter
@@ -314,7 +333,6 @@ public class DiaryService {
     @NoArgsConstructor
     static class FastApiDiaryResponse {
         private String title;
-        private String subtitle;
         private List<String> diary_lines;
         private List<String> tags;
     }

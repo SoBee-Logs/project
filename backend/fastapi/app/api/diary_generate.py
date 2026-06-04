@@ -5,48 +5,90 @@ from fastapi import APIRouter, HTTPException
 from app.core.config import settings
 from app.models.schemas import DiaryRequest, DiaryResponse
 
-# /api/diary 하위 경로를 담당하는 라우터 (main.py에서 prefix로 /api/diary 붙임)
 router = APIRouter()
 
 MOOD_LABEL = {
-    "☺️": "만족스러운",
-    "😭": "슬픈",
-    "😮": "놀라운",
-    "😍": "행복한",
-    "😡": "후회스러운",
+    "☺️": "satisfied",
+    "😭": "sad",
+    "😮": "surprised",
+    "😍": "happy",
+    "😡": "regretful",
 }
 
-DIARY_PROMPT_TEMPLATE = """[분량 제한 — 절대 준수]
-- 전체 글자 수: 150자 이내
-- diary_lines: 반드시 4개, 각 항목 한 문장 30자 이내
-- 문단(단락) 금지. 짧은 한 줄 문장 4개만.
-- 인스타그램 피드 감성: 감각적·간결·위트 있게. 설명체 절대 금지.
+# 모임방 카테고리별 일기 작성 테마 지침
+# room_category 값이 없거나 알 수 없는 경우 DEFAULT 사용
+ROOM_CATEGORY_THEME = {
+    "EXERCISE": "이 방은 운동 기록 방이야. 운동 후의 뿌듯함, 땀, 근육통, 성취감을 역동적이고 생동감 있게 표현해줘. 건강한 에너지가 느껴지도록.",
+    "HOBBY":    "이 방은 취미 생활 방이야. 취미에 빠져드는 몰입감, 설렘, 소소한 행복을 위트 있고 감성적으로 표현해줘.",
+    "TRAVEL":   "이 방은 여행/아웃도어 방이야. 낯선 장소의 설렘, 자연의 풍경, 여행의 자유로움을 생생하고 감각적으로 묘사해줘.",
+    "FAMILY":   "이 방은 가족/육아 방이야. 소중한 가족과의 따뜻한 순간, 아이의 귀여운 모습, 가족 간의 애정을 따뜻하고 다정하게 표현해줘.",
+    "DAILY":    "이 방은 일상 기록 방이야. 평범하지만 소중한 하루의 순간들을 감각적이고 담담하게, 그러나 특별하게 느껴지도록 표현해줘.",
+    "FOOD":     "이 방은 맛집/음식 방이야. 음식의 맛, 향, 식감과 함께 카페나 식당의 분위기와 비주얼을 인스타 감성으로 트렌디하게 묘사해줘.",
+    "PET":      "이 방은 반려동물 방이야. 귀여운 반려동물과의 교감, 일상 속 소소한 웃음 포인트를 사랑스럽고 유쾌하게 표현해줘.",
+    "DEFAULT":  "소비의 감정, 분위기, 장소의 특징을 자연스럽게 녹여 인스타그램 피드 감성으로 표현해줘.",
+}
 
-너는 소비 일기를 써주는 AI야.
-아래 소비 정보를 바탕으로 짧은 소비 일기를 한국어로 써줘.
-일기의 톤과 내용은 반드시 아래 '모임방 특징'에 맞게 맞춰야 해.
+def _get_line_guide(photo_count: int) -> str:
+    if photo_count <= 0:
+        return "Write the diary_lines array with exactly 2 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
+    elif photo_count == 1:
+        return "Write the diary_lines array with exactly 3 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
+    elif photo_count == 2:
+        return "Write the diary_lines array with exactly 4 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
+    else:
+        return (
+            "Write the diary_lines array with exactly 5 sentences. "
+            "Each sentence must END naturally and lead into the NEXT sentence — no comma-joining of items inside one sentence. "
+            "Use sentence-opening transitions to connect consecutive sentences "
+            "(e.g. 그러다가~, 근데 심지어~, 결국엔~, 거기다가~, 그 와중에~, 집에 오는 길엔~). "
+            "The result must feel like one continuous diary monologue, not a list."
+        )
 
-소비 정보:
-- 품목 (여러 개일 수 있음): {item_name}
-- 카테고리: {category}
-- 금액: {price}원
-- 가게: {store_name}
-- AI 분석 설명 (사진별): {description}
-- 소비 기분: {mood_label} ({mood})
-- 사용자 메모 (사진별): {emotion_text}
-- 모임방 특징: {group_description}
+# ── 프롬프트 템플릿 ───────────────────────────────────────────────
+SYSTEM_PROMPT_TEMPLATE = """\
+한국 20대가 쓰는 카톡 감성 소비 일기 작가야. 반말, 슬랭(레전드·찐·개~·아니 근데), 이모지/이모티콘(ㅋㅋ·ㅠㅠ·헐 등) 왕창 써서 친구한테 털어놓듯 써줘.
 
-반드시 아래 JSON 형식으로만 응답해. 다른 텍스트는 절대 포함하지 마.
+[규칙]
+1. 전체 한국어로 작성.
+2. {line_guide}
+3. 문장들이 자연스럽게 이어져 하나의 일기처럼 읽혀야 함.
+4. 각 문장마다 이모지·이모티콘, ㅋㅋ, ㅠㅠ, ㅎㅎ 등 자연스럽게 섞되, 1-2개만 쓰기.
+   - 유행어와 줄임말은 전체 diary_lines 기준 2~4개 정도만 사용한다.
+   - 같은 표현을 반복하지 않는다.
+   - 너무 오래됐거나 부자연스러운 신조어는 피한다.
+5. "~을 샀습니다" 같은 기계적 표현 절대 금지. 감정·장면 위주로.
+6. 실제 10~20대가 카톡에서 쓰는 말투를 자연스럽게 섞어 써.
+   - 줄임말 예시: 아이스 아메리카노→아아, 따뜻한 아메리카노→뜨아, 스타벅스→스벅, 파리바게뜨→파바, 맥도날드→맥날, 배달의민족→배민, 올리브영→올영, 코인노래방→코노, 엽기떡볶이→엽떡, 삼각김밥→삼김, 넷플릭스→넷플, PC방→피방, 롯데월드→롯월, 포토카드→포카, 스터디카페→스카, 시험기간→셤기간
+   - 소비 표현 예시: 긁었다, 질렀다, 결제 갈김, 지갑 털림, 탕진, 플렉스, 합리화 완료, 가성비, 가심비
+   - 감탄 표현 예시: ㄹㅇ, 찐, 레전드, 개맛있음, 미쳤다, 도랏, 에바, 실화냐, 홀리몰리, 킹받네
+   - 무드 표현 예시: 갬성, 사진각, 인스타각, 비주얼 합격, 분위기 미쳤다, 소확행, 힐링
+   단, 모든 문장에 억지로 유행어를 넣지 말고 실제 친구에게 말하듯 자연스럽게 사용해.
+7. 아래 JSON만 출력 (마크다운 백틱 제외).
+
+[예시 문장]
+아니 오늘 아아 없었으면 진짜 기절각이었음 ㅠㅠ
+디저트까지 야무지게 먹었는데 당충전 레전드였다😍
+
 {{
-  "title": "일기 제목 (10자 이내)",
-  "diary_lines": ["짧은 한 줄1", "짧은 한 줄2", "짧은 한 줄3", "짧은 한 줄4"]
+  "title": "제목 (이모지 포함, 12자 이내)",
+  "diary_lines": ["문장1 :raised_hands:", "문장2 ㅋㅋ", ...]
 }}
+"""
 
-규칙:
-- diary_lines: 정확히 4개, 각 문장 30자 이내
-- 전체 diary_lines 합산 120자 이내
-- 위트 있고 감각적인 말투, JSON만 출력"""
+USER_PROMPT_TEMPLATE = """\
+[Today's Consumption Info]
+- Item: {item_name}
+- Category: {category}
+- Amount paid: {price} KRW
+- Store: {store_name}
+- User mood: {mood_label} ({mood})
+- User memo: {emotion_text}
+- Group theme / context: {group_description}
+- Room writing theme: {room_theme}
+- AI photo analysis: {description}
 
+Write a JSON consumption diary based on the above.
+"""
 
 def _get_client() -> AsyncOpenAI:
     if not settings.OPENAI_API_KEY:
@@ -58,25 +100,37 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
     client = _get_client()
 
     mood_label = MOOD_LABEL.get(req.mood or "", "평범한")
-    prompt = DIARY_PROMPT_TEMPLATE.format(
+    line_guide = _get_line_guide(req.photo_count or 1)
+
+    # room_category로 테마 지침 조회 — 없으면 DEFAULT 사용
+    room_theme = ROOM_CATEGORY_THEME.get(
+        (req.room_category or "").upper(),
+        ROOM_CATEGORY_THEME["DEFAULT"]
+    )
+
+    system_content = SYSTEM_PROMPT_TEMPLATE.format(line_guide=line_guide)
+    user_content = USER_PROMPT_TEMPLATE.format(
         item_name=req.item_name or "알 수 없음",
         category=req.category or "기타",
-        price=int(req.price) if req.price is not None else 0,
+        price=f"{int(req.price):,}" if req.price is not None else "0",
         store_name=req.store_name or "알 수 없음",
-        description=req.description or "",
         mood=req.mood or "",
         mood_label=mood_label,
-        # DB emotions_text.text — 없으면 빈 문자열로 대체
         emotion_text=req.emotion_text or "없음",
-        group_description=req.group_description or "일반 소비 모임",
+        group_description=req.group_description or "일반 소비",
+        room_theme=room_theme,
+        description=req.description or "특이사항 없음",
     )
 
     response = await client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": user_content},
+        ],
         response_format={"type": "json_object"},
-        temperature=0.7,
-        max_tokens=300,
+        temperature=0.75,
+        max_tokens=600,
     )
 
     content = response.choices[0].message.content
@@ -88,14 +142,13 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
         return DiaryResponse(
             title=data["title"],
             diary_lines=data["diary_lines"],
-            # 프론트에서 보내준 방 번호 태그를 그대로 응답에 실어서 돌려줌
             tags=req.tags or [],
         )
     except (json.JSONDecodeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=f"일기 생성 파싱 실패: {e} | raw: {content[:200]}")
 
 
-# POST /api/diary/generate — 소비 정보를 받아 LLM으로 일기를 생성하는 엔드포인트
+# POST /api/diary/generate
 @router.post("/generate", response_model=DiaryResponse)
 async def generate_diary_endpoint(req: DiaryRequest):
     return await generate_diary(req)

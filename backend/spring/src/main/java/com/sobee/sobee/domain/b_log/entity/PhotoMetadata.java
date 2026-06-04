@@ -3,8 +3,10 @@ package com.sobee.sobee.domain.b_log.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "photo_metadata")
@@ -24,6 +26,7 @@ public class PhotoMetadata {
     private Photo photo;
 
     @Column(name = "taken_at")
+    @Setter
     private LocalDateTime takenAt;
 
     @Column(name = "latitude", precision = 10, scale = 6)
@@ -37,6 +40,6 @@ public class PhotoMetadata {
 
     @PrePersist
     protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
     }
 }

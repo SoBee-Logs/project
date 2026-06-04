@@ -1,10 +1,44 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { buildAlertFingerprint } from '../../features/report/AlertBoard'
 
 const BLUE = '#3B82F6'
 const GRAY = '#6b7280'
 
 export default function BottomNav({ floating = false }) {
   const location = useLocation()
+
+  // 리포트 탭 Red Dot — 미확인 경고가 있을 때만 표시
+  const [hasAlert, setHasAlert] = useState(false)
+
+  useEffect(() => {
+    const checkAlerts = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        if (!token) return
+        const res = await fetch('/api/report/alert', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) return
+        const data = await res.json()
+
+        const fingerprint = buildAlertFingerprint(data)
+        const seenKey = localStorage.getItem('alertSeenKey') ?? ''
+
+        if (location.pathname.startsWith('/report')) {
+          // 리포트 화면 진입 = 확인 처리 → Red Dot 즉시 제거
+          localStorage.setItem('alertSeenKey', fingerprint)
+          setHasAlert(false)
+        } else {
+          // 다른 탭: 새로운(미확인) 경고가 있으면 Red Dot 표시
+          setHasAlert(fingerprint.length > 0 && fingerprint !== seenKey)
+        }
+      } catch {
+        // 조회 실패 시 Red Dot 미표시
+      }
+    }
+    checkAlerts()
+  }, [location.pathname])
 
   const tabs = [
     {
@@ -56,7 +90,13 @@ export default function BottomNav({ floating = false }) {
             to={tab.path}
             className="flex flex-col items-center justify-center gap-0.5 w-full h-full"
           >
-            {tab.icon(active)}
+            {/* 리포트 탭에만 Red Dot 표시 */}
+            <div className="relative">
+              {tab.icon(active)}
+              {tab.path === '/report' && hasAlert && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
+              )}
+            </div>
             <span className="text-[11px] font-medium" style={{ color: active ? BLUE : GRAY }}>
               {tab.label}
             </span>

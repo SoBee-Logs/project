@@ -97,6 +97,21 @@ export default function LoadingPage() {
         } catch {}
       }
 
+      // 오늘 사진이 있는 그룹만 필터링 — 사진 없는 그룹에 generate 요청 시 400 방지
+      try {
+        const photosRes = await fetch(`/api/photos?date=${today}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (photosRes.ok) {
+          const photosData = await photosRes.json()
+          const photoList = photosData.photos ?? photosData
+          const photoGroups = new Set(photoList.flatMap((p) => p.group ?? []))
+          roomIds = roomIds.filter((id) => photoGroups.has(Number(id)))
+        }
+      } catch {
+        // 필터링 실패 시 기존 roomIds 그대로 사용
+      }
+
       const diaries = []
       for (const roomId of roomIds) {
         try {
@@ -119,7 +134,7 @@ export default function LoadingPage() {
               diaryLines:      data.diaryLines,
               tags:            data.tags,
               roomId:          data.roomId ?? roomId,
-              roomLabel:       data.roomLabel,          // roomMap 제거, data에서만
+              roomLabel:       data.roomLabel,
               imageUrls:       data.imageUrls ?? [],
               imageUrl:        data.imageUrls?.[0] ?? imageUrl,
               photoIds:        data.photoIds ?? [],

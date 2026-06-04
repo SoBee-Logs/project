@@ -1,12 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import StatusBar from '../../common/components/StatusBar'
+import heic2any from 'heic2any'
+import exifr from 'exifr'
 
 const MOOD_EMOJIS = ['☺️', '😭', '😮', '😍', '😡']
 const MOOD_TYPES = ['HAPPY', 'SAD', 'SURPRISED', 'LOVE', 'ANGRY']
 
 export default function CameraPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const groupsFromState = location.state?.myGroups ?? []
   const [text, setText] = useState('')
   const [selectedMood, setSelectedMood] = useState(0)
   const [selectedRooms, setSelectedRooms] = useState([])
@@ -14,7 +18,12 @@ export default function CameraPage() {
   const [previewUrl, setPreviewUrl] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingStep, setLoadingStep] = useState('')
-  const [rooms, setRooms] = useState([])
+  // const [rooms, setRooms] = useState([])
+  const [rooms, setRooms] = useState(
+    groupsFromState.map(g => ({ id: g.groupId, label: g.groupName }))
+)
+  // VLM 분석 상태 — 사진 선택 즉시 백그라운드 분석
+
   const [vlmData, setVlmData] = useState(null)
   const [vlmLoading, setVlmLoading] = useState(false)
   const [gpsCoords, setGpsCoords] = useState(null)
@@ -23,28 +32,7 @@ export default function CameraPage() {
   const vlmPromiseRef = useRef(null)
   const fileInputRef = useRef(null)
 
-  useEffect(() => {
-    const fetchMyGroups = async () => {
-      try {
-        const token = localStorage.getItem("token")
-        if (!token) return
-        const res = await fetch('/api/groups', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        })
-        const data = await res.json()
-        if (data && data.length > 0) {
-          setRooms(data.map((group) => ({
-            id: group.groupId,
-            label: group.groupName,
-          })))
-        }
-      } catch (err) {
-        console.error('모임 목록 조회 실패', err)
-      }
-    }
-    fetchMyGroups()
-  }, [])
-
+  // 컴포넌트 마운트 시 실제 기기 GPS 위치 요청
   useEffect(() => {
     if (!navigator.geolocation) {
       setGpsError('이 기기는 위치 정보를 지원하지 않아요. 기본 위치로 대체합니다.')
@@ -107,7 +95,7 @@ export default function CameraPage() {
     const ext = file.name.toLowerCase().split('.').pop()
     if (ext === 'heic' || ext === 'heif') {
       try {
-        const heic2any = (await import('heic2any')).default
+
         const blob = await heic2any({ blob: file, toType: 'image/jpeg' })
         const convertedFile = new File(
           [blob],
@@ -116,7 +104,7 @@ export default function CameraPage() {
         )
         setImageFile(convertedFile)
         setPreviewUrl(URL.createObjectURL(blob))
-        runVlmAnalysis(convertedFile)
+        runVlmAnalysis(file)  // ← 원본 HEIC 전송 (EXIF 있음)
       } catch {
         setImageFile(file)
         setPreviewUrl(null)
@@ -137,9 +125,27 @@ export default function CameraPage() {
       const token = localStorage.getItem("token")
 
       setLoadingStep('upload')
+
+      // EXIF에서 촬영 시각 추출 — 여러 태그를 순서대로 탐색
+      let takenAt = null
+      try {
+        const exif = await exifr.parse(imageFile)
+        console.log("🔍 파일에서 찾아낸 전체 EXIF 데이터:", exif)
+        if (exif) {
+          const extractedDate = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate
+          if (extractedDate) {
+            takenAt = new Date(extractedDate).toISOString()
+            console.log("✅ 최종 결정된 촬영 시간:", takenAt)
+          }
+        }
+      } catch (error) {
+        console.log("EXIF 데이터가 없거나 읽을 수 없습니다.", error)
+      }
+
       const formData = new FormData()
       formData.append('image', imageFile)
-      formData.append('takenAt', new Date().toISOString())
+      formData.append('takenAt', takenAt ?? new Date().toISOString())
+      // 실제 GPS 좌표 사용 — GPS 실패 시 서울시청 폴백 좌표 사용
       formData.append('latitude', String(gpsCoords?.latitude ?? 37.5665))
       formData.append('longitude', String(gpsCoords?.longitude ?? 126.9780))
       if (text) formData.append('text', text)
@@ -155,6 +161,7 @@ export default function CameraPage() {
       if (!res.ok) throw new Error('업로드 실패')
       const result = await res.json()
 
+      // ② VLM 결과 저장 (매핑은 일기 생성 시점으로 지연)
       let finalVlmData = vlmData
       if (vlmLoading && vlmPromiseRef.current) {
         setLoadingStep('analyze')
@@ -166,7 +173,7 @@ export default function CameraPage() {
 
       if (result.photoId && finalVlmData?.category) {
         try {
-          const vlmSaveRes = await fetch(`/api/photos/${result.photoId}/vlm-result`, {
+          await fetch(`/api/photos/${result.photoId}/vlm-result`, {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${token}`,
@@ -179,8 +186,6 @@ export default function CameraPage() {
         } catch (e) {
           console.error('[VLM] 저장 요청 실패:', e)
         }
-      } else {
-        console.warn('[VLM] skip 이유 — photoId:', result.photoId, '| category:', finalVlmData?.category)
       }
 
       navigate('/consumption-log', {
@@ -355,6 +360,7 @@ export default function CameraPage() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="사진에 대해 설명해주세요!"
+            maxLength={50}
             className="w-full px-4 py-3.5 rounded-2xl bg-[#F0F0F0] border-0 text-[14px] text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-300"
           />
         </label>
