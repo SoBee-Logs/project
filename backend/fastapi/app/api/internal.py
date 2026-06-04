@@ -36,8 +36,12 @@ from app.models.schemas import (
     RegisterAccountRequest, RegisterAccountResponse,
     ConnectedIdListResponse, ConnectedIdInfo,
     ParseSearchRequest, ParseSearchResponse,
+    AvailableOrgsResponse, RegisterFromEnvRequest, RegisterFromEnvResponse,
 )
-from app.services.sync_service import sync_transactions, sync_transactions_env, register_account, list_connected_ids, INITIAL_SYNC_DAYS
+from app.services.sync_service import (
+    sync_transactions, sync_transactions_env, register_account,
+    list_connected_ids, register_accounts_from_env, INITIAL_SYNC_DAYS,
+)
 from app.services.mapping_service import run_mapping
 from app.services.avatar_service import _generate_and_save_avatar
 from app.services.diary_service import generate_diary
@@ -45,6 +49,55 @@ from app.db.user_repository import get_all_user_ids
 from app.services.search_parse_service import parse_search_query
 
 router = APIRouter(prefix="/internal", tags=["internal"])
+
+
+@router.get("/sync/status")
+async def sync_status_check(user_id: int):
+    """트랜잭션 DB 적재 완료 여부 확인 (월 필터 없이 전체 카운트)."""
+    from app.db.connection import get_pool
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT COUNT(*) FROM transactions WHERE user_id = %s", (user_id,)
+            )
+            row = await cur.fetchone()
+    count = row[0] if row else 0
+    return {"synced": count > 0, "transaction_count": count}
+
+
+@router.get("/accounts/available-orgs", response_model=AvailableOrgsResponse)
+async def accounts_available_orgs():
+    """ENV에 등록된 기관 코드 목록 반환 (프론트 검증용)."""
+    from app.core.config import settings
+    bank_codes = [acc["organization"] for acc in settings.get_codef_bank_accounts()]
+    card_codes = [acc["organization"] for acc in settings.get_codef_card_accounts()]
+    return AvailableOrgsResponse(bank_codes=bank_codes, card_codes=card_codes)
+
+
+@router.post("/accounts/register-from-env", response_model=RegisterFromEnvResponse)
+async def accounts_register_from_env(request: RegisterFromEnvRequest):
+    """
+    사용자가 선택한 org_code를 ENV에서 조회 → CODEF 등록 → 30일 sync 백그라운드 트리거.
+    ENV에 없는 기관 코드는 missing 목록으로 반환.
+    """
+    result = await register_accounts_from_env(
+        request.user_id, request.bank_codes, request.card_codes
+    )
+    if result["missing"]:
+        return RegisterFromEnvResponse(
+            user_id=request.user_id,
+            registered=[],
+            missing=result["missing"],
+            message=f"ENV에 없는 기관: {result['missing']}",
+        )
+    asyncio.create_task(_trigger_airflow_sync(request.user_id, days=INITIAL_SYNC_DAYS))
+    return RegisterFromEnvResponse(
+        user_id=request.user_id,
+        registered=result["registered"],
+        missing=[],
+        message=f"{len(result['registered'])}개 기관 등록 완료. 30일 sync 시작.",
+    )
 
 
 @router.get("/users")
