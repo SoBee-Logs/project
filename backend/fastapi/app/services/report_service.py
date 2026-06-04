@@ -243,8 +243,13 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
             for week in week_order:
                 week_em = emotion_df[emotion_df['week_label'] == week]
                 if not week_em.empty:
-                    top_mood = week_em['emoji'].value_counts().idxmax()
-                    weekly_top_emotion[week] = MOOD_EMOJI.get(top_mood, top_mood)
+                    counts = week_em['emoji'].value_counts()
+                    top_mood = counts.idxmax()
+                    weekly_top_emotion[week] = {
+                        "emoji": MOOD_EMOJI.get(top_mood, top_mood),
+                        "top_count": int(counts.max()),
+                        "total_count": int(len(week_em)),
+                    }
     except Exception as e:
         print(f"[EMOTION ERROR] {e}")
 

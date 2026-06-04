@@ -532,6 +532,7 @@ export default function Report() {
           const personaCat = txData?.persona_top_category
           const personaTime = txData?.persona_peak_time
           const traitTags = txData ? [
+            lifecycle?.life_stage_code && `🏷️ ${lifecycle.life_stage_code}`,
             personaCat && `${personaCat} 집중`,
             personaTime && `${TIME_ICONS[personaTime] ?? ''} ${personaTime}`,
             txData.persona_vlm_count > 0 && `📸 사진 소비 ${txData.persona_vlm_count}건`,
@@ -845,12 +846,19 @@ export default function Report() {
             <div className="rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-3">
               <p className="text-xs text-gray-500 font-semibold">😊 주차별 소비 감정</p>
               <div className="flex items-center justify-center gap-4 flex-wrap">
-                {weeks.map(w => (
-                  <div key={w} className="flex flex-col items-center gap-0.5">
-                    <span className="text-2xl">{weeklyEmotion[w]}</span>
-                    <span className="text-[10px] font-semibold text-gray-400">{w}</span>
-                  </div>
-                ))}
+                {weeks.map(w => {
+                  const em = weeklyEmotion[w]
+                  const emoji = em?.emoji ?? em
+                  const topCount = em?.top_count
+                  const totalCount = em?.total_count
+                  return (
+                    <div key={w} className="flex flex-col items-center gap-0.5">
+                      <span className="text-2xl">{emoji}</span>
+                      <span className="text-[10px] font-semibold text-gray-400">{w}</span>
+                      {topCount != null && <span className="text-[9px] text-gray-300">{topCount}/{totalCount}건</span>}
+                    </div>
+                  )
+                })}
               </div>
               {emojiContext && (
                 <div className="rounded-xl bg-blue-50 px-3 py-2">
