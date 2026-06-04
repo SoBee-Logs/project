@@ -68,11 +68,9 @@ public class PhotoService {
 
     private LocalDateTime parseTakenAt(String takenAt) {
         try {
-            // offset 포함(Z, +09:00 등) → KST LocalDateTime으로 변환
             OffsetDateTime odt = OffsetDateTime.parse(takenAt, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             return odt.withOffsetSameInstant(ZoneOffset.ofHours(9)).toLocalDateTime();
         } catch (Exception e) {
-            // offset 없는 경우 → KST로 간주하고 그대로 파싱
             String cleaned = takenAt.replace("Z", "").replaceAll("\\.\\d+$", "");
             try {
                 return LocalDateTime.parse(cleaned, TAKEN_AT_FORMATTER);
@@ -148,26 +146,22 @@ public class PhotoService {
 
         List<PhotoResponse> responses = photos.stream().map(photo -> {
 
-            // takenAt, date, time 추출
             PhotoMetadata metadata = photoMetadataRepository.findByPhoto(photo).orElse(null);
             String photoDate = metadata != null
                     ? metadata.getTakenAt().format(DATE_FORMATTER) : "";
             String photoTime = metadata != null
                     ? metadata.getTakenAt().format(TIME_FORMATTER) : "";
 
-            // emoji, text 추출
             EmotionsText emotionsText = emotionsTextRepository.findByPhotoId(photo.getPhotoId()).orElse(null);
             String emoji = emotionsText != null && emotionsText.getEmoji() != null
                     ? emotionsText.getEmoji().getEmoji() : null;
             String text = emotionsText != null ? emotionsText.getText() : null;
 
-            // group 목록 추출
             List<Long> groupIds = photoGroupsRepository.findByPhoto(photo)
                     .stream()
                     .map(pg -> pg.getId().getGroupId())
                     .collect(Collectors.toList());
 
-            // persona_transaction 테이블에 해당 사진의 결제 매핑 레코드가 있는지 확인
             boolean mapped = personaTransactionRepository.existsByPhotoId(photo.getPhotoId());
 
             return PhotoResponse.builder()
@@ -188,7 +182,6 @@ public class PhotoService {
                 .build();
     }
 
-    // 특정 그룹의 가장 최신 사진 URL 반환 — 홈 피드 미리보기에 사용
     @Transactional(readOnly = true)
     public String getLatestPhotoUrlByGroup(Long groupId) {
         List<PhotoGroups> pgList = photoGroupsRepository.findByIdGroupId(groupId);
@@ -199,11 +192,9 @@ public class PhotoService {
                 .orElse(null);
     }
 
-    // VLM 분석 결과를 photo_vlm_results에 저장하고, transactions과 매핑해 persona_transaction에 저장
     @Transactional
     public PhotoVlmResultResponse saveVlmResult(Long photoId, Long userId, PhotoVlmResultRequest request) {
 
-        // VLM 분석 결과 저장
         PhotoVlmResult vlmResult = PhotoVlmResult.builder()
                 .photoId(photoId)
                 .vlmCategory(request.getCategory())
@@ -218,7 +209,6 @@ public class PhotoService {
                 .build();
         photoVlmResultRepository.save(vlmResult);
 
-        // VLM이 EXIF에서 추출한 실제 촬영 시각이 있으면 photo_metadata.taken_at 업데이트
         if (request.getTaken_at() != null && !request.getTaken_at().isBlank()) {
             photoMetadataRepository.findByPhotoPhotoId(photoId).ifPresent(metadata -> {
                 try {
@@ -229,48 +219,40 @@ public class PhotoService {
             });
         }
 
-        // 매핑은 일기 생성 시점으로 지연 (결제 데이터 동기화 완료 후 매핑)
         return PhotoVlmResultResponse.builder()
                 .vlmId(vlmResult.getVlmId())
                 .photoId(photoId)
                 .build();
     }
 
-    // DiaryService가 일기 생성 시점에 호출 — 미매핑 사진 1건 매핑 시도
     public void performMatchingForPhoto(Long photoId, Long userId) {
-        // VLM 결과 조회
         PhotoVlmResult vlm = photoVlmResultRepository
                 .findFirstByPhotoIdOrderByVlmIdDesc(photoId)
                 .orElse(null);
         if (vlm == null) return;
-    
-        // photo_metadata 조회 (taken_at, 위도/경도)
+
         PhotoMetadata metadata = photoMetadataRepository
                 .findByPhotoPhotoId(photoId).orElse(null);
         if (metadata == null) return;
-    
-        // 촬영 날짜 결정 (taken_at 우선, 없으면 created_at)
+
         LocalDateTime takenDateTime = metadata.getTakenAt() != null
                 ? metadata.getTakenAt()
                 : metadata.getCreatedAt();
         if (takenDateTime == null) return;
-    
+
         String takenDateStr = takenDateTime.toLocalDate().format(DATE_FORMATTER);
-    
-        // 같은 날 결제 후보 조회
+
         List<Transaction> candidates = transactionRepository
                 .findOutgoingByUserIdAndDate(userId, takenDateStr);
         if (candidates.isEmpty()) return;
-    
-        // 이미 매핑된 결제 제거
+
         Set<String> mappedIds = Set.copyOf(
                 personaTransactionRepository.findPaymentIdsByUserId(userId));
         List<Transaction> available = candidates.stream()
                 .filter(t -> !mappedIds.contains(String.valueOf(t.getId().getPaymentId())))
                 .collect(Collectors.toList());
         if (available.isEmpty()) return;
-    
-        // FastAPI LLM 매핑 요청
+
         LlmMatchingClient.MatchRequest req = LlmMatchingClient.MatchRequest.builder()
                 .photo_id(photoId)
                 .user_id(userId)
@@ -299,11 +281,10 @@ public class PhotoService {
                                 .build())
                         .collect(Collectors.toList()))
                 .build();
-    
+
         Long matchedPaymentId = llmMatchingClient.match(req);
-        if (matchedPaymentId == null) return;  // 미매핑
-    
-        // persona_transaction 저장
+        if (matchedPaymentId == null) return;
+
         PersonaTransaction mapping = PersonaTransaction.builder()
                 .vlmId(vlm.getVlmId())
                 .photoId(photoId)
@@ -311,24 +292,8 @@ public class PhotoService {
                 .userId(userId)
                 .build();
         personaTransactionRepository.save(mapping);
-        
     }
-    // EXIF datetime 문자열 파싱 — offset 포함/미포함 모두 처리
-private LocalDateTime parseExifDateTime(String raw) {
-        String normalized = raw.trim().substring(0, 19);
-        LocalDateTime ldt = LocalDateTime.parse(normalized,
-                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        if (raw.trim().length() > 19) {
-            try {
-                ZoneOffset offset = ZoneOffset.of(raw.trim().substring(19).trim());
-                return ldt.atOffset(offset)
-                        .withOffsetSameInstant(ZoneOffset.ofHours(9))
-                        .toLocalDateTime();
-            } catch (Exception ignored) {}
-        }
-        return ldt;
-    }
-    // EXIF datetime 문자열 파싱 — offset 포함/미포함 모두 처리
+
     private LocalDateTime parseExifDateTime(String raw) {
         String normalized = raw.trim().substring(0, 19);
         LocalDateTime ldt = LocalDateTime.parse(normalized,
