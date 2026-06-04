@@ -69,57 +69,25 @@ public class ReportAlertService {
                 .collect(Collectors.toList());
     }
 
-    // 그룹별 AlertBoard 객체 생성
+    // 그룹별 AlertBoard 객체 생성 — 상태 판정 후 수치 반환 (메시지 포맷은 프론트 처리)
     private AlertBoardResponse buildAlert(Group group, long weeklySpend, long weeklyDiaryCount) {
-        String budgetStatus  = "SAFE";
-        String budgetMessage = null;
-        String diaryStatus   = "SAFE";
-        String diaryMessage  = null;
+        String budgetStatus = "SAFE";
+        String diaryStatus  = "SAFE";
 
         // 소비 목표 상태 판정
         if (group.getTargetBudget() != null && group.getTargetBudget() > 0) {
-            int target = group.getTargetBudget();
-            double ratio = (double) weeklySpend / target;
-
-            if (ratio >= 1.0) {
-                // 예산 초과
-                budgetStatus  = "DANGER";
-                budgetMessage = String.format(
-                        "이번 주 예산 %s원을 초과했어요! 현재 %s원 소비 💸",
-                        String.format("%,d", target),
-                        String.format("%,d", weeklySpend)
-                );
-            } else if (ratio >= 0.8) {
-                // 80% 이상 사용
-                budgetStatus  = "WARNING";
-                budgetMessage = String.format(
-                        "이번 주 예산 %s원 중 %s원을 썼어요! 💸",
-                        String.format("%,d", target),
-                        String.format("%,d", weeklySpend)
-                );
-            }
+            double ratio = (double) weeklySpend / group.getTargetBudget();
+            if (ratio >= 1.0)      budgetStatus = "DANGER";
+            else if (ratio >= 0.8) budgetStatus = "WARNING";
         }
 
         // 일기 목표 상태 판정
         if (group.getTargetDiaryCount() != null && group.getTargetDiaryCount() > 0) {
-            int target = group.getTargetDiaryCount();
-            long remaining = target - weeklyDiaryCount;
-
             if (weeklyDiaryCount == 0) {
-                // 한 건도 작성 안 함
-                diaryStatus  = "DANGER";
-                diaryMessage = String.format(
-                        "이번 주 일기를 아직 한 번도 안 썼어요! 목표는 %d회예요 ✍️", target
-                );
-            } else if (weeklyDiaryCount < target) {
-                double ratio = (double) weeklyDiaryCount / target;
-                if (ratio < 0.8) {
-                    // 80% 미달
-                    diaryStatus  = "WARNING";
-                    diaryMessage = String.format(
-                            "주간 목표 %d회까지 %d회 남았어요 ✍️", target, remaining
-                    );
-                }
+                diaryStatus = "DANGER";
+            } else if (weeklyDiaryCount < group.getTargetDiaryCount()) {
+                double ratio = (double) weeklyDiaryCount / group.getTargetDiaryCount();
+                if (ratio < 0.8) diaryStatus = "WARNING";
             }
         }
 
@@ -127,9 +95,11 @@ public class ReportAlertService {
                 .groupId(group.getGroupId())
                 .groupName(group.getGroupName())
                 .budgetStatus(budgetStatus)
-                .budgetMessage(budgetMessage)
+                .weeklySpend(weeklySpend)
+                .targetBudget(group.getTargetBudget())
                 .diaryStatus(diaryStatus)
-                .diaryMessage(diaryMessage)
+                .weeklyDiaryCount(weeklyDiaryCount)
+                .targetDiaryCount(group.getTargetDiaryCount())
                 .build();
     }
 }

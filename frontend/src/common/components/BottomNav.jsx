@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { buildAlertFingerprint } from '../../features/report/AlertBoard'
 
 const BLUE = '#3B82F6'
 const GRAY = '#6b7280'
@@ -7,7 +8,7 @@ const GRAY = '#6b7280'
 export default function BottomNav({ floating = false }) {
   const location = useLocation()
 
-  // 리포트 탭 경고 Red Dot — WARNING/DANGER 상태인 방이 하나라도 있으면 표시
+  // 리포트 탭 Red Dot — 미확인 경고가 있을 때만 표시
   const [hasAlert, setHasAlert] = useState(false)
 
   useEffect(() => {
@@ -20,11 +21,18 @@ export default function BottomNav({ floating = false }) {
         })
         if (!res.ok) return
         const data = await res.json()
-        // SAFE가 아닌 항목이 하나라도 있으면 Red Dot 표시
-        const active = data.some(
-          (a) => a.budgetStatus !== 'SAFE' || a.diaryStatus !== 'SAFE'
-        )
-        setHasAlert(active)
+
+        const fingerprint = buildAlertFingerprint(data)
+        const seenKey = localStorage.getItem('alertSeenKey') ?? ''
+
+        if (location.pathname.startsWith('/report')) {
+          // 리포트 화면 진입 = 확인 처리 → Red Dot 즉시 제거
+          localStorage.setItem('alertSeenKey', fingerprint)
+          setHasAlert(false)
+        } else {
+          // 다른 탭: 새로운(미확인) 경고가 있으면 Red Dot 표시
+          setHasAlert(fingerprint.length > 0 && fingerprint !== seenKey)
+        }
       } catch {
         // 조회 실패 시 Red Dot 미표시
       }
