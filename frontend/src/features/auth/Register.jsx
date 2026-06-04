@@ -27,7 +27,9 @@ function Register() {
       alert(res.data);
       navigate("/login");
     } catch (e) {
-      alert("회원가입 실패");
+      const data = e.response?.data
+      const msg = (typeof data === 'string' ? data : data?.message) || "회원가입 실패"
+      alert(msg)
     }
   };
 

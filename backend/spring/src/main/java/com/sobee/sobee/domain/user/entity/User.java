@@ -6,10 +6,12 @@ import lombok.NoArgsConstructor;
 import lombok.Builder;
 import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
+import lombok.Setter;
 
 @Entity
 @Table(name = "users")
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -34,5 +36,10 @@ public class User {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    // 회원 탈퇴 Soft Delete 플래그 — false 이면 탈퇴 처리된 계정
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
 
 }

@@ -36,7 +36,13 @@ def _get_line_guide(photo_count: int) -> str:
     elif photo_count == 2:
         return "Write the diary_lines array with exactly 4 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
     else:
-        return "Write the diary_lines array with exactly 5 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
+        return (
+            "Write the diary_lines array with exactly 5 sentences. "
+            "Each sentence must END naturally and lead into the NEXT sentence — no comma-joining of items inside one sentence. "
+            "Use sentence-opening transitions to connect consecutive sentences "
+            "(e.g. 그러다가~, 근데 심지어~, 결국엔~, 거기다가~, 그 와중에~, 집에 오는 길엔~). "
+            "The result must feel like one continuous diary monologue, not a list."
+        )
 
 # ── 프롬프트 템플릿 ───────────────────────────────────────────────
 SYSTEM_PROMPT_TEMPLATE = """\
@@ -47,12 +53,12 @@ SYSTEM_PROMPT_TEMPLATE = """\
 2. {line_guide}
 3. 문장들이 자연스럽게 이어져 하나의 일기처럼 읽혀야 함.
 4. 각 문장마다 이모지·이모티콘, ㅋㅋ, ㅠㅠ, ㅎㅎ 등 자연스럽게 섞되, 1-2개만 쓰기.
-	- 유행어와 줄임말은 전체 diary_lines 기준 2~4개 정도만 사용한다.
-	- 같은 표현을 반복하지 않는다.
-	- 너무 오래됐거나 부자연스러운 신조어는 피한다.
+   - 유행어와 줄임말은 전체 diary_lines 기준 2~4개 정도만 사용한다.
+   - 같은 표현을 반복하지 않는다.
+   - 너무 오래됐거나 부자연스러운 신조어는 피한다.
 5. "~을 샀습니다" 같은 기계적 표현 절대 금지. 감정·장면 위주로.
 6. 실제 10~20대가 카톡에서 쓰는 말투를 자연스럽게 섞어 써.
-   - 줄임말 예시: 아이스 아메리카노→아아, 따뜻한 아메리카노→뜨아, 스타벅스→스벅, 파리바게뜨→파바, 맥도날드→맥날, 배달의민족→배민, 올리브영→올영, 코인노래방→코노, 엽기떡볶이 → 엽떡, 삼각김밥 → 삼김, 넷플릭스 → 넷플, PC방 → 피방, 롯데월드 → 롯월, 포토카드 → 포카, 스터디카페 → 스카, 시험기간 → 셤기간
+   - 줄임말 예시: 아이스 아메리카노→아아, 따뜻한 아메리카노→뜨아, 스타벅스→스벅, 파리바게뜨→파바, 맥도날드→맥날, 배달의민족→배민, 올리브영→올영, 코인노래방→코노, 엽기떡볶이→엽떡, 삼각김밥→삼김, 넷플릭스→넷플, PC방→피방, 롯데월드→롯월, 포토카드→포카, 스터디카페→스카, 시험기간→셤기간
    - 소비 표현 예시: 긁었다, 질렀다, 결제 갈김, 지갑 털림, 탕진, 플렉스, 합리화 완료, 가성비, 가심비
    - 감탄 표현 예시: ㄹㅇ, 찐, 레전드, 개맛있음, 미쳤다, 도랏, 에바, 실화냐, 홀리몰리, 킹받네
    - 무드 표현 예시: 갬성, 사진각, 인스타각, 비주얼 합격, 분위기 미쳤다, 소확행, 힐링
@@ -61,10 +67,7 @@ SYSTEM_PROMPT_TEMPLATE = """\
 
 [예시 문장]
 아니 오늘 아아 없었으면 진짜 기절각이었음 ㅠㅠ
-디저트까지 야무지게 먹었는데 당충전 레전드였다:heart_eyes: ㅋㅋ
-
-스카 결제하고 카공까지 조진 날 ㅋㅋ
-셤기간이라 인강이랑 교재에 돈 줄줄 나감 ㅠㅠ
+디저트까지 야무지게 먹었는데 당충전 레전드였다😍
 
 {{
   "title": "제목 (이모지 포함, 12자 이내)",
