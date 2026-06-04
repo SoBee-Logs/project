@@ -16,7 +16,7 @@ export default function ConsumptionLog() {
   const navigate = useNavigate()
   const location = useLocation()
   const selectedRooms = location.state?.selectedRooms ?? []
-  const myGroups = location.state?.myGroups ?? [] //앞에서 받아온 모임 목록 재사용하도록 수정
+  const myGroups = location.state?.myGroups ?? []
   const [photos, setPhotos] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCalendar, setShowCalendar] = useState(false)
@@ -40,7 +40,6 @@ export default function ConsumptionLog() {
     const date = new Date(2000, 0, 1, hour, minute, 0)
     return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
   }
-
 
   useEffect(() => {
     const fetchPhotos = async () => {
@@ -127,6 +126,7 @@ export default function ConsumptionLog() {
               maxDate={today}
               locale="ko-KR"
               calendarType="gregory"
+              formatDay={(locale, date) => date.getDate()}  // ← 추가 ("일" 제거)
             />
             <button
               type="button"
@@ -202,18 +202,19 @@ export default function ConsumptionLog() {
       </div>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 py-3 bg-white border-t border-gray-100 z-10">
+        {/* TODO: 테스트 완료 후 아래 주석 해제
         {!isToday && (
           <p className="text-center text-[11px] text-gray-400 mb-2">
             과거 날짜의 일기는 생성할 수 없어요
           </p>
         )}
+        */}
         <button
           type="button"
           onClick={handleGenerate}
-          disabled={!isToday}
-          className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white text-[14px] font-bold ${
-            isToday ? 'bg-[#00BFFF]' : 'bg-gray-300 cursor-not-allowed'
-          }`}
+          // TODO: 테스트 완료 후 disabled={!isToday} 로 되돌리기
+          disabled={false}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white text-[14px] font-bold bg-[#00BFFF]"
         >
           <span className="text-[11px]">▶</span> LLM 일기 생성
         </button>
