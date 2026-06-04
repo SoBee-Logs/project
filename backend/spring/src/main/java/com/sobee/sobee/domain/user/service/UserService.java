@@ -2,7 +2,9 @@ package com.sobee.sobee.domain.user.service;
 
 import com.sobee.sobee.domain.user.dto.UserPersonaDto;
 import com.sobee.sobee.domain.user.dto.UserRequestDto;
+import com.sobee.sobee.domain.user.entity.Avatar;
 import com.sobee.sobee.domain.user.entity.User;
+import com.sobee.sobee.domain.user.repository.AvatarRepository;
 import com.sobee.sobee.domain.user.repository.UserRepository;
 import com.sobee.sobee.global.jwt.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +16,7 @@ import java.time.LocalDateTime;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final AvatarRepository avatarRepository;
     private final JwtUtil jwtUtil;
 
     public void register(UserRequestDto dto) {
@@ -34,8 +37,11 @@ public class UserService {
     }
 
     public UserPersonaDto getPersona(Long userId) {
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("유저를 찾을 수 없습니다."));
-        return new UserPersonaDto(user.getAvatarName(), user.getAvatarExplain(), user.getAvatarImgUrl());
+        Avatar avatar = avatarRepository.findTopByUserIdOrderByAvatarCreatedAtDesc(userId)
+                .orElse(null);
+        if (avatar == null) return new UserPersonaDto(null, null, null);
+        return new UserPersonaDto(avatar.getAvatarName(), avatar.getAvatarExplain(), avatar.getAvatarImgUrl());
     }
 }
