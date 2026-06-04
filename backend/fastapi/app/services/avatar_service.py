@@ -13,7 +13,8 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.db.transaction_repository import get_transactions_by_date_range, get_mapped_transactions_with_vlm
-from app.db.user_repository import update_user_avatar
+from app.db.user_repository import update_user_avatar, get_user_life_stage
+from app.services.ai_insight_service import LIFE_STAGE_KO
 from app.models.schemas import AvatarRequest, AvatarResponse
 
 _AVATAR_PROMPT = """
@@ -98,6 +99,20 @@ Prioritize mascot readability over ultra-high background detail.
 """
 
 
+_LIFE_STAGE_VIBE = {
+    'TEEN':       "넘치는 에너지와 호기심, 트렌드에 민감하고 감각적인 젊음",
+    'UNI':        "자유롭고 유연한 생활, 새로운 경험을 탐험하는 청춘의 활기",
+    'NEW_JOB':    "사회에 첫 발을 내딛는 설렘과 도전, 바쁜 일상 속 작은 여유",
+    'NEW_WED':    "함께하는 일상의 따뜻함, 둘이서 만들어가는 새로운 생활",
+    'CHILD_BABY': "아이 중심의 세심한 일상, 가족을 위한 따뜻한 헌신",
+    'CHILD_TEEN': "바쁜 육아와 교육 사이, 가족의 일상을 단단히 이어가는 에너지",
+    'CHILD_UNI':  "자녀의 독립을 응원하며 자신의 삶도 돌아보는 여유",
+    'GOLLIFE':    "풍부한 경험과 여유, 삶을 깊이 즐길 줄 아는 성숙함",
+    'SECLIFE':    "제2의 전성기를 준비하는 활력, 새로운 시작의 설렘",
+    'RETIR':      "느긋하고 풍요로운 일상, 오랜 지혜로 삶을 음미하는 여유",
+}
+
+
 _ANALYSIS_PROMPT = """
 다음은 사용자의 최근 결제 내역 요약입니다:
 {summary}
@@ -108,9 +123,11 @@ _ANALYSIS_PROMPT = """
 - 주 활동 시간대: {dominant_slot} {slot_emoji}
 - VLM 분석 소비 아이템: {top_items}
 
+사용자 에너지와 감성: {life_stage_vibe}
+
 이 소비 데이터를 분석하여 아래 JSON 형식으로만 응답하세요 (다른 설명 없이):
 {{
-    "title": "아바타 타이틀 (예: '야행성 도시 탐험가'처럼 2-4단어의 감성적 한국어 별명)",
+    "title": "아바타 타이틀 — 3~4어절의 한국어. 이 사람의 에너지와 감성({life_stage_vibe})을 소비 패턴과 자연스럽게 녹여낸 감성적인 별명. 생애주기 단어를 직접 쓰지 말 것.",
     "description": "이 페르소나를 한 문장으로 소개하는 설명. 캐릭터의 성격과 라이프스타일 중심으로.",
     "change_reason": {{
         "emoji": {{
@@ -308,6 +325,7 @@ def _analyze_persona_sync(
     dominant_slot: str,
     slot_emoji: str,
     top_items: str,
+    life_stage_code: str,
 ) -> dict:
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
     prompt = _ANALYSIS_PROMPT.format(
@@ -317,6 +335,7 @@ def _analyze_persona_sync(
         dominant_slot=dominant_slot,
         slot_emoji=slot_emoji,
         top_items=top_items,
+        life_stage_vibe=_LIFE_STAGE_VIBE.get(life_stage_code, "활기찬 일상을 살아가는 에너지"),
     )
 
     response = client.chat.completions.create(
@@ -335,10 +354,12 @@ async def _analyze_persona(
     dominant_slot: str,
     slot_emoji: str,
     top_items: str,
+    life_stage_code: str,
 ) -> dict:
     return await asyncio.to_thread(
         _analyze_persona_sync,
         summary, emoji_input, top_category, dominant_slot, slot_emoji, top_items,
+        life_stage_code,
     )
 
 
@@ -368,6 +389,8 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
 
     # 4. LLM 소비 분석 (change_reason 구조 포함)
     summary = _build_transaction_summary(transactions, vlm_items, vlm_descriptions)
+    life_stage_code = await get_user_life_stage(user_id) or "NEW_JOB"
+    life_stage_ko = LIFE_STAGE_KO.get(life_stage_code, "회원")
     analysis = await _analyze_persona(
         summary=summary,
         emoji_input=emoji,
@@ -375,6 +398,7 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
         dominant_slot=dominant_slot,
         slot_emoji=slot_emoji,
         top_items=top_items,
+        life_stage_code=life_stage_code,
     )
 
     # 5. 이미지 프롬프트 조립
