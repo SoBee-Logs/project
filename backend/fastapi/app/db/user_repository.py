@@ -12,6 +12,18 @@ async def get_all_user_ids() -> list[int]:
     return [row[0] for row in rows]
 
 
+async def get_user_life_stage(user_id: int) -> str | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT life_stage_code FROM users WHERE user_id = %s",
+                (user_id,),
+            )
+            row = await cur.fetchone()
+    return row[0] if row else None
+
+
 async def get_user_avatar(user_id: int) -> dict | None:
     pool = await get_pool()
     async with pool.acquire() as conn:

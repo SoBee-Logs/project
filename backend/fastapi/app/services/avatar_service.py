@@ -13,7 +13,9 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.db.transaction_repository import get_transactions_by_date_range, get_mapped_transactions_with_vlm
-from app.db.user_repository import update_user_avatar
+from app.db.user_repository import update_user_avatar, get_user_life_stage
+from app.services.ai_insight_service import LIFE_STAGE_KO
+from app.services.category_mapping_service import STANDARD_CATEGORIES
 from app.models.schemas import AvatarRequest, AvatarResponse
 
 _AVATAR_PROMPT = """
@@ -98,6 +100,20 @@ Prioritize mascot readability over ultra-high background detail.
 """
 
 
+_LIFE_STAGE_VIBE = {
+    'TEEN':       "넘치는 에너지와 호기심, 트렌드에 민감하고 감각적인 젊음",
+    'UNI':        "자유롭고 유연한 생활, 새로운 경험을 탐험하는 청춘의 활기",
+    'NEW_JOB':    "사회에 첫 발을 내딛는 설렘과 도전, 바쁜 일상 속 작은 여유",
+    'NEW_WED':    "함께하는 일상의 따뜻함, 둘이서 만들어가는 새로운 생활",
+    'CHILD_BABY': "아이 중심의 세심한 일상, 가족을 위한 따뜻한 헌신",
+    'CHILD_TEEN': "바쁜 육아와 교육 사이, 가족의 일상을 단단히 이어가는 에너지",
+    'CHILD_UNI':  "자녀의 독립을 응원하며 자신의 삶도 돌아보는 여유",
+    'GOLLIFE':    "풍부한 경험과 여유, 삶을 깊이 즐길 줄 아는 성숙함",
+    'SECLIFE':    "제2의 전성기를 준비하는 활력, 새로운 시작의 설렘",
+    'RETIR':      "느긋하고 풍요로운 일상, 오랜 지혜로 삶을 음미하는 여유",
+}
+
+
 _ANALYSIS_PROMPT = """
 다음은 사용자의 최근 결제 내역 요약입니다:
 {summary}
@@ -108,26 +124,28 @@ _ANALYSIS_PROMPT = """
 - 주 활동 시간대: {dominant_slot} {slot_emoji}
 - VLM 분석 소비 아이템: {top_items}
 
+사용자 에너지와 감성: {life_stage_vibe}
+
 이 소비 데이터를 분석하여 아래 JSON 형식으로만 응답하세요 (다른 설명 없이):
 {{
-    "title": "아바타 타이틀 (예: '야행성 도시 탐험가'처럼 2-4단어의 감성적 한국어 별명)",
+    "title": "아바타 타이틀 — 3~4어절의 한국어. 이 사람의 에너지와 감성({life_stage_vibe})을 소비 패턴과 자연스럽게 녹여낸 감성적인 별명. 생애주기 단어를 직접 쓰지 말 것.",
     "description": "이 페르소나를 한 문장으로 소개하는 설명. 캐릭터의 성격과 라이프스타일 중심으로.",
     "change_reason": {{
         "emoji": {{
-            "header": "[대표 이모지 실제 문자] 활기찬 표정",
-            "context": "이번 달 사진에 가장 많이 입력한 이모지가 [이모지]예요. 아바타 표정에 [구체적 표정 설명]으로 반영됐어요."
+            "header": "이모지를 실제 문자로 쓴 짧은 감성 한 줄 (예: '😊 에너지 넘치는 표정')",
+            "context": "이번 주 소비 사진 찍을 때 많이 선택한 이모지가 뭔지, 친구에게 말해주듯이"
         }},
         "background": {{
-            "header": "[카테고리명]을 사랑하는 탐험가",
-            "context": "이번 달 결제 카테고리 1위가 [카테고리명]이네요. 아바타 배경과 의상에 [구체적으로 어떻게] 반영됐어요!"
+            "header": "카테고리와 소비 스타일을 담은 감성 한 줄 (예: '카페 없인 못 사는 타입')",
+            "context": "1위 소비 카테고리가 아바타 배경과 의상에 어떻게 반영됐는지 한 문장."
         }},
         "time": {{
-            "header": "[시간대명]의 탐험가 [시간대 이모지]",
-            "context": "[시간대명]에 가장 많이 결제했네요! 아바타 배경 분위기가 [구체적으로 어떤 분위기]로 표현됐어요!"
+            "header": "활동 시간대의 감성을 담은 한 줄 (예: '점심시간 = 황금시간대')",
+            "context": "이번 주 결제 시간대가 아바타 배경 분위기에 어떻게 반영됐는지 한 문장."
         }},
         "item": {{
-            "header": "[아이템1] & [아이템2]",
-            "context": "[아이템들] 사진을 많이 찍었네요! 아바타 캐릭터 손에 [아이템] 들고 있는 거 보이시죠?"
+            "header": "소비 아이템을 감각적으로 표현한 한 줄 (예: '아메리카노 & 마카롱 홀릭')",
+            "context": "VLM이 포착한 아이템이 아바타 손에 들려있다는 걸 한 문장."
         }}
     }},
     "lifestyle": "Lifestyle description in English (2-3 sentences)",
@@ -144,6 +162,8 @@ TIME_SLOTS = {
     "저녁": {"range": (15, 19), "emoji": "🌃", "en": "evening (15-20h)"},
     "심야": {"range": (20, 23), "emoji": "🌙", "en": "late night (20-24h)"},
 }
+
+CATEGORY_ID_MAP: dict[int, str] = {cat_id: name for cat_id, name, _ in STANDARD_CATEGORIES}
 
 CATEGORY_PROPS_MAP = {
     "경조/선물":  "gift box, bouquet",
@@ -182,7 +202,8 @@ def _extract_persona_elements(transactions: list[dict], vlm_items: list[str], em
     slot_count: dict[str, int] = defaultdict(int)
 
     for t in transactions:
-        category = (t.get("payment_category") or "기타").strip() or "기타"
+        cat_id = t.get("payment_category_id")
+        category = CATEGORY_ID_MAP.get(cat_id, "기타") if cat_id else "기타"
         category_spend[category] += int(t.get("payment_out") or 0)
 
         hour = _extract_hour(t.get("payment_time"))
@@ -210,7 +231,8 @@ def _build_transaction_summary(
     place_count: dict[str, int] = defaultdict(int)
 
     for t in transactions:
-        category = (t.get("payment_category") or "기타").strip() or "기타"
+        cat_id = t.get("payment_category_id")
+        category = CATEGORY_ID_MAP.get(cat_id, "기타") if cat_id else "기타"
         category_spend[category] += int(t.get("payment_out") or 0)
 
         hour = _extract_hour(t.get("payment_time"))
@@ -308,6 +330,7 @@ def _analyze_persona_sync(
     dominant_slot: str,
     slot_emoji: str,
     top_items: str,
+    life_stage_code: str,
 ) -> dict:
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
     prompt = _ANALYSIS_PROMPT.format(
@@ -317,6 +340,7 @@ def _analyze_persona_sync(
         dominant_slot=dominant_slot,
         slot_emoji=slot_emoji,
         top_items=top_items,
+        life_stage_vibe=_LIFE_STAGE_VIBE.get(life_stage_code, "활기찬 일상을 살아가는 에너지"),
     )
 
     response = client.chat.completions.create(
@@ -335,10 +359,12 @@ async def _analyze_persona(
     dominant_slot: str,
     slot_emoji: str,
     top_items: str,
+    life_stage_code: str,
 ) -> dict:
     return await asyncio.to_thread(
         _analyze_persona_sync,
         summary, emoji_input, top_category, dominant_slot, slot_emoji, top_items,
+        life_stage_code,
     )
 
 
@@ -368,6 +394,8 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
 
     # 4. LLM 소비 분석 (change_reason 구조 포함)
     summary = _build_transaction_summary(transactions, vlm_items, vlm_descriptions)
+    life_stage_code = await get_user_life_stage(user_id) or "NEW_JOB"
+    life_stage_ko = LIFE_STAGE_KO.get(life_stage_code, "회원")
     analysis = await _analyze_persona(
         summary=summary,
         emoji_input=emoji,
@@ -375,6 +403,7 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
         dominant_slot=dominant_slot,
         slot_emoji=slot_emoji,
         top_items=top_items,
+        life_stage_code=life_stage_code,
     )
 
     # 5. 이미지 프롬프트 조립
@@ -402,10 +431,14 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
         avatar_change_reason=json.dumps(change_reason, ensure_ascii=False) if isinstance(change_reason, dict) else change_reason,
     )
 
+    change_reason_summary = f"이모지: {emoji} / 카테고리: {top_category} / 시간대: {dominant_slot} {slot_emoji} / 아이템: {top_items}"
+
     return AvatarResponse(
         avatar_title=analysis["title"],
         avatar_description=analysis["description"],
         avatar_image=avatar_image_url,
+        generated_period=f"{start_date} ~ {end_date}",
+        change_reason_summary=change_reason_summary,
     )
 
 
