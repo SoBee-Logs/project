@@ -569,13 +569,7 @@ export default function Report() {
 
         {/* 페르소나 배너 */}
         {(() => {
-          let explainObj = null
-          try { explainObj = JSON.parse(persona?.avatarExplain ?? '') } catch {}
-
-          const isNewFormat = explainObj && ('emoji' in explainObj || 'background' in explainObj)
-          const descText = isNewFormat
-            ? explainObj?.background?.header ?? ''
-            : (explainObj?.content_text ?? '')
+          const descText = persona?.avatarExplain ?? ''
 
           const traitTags = txData ? [
             categoryList[0] && `${categoryList[0].name} 집중`,

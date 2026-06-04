@@ -35,12 +35,4 @@ public class User {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "avatar_name")
-    private String avatarName;
-
-    @Column(name = "avatar_explain")
-    private String avatarExplain;
-
-    @Column(name = "avatar_img_url")
-    private String avatarImgUrl;
 }
