@@ -388,48 +388,7 @@ export default function Report() {
     ? timeList.reduce((a, b) => a.pct > b.pct ? a : b)
     : null
 
-  const sheetRef = useRef(null)
-  const dragStartY = useRef(null)
-  const dragStartTop = useRef(null)
-  const PEEK_HEIGHT = 120
-  const NAV_HEIGHT = 64
-  const HEADER_HEIGHT = 48
-
-  const getSheetTop = () => {
-    const available = window.innerHeight - HEADER_HEIGHT
-    return available - PEEK_HEIGHT - NAV_HEIGHT
-  }
-
-  const [sheetTop, setSheetTop] = useState(() => getSheetTop())
-  const [isDragging, setIsDragging] = useState(false)
-  const [selectedWeek, setSelectedWeek] = useState('전체')
   const [selectedCat, setSelectedCat] = useState(null)
-
-  const minTop = 0
-  const maxTop = getSheetTop()
-
-  const onDragStart = (clientY) => {
-    dragStartY.current = clientY
-    dragStartTop.current = sheetTop
-    setIsDragging(true)
-  }
-
-  const onDragMove = (clientY) => {
-    if (dragStartY.current === null) return
-    const delta = clientY - dragStartY.current
-    const next = Math.min(maxTop, Math.max(minTop, dragStartTop.current + delta))
-    setSheetTop(next)
-  }
-
-  const onDragEnd = (clientY) => {
-    if (dragStartY.current === null) return
-    const delta = clientY - dragStartY.current
-    if (delta < -60) setSheetTop(minTop)
-    else if (delta > 60) setSheetTop(maxTop)
-    else setSheetTop(dragStartTop.current < maxTop / 2 ? minTop : maxTop)
-    dragStartY.current = null
-    setIsDragging(false)
-  }
 
   if (loading) return (
     <div className="flex flex-col h-full">
@@ -512,7 +471,7 @@ export default function Report() {
   )
 
   return (
-    <div className="flex flex-col h-full relative overflow-hidden">
+    <div className="flex flex-col h-full">
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {isEmptyMonth && (
@@ -527,45 +486,13 @@ export default function Report() {
         />
       )}
 
-      {/* 날짜 탭 */}
+      {/* 월 네비게이터 */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4">
         <MonthNavigator year={selectedYear} month={selectedMonth} isCurrentMonth={isCurrentMonth} onPrev={goPrev} onNext={goNext} />
       </div>
 
-      {/* 아바타 히어로 이미지 (배경) */}
-      <div className="absolute inset-0 top-[48px] bottom-0 z-0">
-        {persona?.avatarImgUrl
-          ? <img src={persona.avatarImgUrl} alt="페르소나" className="w-full h-full object-cover" />
-          : <div className="w-full h-full bg-gradient-to-b from-[#1e73be] to-[#0e3f78]" />
-        }
-      </div>
-
-      {/* 바텀시트 */}
-      <div
-        ref={sheetRef}
-        className="absolute left-0 right-0 z-20 bg-white rounded-t-3xl shadow-2xl"
-        style={{
-          top: `calc(${HEADER_HEIGHT}px + ${sheetTop}px)`,
-          bottom: 0,
-          transition: isDragging ? 'none' : 'top 0.35s cubic-bezier(0.32,0.72,0,1)',
-        }}
-        onTouchMove={(e) => onDragMove(e.touches[0].clientY)}
-        onTouchEnd={(e) => onDragEnd(e.changedTouches[0].clientY)}
-        onMouseMove={(e) => { if (dragStartY.current !== null) onDragMove(e.clientY) }}
-        onMouseUp={(e) => onDragEnd(e.clientY)}
-        onMouseLeave={(e) => { if (dragStartY.current !== null) onDragEnd(e.clientY) }}
-      >
-        {/* 드래그 핸들 */}
-        <div
-          className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing select-none"
-          onTouchStart={(e) => onDragStart(e.touches[0].clientY)}
-          onMouseDown={(e) => onDragStart(e.clientY)}
-        >
-          <div className="w-10 h-1 rounded-full bg-gray-300" />
-        </div>
-
-        <div className="overflow-y-auto h-full pb-24 px-4">
-        <div className="flex flex-col gap-4 pb-4">
+      <div className="overflow-y-auto flex-1 px-4 pb-8">
+      <div className="flex flex-col gap-4 pt-4">
 
         {/* 페르소나 배너 */}
         {(() => {
@@ -696,141 +623,42 @@ export default function Report() {
           )}
         </div>
 
-        {/* ⑤ 카테고리별 주별 소비 도넛 */}
-        {categoryList.length > 0 && txData && (() => {
-          // category_transactions에서 주차별 카테고리 집계
-          const firstDay = new Date(selectedYear, selectedMonth - 1, 1)
-          const firstWeekday = (firstDay.getDay() + 1) % 7 // 일요일=0 기준 월요일 시작
-
-          const getWeekLabel = (dateStr) => {
-            const d = new Date(dateStr)
-            const dayOfMonth = d.getDate()
-            const weekNum = Math.floor((dayOfMonth + firstWeekday - 1) / 7) + 1
-            return `${weekNum}주`
-          }
-
-          // 주차 목록 추출
-          const weekSet = new Set(['전체'])
-          Object.values(txData.category_transactions ?? {}).forEach(records =>
-            records.forEach(r => weekSet.add(getWeekLabel(r.payment_date)))
-          )
-          const weeks = ['전체', ...Array.from(weekSet).filter(w => w !== '전체').sort()]
-
-          // 선택 주차의 카테고리별 합산
-          const weekCategoryTotals = {}
-          Object.entries(txData.category_transactions ?? {}).forEach(([cat, records]) => {
-            const filtered = selectedWeek === '전체'
-              ? records
-              : records.filter(r => getWeekLabel(r.payment_date) === selectedWeek)
-            const sum = filtered.reduce((s, r) => s + (r.payment_out ?? 0), 0)
-            if (sum > 0) weekCategoryTotals[cat] = sum
-          })
-
-          const total = Object.values(weekCategoryTotals).reduce((a, b) => a + b, 0)
-          const weekCatList = Object.entries(weekCategoryTotals)
-            .sort((a, b) => b[1] - a[1])
-            .map(([name, amount], i) => ({
-              name, amount,
-              value: total > 0 ? Math.round((amount / total) * 100) : 0,
-              color: CATEGORY_PALETTE[i % CATEGORY_PALETTE.length],
-            }))
-
-          return (
-            <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
-              <div className="flex justify-between items-center mb-3">
-                <p className="text-xs text-gray-500 font-semibold">🏷️ 카테고리별 소비</p>
-                <button
-                  onClick={() => navigate('/report/detail', { state: { year: selectedYear, month: selectedMonth, categoryColorMap } })}
-                  className="text-[10px] text-[#1e73be] underline"
-                >
-                  더보기 →
-                </button>
-              </div>
-
-              {/* 주차 탭 */}
-              <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
-                {weeks.map(w => (
-                  <button
-                    key={w}
-                    onClick={() => setSelectedWeek(w)}
-                    className={`shrink-0 text-[11px] font-semibold rounded-full px-3 py-1 transition-colors ${
-                      selectedWeek === w
-                        ? 'bg-[#1e73be] text-white'
-                        : 'bg-gray-100 text-gray-500'
-                    }`}
-                  >
-                    {w}
-                  </button>
-                ))}
-              </div>
-
-              {weekCatList.length > 0 ? (
-                <CategoryDonut categoryList={weekCatList} selectedCat={selectedCat} onSelect={setSelectedCat} />
-              ) : (
-                <p className="text-center text-xs text-gray-400 py-8">해당 주에 결제 내역이 없어요</p>
-              )}
+        {/* 카테고리별 소비 도넛 (월 전체) */}
+        {categoryList.length > 0 && (
+          <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
+            <div className="flex justify-between items-center mb-3">
+              <p className="text-xs text-gray-500 font-semibold">🏷️ 카테고리별 소비</p>
+              <button
+                onClick={() => navigate('/report/detail', { state: { year: selectedYear, month: selectedMonth, categoryColorMap } })}
+                className="text-[10px] text-[#1e73be] underline"
+              >
+                더보기 →
+              </button>
             </div>
-          )
-        })()}
+            <CategoryDonut categoryList={categoryList} selectedCat={selectedCat} onSelect={setSelectedCat} />
+          </div>
+        )}
 
-        {/* 카테고리별 VLM 연결 카드 */}
+        {/* 카테고리별 VLM 연결 카드 (월 전체) */}
         {categoryList.length > 0 && txData && (() => {
           const vlmCatMap = txData.vlm_summary?.category_items ?? {}
           const vlmCards = txData.vlm_summary?.cards ?? []
-
-          // 주차 계산 함수 (도넛과 동일)
-          const firstDay = new Date(selectedYear, selectedMonth - 1, 1)
-          const firstWeekday = (firstDay.getDay() + 1) % 7
-          const getWeekLabel = (dateStr) => {
-            const d = new Date(dateStr)
-            const weekNum = Math.floor((d.getDate() + firstWeekday - 1) / 7) + 1
-            return `${weekNum}주`
-          }
-
-          // 선택 주차의 카테고리별 금액 집계
-          const weekCategoryTotals = {}
-          Object.entries(txData.category_transactions ?? {}).forEach(([cat, records]) => {
-            const filtered = selectedWeek === '전체'
-              ? records
-              : records.filter(r => getWeekLabel(r.payment_date) === selectedWeek)
-            const sum = filtered.reduce((s, r) => s + (r.payment_out ?? 0), 0)
-            if (sum > 0) weekCategoryTotals[cat] = sum
-          })
-          const weekTotal = Object.values(weekCategoryTotals).reduce((a, b) => a + b, 0)
-
-          const filteredCatList = Object.entries(weekCategoryTotals)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
-            .map(([name, amount], i) => ({
-              name, amount,
-              value: weekTotal > 0 ? Math.round((amount / weekTotal) * 100) : 0,
-              color: CATEGORY_PALETTE[i % CATEGORY_PALETTE.length],
-            }))
-
-          if (filteredCatList.length === 0) return null
+          const top3 = categoryList.slice(0, 3)
+          if (top3.length === 0) return null
 
           return (
             <div className="flex flex-col gap-3">
-              {/* 주차 표시 */}
-              <p className="text-[11px] text-gray-400 px-1">
-                {selectedWeek === '전체' ? '이번 달 전체' : `${selectedWeek} 기준'`} TOP 3 카테고리
-              </p>
-              {filteredCatList.map((cat) => {
+              <p className="text-[11px] text-gray-400 px-1">이번 달 전체 TOP 3 카테고리</p>
+              {top3.map((cat) => {
                 const vlmItems = vlmCatMap[cat.name] ?? []
-                // VLM 카드도 주차 필터
-                const weekAllVlm = selectedWeek === '전체'
-                  ? vlmCards
-                  : vlmCards.filter(c => getWeekLabel(c.payment_date) === selectedWeek)
-                const catVlmCards = weekAllVlm.filter(c => c.category === cat.name)
+                const catVlmCards = vlmCards.filter(c => c.category === cat.name)
                 const storeNames = [...new Set(catVlmCards.map(c => c.store_name).filter(Boolean))].slice(0, 3)
-                const pct = cat.value
                 const catVlmCount = catVlmCards.length
-                const totalWeekVlm = weekAllVlm.length
-                const vlmPct = totalWeekVlm > 0 ? Math.round((catVlmCount / totalWeekVlm) * 100) : 0
+                const totalVlm = vlmCards.length
+                const vlmPct = totalVlm > 0 ? Math.round((catVlmCount / totalVlm) * 100) : 0
 
                 return (
                   <div key={cat.name} className="rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-3">
-                    {/* 헤더 */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="w-3 h-3 rounded-full shrink-0" style={{ background: cat.color }} />
@@ -838,15 +666,14 @@ export default function Report() {
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-extrabold text-gray-900">{cat.amount.toLocaleString()}원</span>
-                        <span className="text-[10px] text-gray-400">{pct}%</span>
+                        <span className="text-[10px] text-gray-400">{cat.value}%</span>
                       </div>
                     </div>
 
-                    {/* VLM 사진 기록 */}
                     {(storeNames.length > 0 || vlmItems.length > 0) && (
                       <div className="rounded-xl bg-gray-50 p-3 flex flex-col gap-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-gray-500">📸 {selectedWeek === '전체' ? '이달' : selectedWeek} 사진 기록</span>
+                          <span className="text-[11px] font-semibold text-gray-500">📸 이달 사진 기록</span>
                           {catVlmCount > 0 && (
                             <span className="text-[10px] text-[#1e73be] font-semibold">{catVlmCount}건</span>
                           )}
@@ -868,12 +695,11 @@ export default function Report() {
                       </div>
                     )}
 
-                    {/* 페르소나 연결 */}
                     <div className="flex flex-col gap-2 pt-1 border-t border-gray-100">
-                      <span className="text-[10px] font-semibold text-gray-400">🐝 {selectedWeek === '전체' ? '이달' : selectedWeek} 페르소나와 연결된 이유</span>
+                      <span className="text-[10px] font-semibold text-gray-400">🐝 이달 페르소나와 연결된 이유</span>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-gray-500 w-20 shrink-0">사진 비중</span>
-                        {totalWeekVlm > 0 ? (
+                        {totalVlm > 0 ? (
                           <>
                             <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
                               <div className="h-full rounded-full bg-[#1e73be]" style={{ width: `${vlmPct}%` }} />
@@ -1052,8 +878,7 @@ export default function Report() {
           </div>
         )}
 
-        </div>
-        </div>
+      </div>
       </div>
     </div>
   )
