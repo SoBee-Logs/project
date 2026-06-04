@@ -402,10 +402,14 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
         avatar_change_reason=json.dumps(change_reason, ensure_ascii=False) if isinstance(change_reason, dict) else change_reason,
     )
 
+    change_reason_summary = f"이모지: {emoji} / 카테고리: {top_category} / 시간대: {dominant_slot} {slot_emoji} / 아이템: {top_items}"
+
     return AvatarResponse(
         avatar_title=analysis["title"],
         avatar_description=analysis["description"],
         avatar_image=avatar_image_url,
+        generated_period=f"{start_date} ~ {end_date}",
+        change_reason_summary=change_reason_summary,
     )
 
 

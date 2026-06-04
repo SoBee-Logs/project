@@ -9,6 +9,8 @@ class AvatarResponse(BaseModel):
     avatar_title: str
     avatar_description: str
     avatar_image: str  # S3 URL, 16:9 PNG, character + background combined
+    generated_period: str  # 이미지 생성에 사용된 날짜 범위 (예: "2026-05-25 ~ 2026-05-31")
+    change_reason_summary: str  # avatar_change_reason 생성에 사용된 핵심 요소 요약
 
 # 금융상품 추천
 class RecommendRequest(BaseModel):
