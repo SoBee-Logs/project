@@ -328,4 +328,19 @@ private LocalDateTime parseExifDateTime(String raw) {
         }
         return ldt;
     }
+    // EXIF datetime 문자열 파싱 — offset 포함/미포함 모두 처리
+    private LocalDateTime parseExifDateTime(String raw) {
+        String normalized = raw.trim().substring(0, 19);
+        LocalDateTime ldt = LocalDateTime.parse(normalized,
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        if (raw.trim().length() > 19) {
+            try {
+                ZoneOffset offset = ZoneOffset.of(raw.trim().substring(19).trim());
+                return ldt.atOffset(offset)
+                        .withOffsetSameInstant(ZoneOffset.ofHours(9))
+                        .toLocalDateTime();
+            } catch (Exception ignored) {}
+        }
+        return ldt;
+    }
 }
