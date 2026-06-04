@@ -185,9 +185,19 @@ public class PhotoService {
                 .orElse(null);
     }
 
-    // VLM 분석 결과를 photo_vlm_results에 저장하고, transactions과 매핑해 persona_transaction에 저장
     @Transactional
     public PhotoVlmResultResponse saveVlmResult(Long photoId, Long userId, PhotoVlmResultRequest request) {
+
+        // groups를 JSON 문자열로 변환
+        String groupsJson = null;
+        if (request.getGroups() != null) {
+                try {
+                groupsJson = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .writeValueAsString(request.getGroups());
+                } catch (Exception e) {
+                groupsJson = null;
+                }
+        }
 
         // VLM 분석 결과 저장
         PhotoVlmResult vlmResult = PhotoVlmResult.builder()
@@ -201,10 +211,10 @@ public class PhotoService {
                 .vlmDescription(request.getDescription())
                 .vlmConfidence(request.getConfidence() != null ? request.getConfidence() : "low")
                 .vlmAddress(request.getAddress())
+                .vlmGroups(groupsJson)
                 .build();
         photoVlmResultRepository.save(vlmResult);
 
-        // 결제 내역 매핑 시도 — VLM의 실제 촬영 일시를 함께 전달
         String matchedPaymentId = matchTransaction(photoId, userId, vlmResult, request.getTaken_at());
 
         return PhotoVlmResultResponse.builder()
@@ -213,8 +223,7 @@ public class PhotoService {
                 .matched(matchedPaymentId != null)
                 .matchedPaymentId(matchedPaymentId)
                 .build();
-    }
-
+        }
     // VLM의 실제 촬영 일시(EXIF) 또는 photo_metadata.taken_at 기준으로 결제 내역을 찾아 persona_transaction에 저장
     private String matchTransaction(Long photoId, Long userId, PhotoVlmResult vlmResult, String vlmTakenAt) {
 

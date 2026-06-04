@@ -4,6 +4,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Sobee FastAPI"
 
     OPENAI_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
     DB_HOST: str = "localhost"
     DB_PORT: int = 3306
     DB_NAME: str = "sobee"
