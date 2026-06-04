@@ -5,26 +5,22 @@ import lombok.Builder;
 import lombok.Getter;
 
 // Report 화면 AlertBoard에 표시할 주간 목표 달성 현황 DTO
+// 메시지 문자열 대신 수치를 반환해 프론트에서 포맷 처리
 @Getter
 @Builder
 @AllArgsConstructor
 public class AlertBoardResponse {
 
-    // 그룹 ID (어느 방의 알림인지 식별)
     private Long groupId;
-
-    // 그룹명
     private String groupName;
 
-    // 소비 목표 달성 상태 (SAFE / WARNING / DANGER)
-    private String budgetStatus;
+    // 소비 목표
+    private String budgetStatus;    // SAFE / WARNING / DANGER
+    private Long weeklySpend;       // 이번 주 실제 소비 합계 (원)
+    private Integer targetBudget;   // 목표 예산 (원)
 
-    // 소비 목표 메시지
-    private String budgetMessage;
-
-    // 일기 목표 달성 상태 (SAFE / WARNING / DANGER)
-    private String diaryStatus;
-
-    // 일기 목표 메시지
-    private String diaryMessage;
+    // 일기 목표
+    private String diaryStatus;         // SAFE / WARNING / DANGER
+    private Long weeklyDiaryCount;      // 이번 주 방별 실제 일기 수
+    private Integer targetDiaryCount;   // 목표 일기 횟수
 }
