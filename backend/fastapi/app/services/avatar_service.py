@@ -58,16 +58,18 @@ Personality vibe (derived from the user's most frequently used emoji): {personal
    Prefer soft, pastel, finance-app-friendly colors. Avoid neon or clashing colors.
    Examples: casual streetwear, office wear, sporty outfit, cozy homewear, trendy fashion
 
-2. FACIAL EXPRESSION: One clear emotion matching the personality vibe.
-   Reflect the emotional vibe conveyed by the user's emoji input.
+2. FACIAL EXPRESSION: One clear emotion based directly on the user's dominant emoji: {emoji}.
+   This emoji MUST be the primary driver of the facial expression — do not soften or reinterpret it.
    Must be immediately recognizable at small mobile-app sizes.
-   Examples: cheerful smile, cool confident look, relaxed calm, excited energetic, curious.
+   Examples: cheerful smile, cool confident look, relaxed calm, excited energetic, angry frown.
 
 3. POSE/MOTION: One dynamic pose reflecting the time pattern and personality.
    Examples: walking confidently, sitting relaxed, holding something up, waving, stretching.
 
 4. PROPS: ONE iconic prop the character is holding or interacting with.
-   From: {top_category} ({props_hint}). Immediately recognizable. Occupies less than 15% of the image area.
+   Must represent the user's actual consumed item: {top_items}.
+   Choose the single most visually iconic object from the item name above.
+   Immediately recognizable. Occupies less than 15% of the image area.
    Never cover the bee mascot's body.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -128,7 +130,7 @@ _ANALYSIS_PROMPT = """
 
 이 소비 데이터를 분석하여 아래 JSON 형식으로만 응답하세요 (다른 설명 없이):
 {{
-    "title": "아바타 타이틀 — 3~4어절의 한국어. 이 사람의 에너지와 감성({life_stage_vibe})을 소비 패턴과 자연스럽게 녹여낸 감성적인 별명. 생애주기 단어를 직접 쓰지 말 것.",
+    "title": "아바타 타이틀 — 3~4어절의 한국어. 실제 소비 아이템({top_items}), 활동 시간대({dominant_slot}), 이모지({emoji_input}) 중심으로 이 사람만의 개성을 담은 감성적인 별명. 생애주기 단어 절대 쓰지 말 것. 생애주기 감성({life_stage_vibe})은 분위기 참고용으로만 활용.",
     "description": "이 페르소나를 한 문장으로 소개하는 설명. 캐릭터의 성격과 라이프스타일 중심으로.",
     "change_reason": {{
         "emoji": {{
@@ -415,6 +417,8 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
         personality=analysis["personality"],
         top_category=top_category,
         props_hint=props_hint,
+        emoji=emoji,
+        top_items=top_items,
     )
 
     # 6. 이미지 생성 및 S3 업로드
@@ -442,6 +446,19 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
     )
 
 
+def _is_valid_date(value: str) -> bool:
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 async def generate_avatar(request: AvatarRequest) -> AvatarResponse:
-    start_date, end_date = _get_last_week_range()
+    from app.services.mapping_service import run_mapping
+    start_date = request.start_date
+    end_date = request.end_date
+    if not start_date or not end_date or not _is_valid_date(start_date) or not _is_valid_date(end_date):
+        start_date, end_date = _get_last_week_range()
+    await run_mapping(request.user_id, start_date, end_date)
     return await _generate_and_save_avatar(request.user_id, start_date, end_date)

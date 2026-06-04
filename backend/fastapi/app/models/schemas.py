@@ -4,6 +4,8 @@ from typing import Optional, List, Literal
 # 아바타
 class AvatarRequest(BaseModel):
     user_id: int
+    start_date: Optional[str] = None  # 없으면 지난주 월~일 자동 적용
+    end_date: Optional[str] = None
 
 class AvatarResponse(BaseModel):
     avatar_title: str
@@ -45,14 +47,12 @@ class SyncResponse(BaseModel):
 
 class MappingRequest(BaseModel):
     user_id: int
+    start_date: Optional[str] = None  # 없으면 당일 기준 (일기용). 아바타용: 지난주 월~일
+    end_date: Optional[str] = None
 
 class MappingResponse(BaseModel):
     message: str
 
-class PersonaGenerateRequest(BaseModel):
-    user_id: int
-    start_date: Optional[str] = None  # 없으면 지난주 월~일 자동 적용
-    end_date: Optional[str] = None
 
 class RegisterAccountRequest(BaseModel):
     user_id: int
