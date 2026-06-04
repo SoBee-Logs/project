@@ -32,7 +32,7 @@ async def get_mapped_transactions_with_vlm(user_id: int, start_date: str, end_da
                 """
                 SELECT t.payment_id, t.payment_date, t.payment_time, t.payment_out, t.payment_in,
                        t.payment_place, t.payment_category, t.payment_address,
-                       pvr.vlm_description, et.emoji
+                       pvr.vlm_item_name, pvr.vlm_description, et.emoji
                 FROM persona_transaction pt
                 JOIN transactions t
                     ON pt.payment_id = t.payment_id

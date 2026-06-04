@@ -38,8 +38,8 @@ public class User {
     @Column(name = "avatar_name")
     private String avatarName;
 
-    @Column(name = "avatar_explane")
-    private String avatarExplane;
+    @Column(name = "avatar_explain")
+    private String avatarExplain;
 
     @Column(name = "avatar_img_url")
     private String avatarImgUrl;

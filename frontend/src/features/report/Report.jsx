@@ -569,13 +569,13 @@ export default function Report() {
 
         {/* 페르소나 배너 */}
         {(() => {
-          let explaneObj = null
-          try { explaneObj = JSON.parse(persona?.avatarExplane ?? '') } catch {}
+          let explainObj = null
+          try { explainObj = JSON.parse(persona?.avatarExplain ?? '') } catch {}
 
-          const isNewFormat = explaneObj && ('emoji' in explaneObj || 'background' in explaneObj)
+          const isNewFormat = explainObj && ('emoji' in explainObj || 'background' in explainObj)
           const descText = isNewFormat
-            ? explaneObj?.background?.header ?? ''
-            : (explaneObj?.content_text ?? '')
+            ? explainObj?.background?.header ?? ''
+            : (explainObj?.content_text ?? '')
 
           const traitTags = txData ? [
             categoryList[0] && `${categoryList[0].name} 집중`,
