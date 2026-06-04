@@ -20,6 +20,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import org.springframework.http.MediaType;
+
 @RestController
 @RequestMapping("/api/photos")
 @RequiredArgsConstructor
@@ -36,7 +42,8 @@ public class PhotoController {
         return jwtUtil.getUserId(token);
     }
 
-    @PostMapping
+    @Operation(summary = "사진 업로드")
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<PhotoUploadResponse> uploadPhoto(
             @RequestHeader("Authorization") String authHeader,
             @RequestPart("image") MultipartFile image,
