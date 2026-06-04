@@ -53,4 +53,8 @@ public class PhotoVlmResult {
     // 역지오코딩으로 얻은 주소
     @Column(name = "vlm_address", length = 500)
     private String vlmAddress;
+
+    // VLM groups 배열 JSON 저장
+    @Column(name = "vlm_groups", columnDefinition = "JSON")
+    private String vlmGroups;
 }
