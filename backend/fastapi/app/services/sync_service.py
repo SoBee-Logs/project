@@ -570,6 +570,74 @@ INITIAL_SYNC_DAYS = 30
 # ENV 기반 sync (팀원 테스트용)
 # ════════════════════════════════════════
 
+async def register_accounts_from_env(
+    user_id: int,
+    bank_codes: list[str],
+    card_codes: list[str],
+) -> dict:
+    """
+    사용자가 선택한 org_code를 ENV에서 조회해 CODEF 등록.
+    loginId 기준 그룹핑으로 connected_id 최소화.
+    반환: {"registered": [...], "missing": [...]}
+    """
+    env_bank = {acc["organization"]: acc for acc in settings.get_codef_bank_accounts()}
+    env_card = {acc["organization"]: acc for acc in settings.get_codef_card_accounts()}
+
+    missing = [c for c in bank_codes if c not in env_bank] + \
+              [c for c in card_codes if c not in env_card]
+    if missing:
+        return {"registered": [], "missing": missing}
+
+    to_register = [
+        {"businessType": "BK", **env_bank[c]} for c in bank_codes
+    ] + [
+        {"businessType": "CD", **env_card[c]} for c in card_codes
+    ]
+
+    # 이미 Secrets Manager에 등록된 기관은 skip
+    existing = _load_connected_ids(user_id)
+    registered_set: set[tuple] = {
+        (inst["businessType"], inst["organization"])
+        for insts in existing.values()
+        for inst in insts
+    }
+    to_register = [
+        acc for acc in to_register
+        if (acc["businessType"], acc["organization"]) not in registered_set
+    ]
+
+    registered: list[str] = []
+    if to_register:
+        async with new_session() as session:
+            token = await get_access_token(session)
+            groups: dict[str, list] = {}
+            for acc in to_register:
+                groups.setdefault(acc["loginId"], []).append(acc)
+
+            for login_id, accs in groups.items():
+                cid: str | None = None
+                for acc in accs:
+                    btype = acc["businessType"]
+                    org = acc["organization"]
+                    if cid is None:
+                        cid = await create_connected_id(
+                            session, token, btype, org, acc["loginId"], acc["loginPw"]
+                        )
+                        if cid:
+                            _save_institution(user_id, cid, btype, org)
+                            registered.append(org)
+                            log.info(f"connected_id 발급: user={user_id} cid={cid} {btype}/{org}")
+                    else:
+                        ok = await add_institution(
+                            session, token, cid, btype, org, acc["loginId"], acc["loginPw"]
+                        )
+                        if ok:
+                            _save_institution(user_id, cid, btype, org)
+                            registered.append(org)
+
+    return {"registered": registered, "missing": []}
+
+
 async def sync_transactions_env(
     user_id: int,
     days: int = INITIAL_SYNC_DAYS,
@@ -763,6 +831,16 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
         log.info(f"생애주기 예측 완료: user={user_id} → {lifecycle_resp.life_stage_code}")
     except Exception as e:
         log.error(f"생애주기 예측 실패 (sync는 정상 완료): {e}")
+
+    # 아바타 생성 — sync 완료 후 페르소나 이미지 자동 생성
+    try:
+        from app.services.avatar_service import _generate_and_save_avatar
+        sd_fmt = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]}"
+        ed_fmt = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}"
+        await _generate_and_save_avatar(user_id, sd_fmt, ed_fmt)
+        log.info(f"아바타 생성 완료: user={user_id}")
+    except Exception as e:
+        log.error(f"아바타 생성 실패 (sync는 정상 완료): {e}")
 
     return {
         "user_id": user_id,
