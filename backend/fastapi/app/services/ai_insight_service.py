@@ -55,6 +55,21 @@ CHILD_STAGES = {'TEEN', 'CHILD_BABY', 'CHILD_TEEN', 'CHILD_UNI'}
 CHILD_KEYWORDS = '키즈|아이|어린이|주니어|청소년|영유아|태아|baby|kids|junior'
 
 # 카드 추천 이유 템플릿 — {cat}: 카테고리, {amt}: 지출액, {title}: 혜택 제목
+_CARD_T_RELATED = [
+    "{cat}와 연관있는 {matched_cate} 혜택 카드는 어때요? '{title}' 혜택도 있어요!",
+    "{cat} 지출이 있으셨네요. 연관 있는 {matched_cate} 혜택, 이 카드로 챙겨봐요!",
+    "{cat}에 {amt}원 쓰셨네요. {matched_cate} 관련 혜택 카드, '{title}' 혜택도 있답니다!",
+    "{cat}와 관련 있는 {matched_cate} 혜택 카드예요. '{title}' 받을 수 있어요!",
+    "{cat} 소비가 {amt}원이셨군요. 연관 있는 {matched_cate} 혜택으로 조금씩 돌려받아봐요!",
+]
+
+_CARD_T_RELATED_NO_TITLE = [
+    "{cat}와 연관있는 {matched_cate} 혜택 카드는 어때요?",
+    "{cat} 지출이 있으셨네요. 연관 있는 {matched_cate} 혜택 카드를 추천해요!",
+    "{cat}에 {amt}원 쓰셨네요. {matched_cate} 관련 혜택 카드 어떠세요?",
+    "{cat}와 관련 있는 {matched_cate} 혜택 카드예요. 한번 살펴봐요!",
+]
+
 _CARD_T = {
     "amt_title": [
         "{cat}에 {amt}원 썼네요. 어차피 쓸 거라면 이 카드로 '{title}' 혜택 챙겨봐요!",
@@ -258,11 +273,32 @@ def _query_card(cate_names: list[str], top_category: str, top_amount: int = 0) -
             if lines:
                 benefit_groups.append(BenefitGroup(cateName=str(cate), lines=lines))
 
-    top_title = benefits_df.iloc[0]['title'] if not benefits_df.empty and pd.notna(benefits_df.iloc[0]['title']) else None
+    # 매칭 카테고리 혜택 title 우선 사용, 없으면 첫 번째 혜택
+    matching_title = None
+    matched_cate = None
+    for _, row in benefits_df.iterrows():
+        if row['cate_name'] in cate_names and pd.notna(row['title']):
+            matching_title = row['title']
+            matched_cate = row['cate_name']
+            break
+    top_title = matching_title or (
+        benefits_df.iloc[0]['title'] if not benefits_df.empty and pd.notna(benefits_df.iloc[0]['title']) else None
+    )
     annual_fee_basic = r['annual_fee_basic'] if pd.notna(r['annual_fee_basic']) else None
     annual_fee_detail = _strip_html(r['annual_fee_detail'] if pd.notna(r['annual_fee_detail']) else None)
 
-    if top_amount > 0 and top_title:
+    # 상위 카테고리(사용자 지출)와 하위 카테고리(카드 혜택)가 다를 때 연결 문구 사용
+    if matched_cate and matched_cate != top_category:
+        if top_title:
+            reason = random.choice(_CARD_T_RELATED).format(
+                cat=top_category, matched_cate=matched_cate,
+                amt=f"{top_amount:,}", title=top_title,
+            )
+        else:
+            reason = random.choice(_CARD_T_RELATED_NO_TITLE).format(
+                cat=top_category, matched_cate=matched_cate, amt=f"{top_amount:,}",
+            )
+    elif top_amount > 0 and top_title:
         reason = random.choice(_CARD_T["amt_title"]).format(cat=top_category, amt=f"{top_amount:,}", title=top_title)
     elif top_title:
         reason = random.choice(_CARD_T["title_only"]).format(cat=top_category, title=top_title)
@@ -367,13 +403,27 @@ async def get_ai_insight(user_id: int, category_price: dict) -> AiInsightRespons
         life_stage_code = None
 
     top_category = '기타'
-    cate_names = ['모든가맹점']
-    if category_price:
-        top_category = max(category_price, key=category_price.get)
-        cate_names = CATEGORY_TO_CATE.get(top_category, ['모든가맹점'])
+    top_amount = 0
+    card_item = None
 
-    top_amount = int(category_price.get(top_category, 0)) if category_price else 0
-    card_item = _query_card(cate_names, top_category, top_amount)
+    if category_price:
+        # 지출 상위 순서대로 매칭 카드가 있을 때까지 시도
+        sorted_cats = sorted(category_price.items(), key=lambda x: x[1], reverse=True)
+        for cat_name, cat_amount in sorted_cats:
+            cate_names = CATEGORY_TO_CATE.get(cat_name, [])
+            if not cate_names or cate_names == ['모든가맹점']:
+                continue
+            candidate = _query_card(cate_names, cat_name, int(cat_amount))
+            if candidate:
+                card_item = candidate
+                top_category = cat_name
+                top_amount = int(cat_amount)
+                break
+        # 모든 카테고리에서 매칭 실패 시 전체 폴백
+        if not card_item:
+            top_category = sorted_cats[0][0] if sorted_cats else '기타'
+            top_amount = int(sorted_cats[0][1]) if sorted_cats else 0
+            card_item = _query_card(['모든가맹점'], top_category, top_amount)
 
     save_trm = LIFE_STAGE_SAVE_TRM.get(life_stage_code, 12)
     savings_item = _query_savings(save_trm, life_stage_code)
