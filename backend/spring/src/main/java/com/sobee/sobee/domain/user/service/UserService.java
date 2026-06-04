@@ -41,7 +41,7 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("유저를 찾을 수 없습니다."));
         Avatar avatar = avatarRepository.findTopByUserIdOrderByAvatarCreatedAtDesc(userId)
                 .orElse(null);
-        if (avatar == null) return new UserPersonaDto(null, null, null);
-        return new UserPersonaDto(avatar.getAvatarName(), avatar.getAvatarExplain(), avatar.getAvatarImgUrl());
+        if (avatar == null) return new UserPersonaDto(null, null, null, null);
+        return new UserPersonaDto(avatar.getAvatarName(), avatar.getAvatarExplain(), avatar.getAvatarImgUrl(), avatar.getAvatarChangeReason());
     }
 }
