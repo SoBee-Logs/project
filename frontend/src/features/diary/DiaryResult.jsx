@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import StatusBar from '../../common/components/StatusBar'
 import { ROOMS, SKY_BLUE } from '../../common/utils/rooms'
@@ -8,7 +8,6 @@ export default function DiaryResult() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // diaries 기준으로 selectedRooms 재구성 — 스킵된 방 제외
   const diariesFromState = location.state?.diaries ?? []
   const selectedRooms = diariesFromState.map((d) => d.roomId)
 
@@ -18,6 +17,7 @@ export default function DiaryResult() {
   const [includedRoomIds, setIncludedRoomIds] = useState([])
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [isRegenerating, setIsRegenerating] = useState(false)
+  const [mappingResults, setMappingResults] = useState({})
 
   const { ref: navRef, dragging: navDragging, onMouseDown, onMouseMove, onMouseUp, onMouseLeave } = useDragScroll()
 
@@ -25,6 +25,26 @@ export default function DiaryResult() {
   const bodyText = diary
     ? [diary.subtitle, ...(diary.diaryLines ?? [])].filter(Boolean).join('\n\n')
     : ''
+
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!diary?.photoIds?.length) return
+
+    diary.photoIds.forEach(async (photoId) => {
+      if (mappingResults[photoId] !== undefined) return
+      try {
+        const res = await fetch(`/api/photos/${photoId}/mapping`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        console.log(`[매핑결과] photoId=${photoId}`, data)
+        setMappingResults(prev => ({ ...prev, [photoId]: data }))
+      } catch (e) {
+        console.error(`[매핑결과 오류] photoId=${photoId}`, e)
+      }
+    })
+  }, [diary])
 
   const handleRegenerate = async () => {
     if (isRegenerating) return
@@ -61,12 +81,10 @@ export default function DiaryResult() {
 
   const finishRoom = (include) => {
     const roomId = selectedRooms[roomIndex]
-    
-    // 이미 선택된 상태면 제거, 아니면 추가
     const nextIncluded = include
       ? [...includedRoomIds.filter(id => id !== roomId), roomId]
-      : includedRoomIds.filter(id => id !== roomId)  // ← 제외하기 시 해당 방 제거
-  
+      : includedRoomIds.filter(id => id !== roomId)
+
     if (roomIndex < selectedRooms.length - 1) {
       setIncludedRoomIds(nextIncluded)
       setRoomIndex((i) => i + 1)
@@ -94,8 +112,8 @@ export default function DiaryResult() {
     for (const d of toUpload) {
       try {
         const diaryContent = JSON.stringify({
-          title:    d.title,
-          lines:    d.diaryLines,
+          title: d.title,
+          lines: d.diaryLines,
         })
         await fetch('/api/diary/save', {
           method: 'POST',
@@ -104,9 +122,9 @@ export default function DiaryResult() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            groupId:      d.roomId,
+            groupId: d.roomId,
             diaryContent: diaryContent,
-            photoIds:     d.photoIds ?? [],
+            photoIds: d.photoIds ?? [],
           }),
         })
       } catch {
@@ -117,7 +135,6 @@ export default function DiaryResult() {
     navigate('/feed', { state: { newDiaries: toUpload } })
   }
 
-  // early return — diaries 빈 배열이면 실패 화면
   if (diaries.length === 0) {
     return (
       <main className="flex flex-col items-center justify-center min-h-full bg-[#FAFAFA] gap-6 px-6">
@@ -163,13 +180,13 @@ export default function DiaryResult() {
       </header>
 
       <nav
-          ref={navRef}
-          className={`flex overflow-x-auto scrollbar-hide gap-4 px-4 py-4 border-b border-gray-200 bg-white shrink-0 ${navDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseLeave}
-        >
+        ref={navRef}
+        className={`flex overflow-x-auto scrollbar-hide gap-4 px-4 py-4 border-b border-gray-200 bg-white shrink-0 ${navDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseLeave}
+      >
         {selectedRooms.map((roomId, i) => {
           const active = i === roomIndex
           const label = diaries[i]?.roomLabel ?? ROOMS.find((r) => r.id === roomId)?.label ?? `방${i + 1}`
@@ -230,18 +247,17 @@ export default function DiaryResult() {
             <>
               <img src={slides[imageSlide]} alt="" className="w-full aspect-[4/3] object-cover" />
 
-          {/* 현재 슬라이드 사진 결제 매핑 여부 배지 — 매핑됨/미매핑 구분 표시 */}
-          {diary.photoIds?.[imageSlide] != null && (
-            diary.matchedPhotoIds?.includes(diary.photoIds[imageSlide]) ? (
-              <span className="absolute top-2 left-2 flex items-center gap-1 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
-                💳 매핑됨
-              </span>
-            ) : (
-              <span className="absolute top-2 left-2 flex items-center gap-1 bg-gray-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
-                🔍 미매핑
-              </span>
-            )
-          )}
+              {diary.photoIds?.[imageSlide] != null && (
+                diary.matchedPhotoIds?.includes(diary.photoIds[imageSlide]) ? (
+                  <span className="absolute top-2 left-2 flex items-center gap-1 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
+                    💳 매핑됨
+                  </span>
+                ) : (
+                  <span className="absolute top-2 left-2 flex items-center gap-1 bg-gray-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
+                    🔍 미매핑
+                  </span>
+                )
+              )}
 
               <button
                 type="button"
