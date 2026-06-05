@@ -111,4 +111,13 @@ public class PhotoController {
         PhotoVlmResultResponse response = photoService.saveVlmResult(photoId, userId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
+    @GetMapping("/{photoId}/mapping")
+public ResponseEntity<List<Map<String, Object>>> getMappingResult(
+        @RequestHeader("Authorization") String authHeader,
+        @PathVariable Long photoId
+) {
+    Long userId = extractUserId(authHeader);
+    return ResponseEntity.ok(photoService.getMappingResult(photoId, userId));
+}
 }

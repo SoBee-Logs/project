@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface TransactionRepository extends JpaRepository<Transaction, TransactionId> {
 
@@ -30,4 +31,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Transa
             @Param("startDate") String startDate,
             @Param("endDate") String endDate
     );
+
+    // 추가
+    @Query("SELECT t FROM Transaction t WHERE t.id.paymentId = :paymentId")
+    Optional<Transaction> findByPaymentId(@Param("paymentId") Long paymentId);
 }
