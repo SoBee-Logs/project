@@ -240,49 +240,52 @@ public class PhotoService {
 
     public void performMatchingForPhoto(Long photoId, Long userId) {
         PhotoVlmResult vlm = photoVlmResultRepository
-                .findFirstByPhotoIdOrderByVlmIdDesc(photoId)
-                .orElse(null);
+                .findFirstByPhotoIdOrderByVlmIdDesc(photoId).orElse(null);
         if (vlm == null) return;
-
+    
         PhotoMetadata metadata = photoMetadataRepository
                 .findByPhotoPhotoId(photoId).orElse(null);
         if (metadata == null) return;
-
+    
         LocalDateTime takenDateTime = metadata.getTakenAt() != null
-                ? metadata.getTakenAt()
-                : metadata.getCreatedAt();
+                ? metadata.getTakenAt() : metadata.getCreatedAt();
         if (takenDateTime == null) return;
-
+    
         String takenDateStr = takenDateTime.toLocalDate().format(DATE_FORMATTER);
-
+        String takenAtStr = takenDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    
         List<Transaction> candidates = transactionRepository
                 .findOutgoingByUserIdAndDate(userId, takenDateStr);
         if (candidates.isEmpty()) return;
-
+    
         Set<String> mappedIds = Set.copyOf(
                 personaTransactionRepository.findPaymentIdsByUserId(userId));
         List<Transaction> available = candidates.stream()
                 .filter(t -> !mappedIds.contains(String.valueOf(t.getId().getPaymentId())))
                 .collect(Collectors.toList());
         if (available.isEmpty()) return;
-
+    
+        // groups 파싱 — 없으면 vlm 정보로 group 1개 생성
+        List<LlmMatchingClient.VlmGroupItem> groups = parseVlmGroups(vlm.getVlmGroups());
+        if (groups.isEmpty()) {
+            groups = List.of(LlmMatchingClient.VlmGroupItem.builder()
+                    .group_id(1)
+                    .store(vlm.getVlmStoreName())
+                    .category(vlm.getVlmCategory())
+                    .items(List.of(vlm.getVlmItemName() != null ? vlm.getVlmItemName() : ""))
+                    .price(vlm.getVlmPriceEstimate() != null
+                            ? vlm.getVlmPriceEstimate().doubleValue() : null)
+                    .build());
+        }
+    
+        String location = vlm.getVlmAddress() != null ? vlm.getVlmAddress() : "";
+    
         LlmMatchingClient.MatchRequest req = LlmMatchingClient.MatchRequest.builder()
                 .photo_id(photoId)
                 .user_id(userId)
-                .vlm_data(LlmMatchingClient.VlmData.builder()
-                        .category(vlm.getVlmCategory())
-                        .item_name(vlm.getVlmItemName())
-                        .price_estimate(vlm.getVlmPriceEstimate() != null
-                                ? vlm.getVlmPriceEstimate().doubleValue() : null)
-                        .store_type(vlm.getVlmStoreType())
-                        .store_name(vlm.getVlmStoreName())
-                        .description(vlm.getVlmDescription())
-                        .taken_at(takenDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
-                        .latitude(metadata.getLatitude() != null
-                                ? metadata.getLatitude().doubleValue() : null)
-                        .longitude(metadata.getLongitude() != null
-                                ? metadata.getLongitude().doubleValue() : null)
-                        .build())
+                .taken_at(takenAtStr)
+                .location(location)
+                .groups(groups)
                 .candidates(available.stream()
                         .map(t -> LlmMatchingClient.TransactionCandidate.builder()
                                 .payment_id(t.getId().getPaymentId())
@@ -294,17 +297,61 @@ public class PhotoService {
                                 .build())
                         .collect(Collectors.toList()))
                 .build();
-
-        Long matchedPaymentId = llmMatchingClient.match(req);
-        if (matchedPaymentId == null) return;
-
-        PersonaTransaction mapping = PersonaTransaction.builder()
-                .vlmId(vlm.getVlmId())
-                .photoId(photoId)
-                .paymentId(matchedPaymentId)
-                .userId(userId)
-                .build();
-        personaTransactionRepository.save(mapping);
+    
+        List<LlmMatchingClient.MatchResponse> results = llmMatchingClient.match(req);
+    
+        for (LlmMatchingClient.MatchResponse result : results) {
+            if (result.getPayment_id() == null) continue;
+    
+            LlmMatchingClient.VlmGroupItem matchedGroup = groups.stream()
+                    .filter(g -> g.getGroup_id() != null
+                            && g.getGroup_id().equals(result.getGroup_id()))
+                    .findFirst().orElse(null);
+    
+            PersonaTransaction mapping = PersonaTransaction.builder()
+                    .vlmId(vlm.getVlmId())
+                    .photoId(photoId)
+                    .groupId(result.getGroup_id())
+                    .groupStore(matchedGroup != null ? matchedGroup.getStore() : null)
+                    .groupCategory(matchedGroup != null ? matchedGroup.getCategory() : null)
+                    .groupPrice(matchedGroup != null && matchedGroup.getPrice() != null
+                            ? BigDecimal.valueOf(matchedGroup.getPrice()) : null)
+                    .paymentId(result.getPayment_id())
+                    .userId(userId)
+                    .build();
+            personaTransactionRepository.save(mapping);
+        }
+    }
+    
+    private List<LlmMatchingClient.VlmGroupItem> parseVlmGroups(String vlmGroupsJson) {
+        if (vlmGroupsJson == null || vlmGroupsJson.isBlank()) return List.of();
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper =
+                    new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode arr = mapper.readTree(vlmGroupsJson);
+            if (!arr.isArray()) return List.of();
+    
+            List<LlmMatchingClient.VlmGroupItem> result = new java.util.ArrayList<>();
+            for (com.fasterxml.jackson.databind.JsonNode node : arr) {
+                List<String> items = new java.util.ArrayList<>();
+                if (node.has("items") && node.get("items").isArray()) {
+                    for (com.fasterxml.jackson.databind.JsonNode item : node.get("items")) {
+                        items.add(item.asText());
+                    }
+                }
+                result.add(LlmMatchingClient.VlmGroupItem.builder()
+                        .group_id(node.has("group_id") ? node.get("group_id").asInt() : null)
+                        .store(node.has("store") && !node.get("store").isNull()
+                                ? node.get("store").asText() : null)
+                        .category(node.has("category") ? node.get("category").asText() : null)
+                        .items(items)
+                        .price(node.has("price") ? node.get("price").asDouble() : null)
+                        .build());
+            }
+            return result;
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     private LocalDateTime parseExifDateTime(String raw) {
@@ -321,4 +368,5 @@ public class PhotoService {
         }
         return ldt;
     }
+
 }

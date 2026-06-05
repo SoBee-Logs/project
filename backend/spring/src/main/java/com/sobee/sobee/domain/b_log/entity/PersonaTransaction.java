@@ -2,8 +2,8 @@ package com.sobee.sobee.domain.b_log.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.math.BigDecimal;
 
-// persona_transaction 테이블 매핑 — VLM 분석 결과와 실제 결제 내역을 매핑
 @Entity
 @Table(name = "persona_transaction")
 @Getter
@@ -14,22 +14,29 @@ public class PersonaTransaction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "vlm_transaction_id")
-    private Long vlmTransactionId;
-
-    // VLM 분석 결과 ID (photo_vlm_results.vlm_id)
-    @Column(name = "vlm_id", nullable = false)
+    @Column(name = "vlm_transaction_id")  // ← 여기
+    private Long id;
+    @Column(name = "vlm_id")
     private Long vlmId;
 
-    // 사진 ID (photos.photo_id)
-    @Column(name = "photo_id", nullable = false)
+    @Column(name = "photo_id")
     private Long photoId;
 
-    // 매핑된 결제 내역 ID (transactions.payment_id)
-    @Column(name = "payment_id", nullable = false, length = 255)
+    @Column(name = "group_id")
+    private Integer groupId;
+
+    @Column(name = "group_store", length = 200)
+    private String groupStore;
+
+    @Column(name = "group_category", length = 100)
+    private String groupCategory;
+
+    @Column(name = "group_price", precision = 18, scale = 2)
+    private BigDecimal groupPrice;
+
+    @Column(name = "payment_id")
     private Long paymentId;
 
-    // 사용자 ID
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id")
     private Long userId;
 }
