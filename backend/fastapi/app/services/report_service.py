@@ -202,16 +202,28 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         print(f"[PERSONA VLM SCENE ERROR] {e}")
 
     # avatar_change_reason — avatar 테이블 최신 레코드에서 조회
+    # weekly_avatar — 해당 월 각 주차에 생성된 아바타 이미지
     avatar_change_reason = None
+    weekly_avatar = {}
     try:
         cr_df = pd.read_sql(text("""
-            SELECT avatar_change_reason FROM avatar
+            SELECT avatar_name, avatar_img_url, avatar_change_reason, avatar_created_at
+            FROM avatar
             WHERE user_id = :user_id
-            ORDER BY avatar_created_at DESC
-            LIMIT 1
-        """), engine, params={"user_id": user_id})
+              AND YEAR(avatar_created_at) = :year
+              AND MONTH(avatar_created_at) = :month
+            ORDER BY avatar_created_at ASC
+        """), engine, params={"user_id": user_id, "year": year, "month": month})
         if not cr_df.empty:
-            avatar_change_reason = cr_df.iloc[0]['avatar_change_reason']
+            avatar_change_reason = cr_df.iloc[-1]['avatar_change_reason']
+            for _, row in cr_df.iterrows():
+                created_at = row['avatar_created_at']
+                if pd.notna(created_at):
+                    week_label = classify_week(created_at)
+                    weekly_avatar[week_label] = {
+                        "avatar_img_url": row['avatar_img_url'],
+                        "avatar_name":    row['avatar_name'],
+                    }
     except Exception:
         pass
 
@@ -331,4 +343,5 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         "vlm_items":             vlm_items,
         "vlm_summary":           vlm_summary,
         "avatar_change_reason":  avatar_change_reason,
+        "weekly_avatar":         weekly_avatar,
     }
