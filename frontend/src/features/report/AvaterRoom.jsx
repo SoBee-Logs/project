@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getUserId } from '../../common/hooks/useAuth'
 
@@ -58,6 +58,26 @@ function getWeekDateRange(year, month, weekLabel) {
   return `${fmt(startDate)}~${fmt(endDate)}`
 }
 
+function EmptyMonthModal({ year, month, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xs flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-bold text-gray-800">{year}년 {month}월</p>
+          <p className="text-sm text-gray-500">마이데이터 연동 이전 기간으로,</p>
+          <p className="text-sm text-gray-500">불러온 결제 데이터가 없어요.</p>
+        </div>
+        <button
+          onClick={onClose}
+          className="py-3 rounded-xl bg-[#1e73be] text-white font-bold text-sm active:opacity-80"
+        >
+          확인
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function AvaterRoom() {
   const navigate = useNavigate()
   const USER_ID = getUserId() ?? 1
@@ -72,6 +92,11 @@ export default function AvaterRoom() {
   const [persona, setPersona] = useState(null)
   const [txData, setTxData] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [isEmptyMonth, setIsEmptyMonth] = useState(false)
+
+  const prevYearRef = useRef(selectedYear)
+  const prevMonthRef = useRef(selectedMonth)
+  const navDirectionRef = useRef('none')
 
   const isCurrentMonth =
     selectedYear === today.getFullYear() &&
@@ -79,7 +104,9 @@ export default function AvaterRoom() {
 
   const goPrev = (e) => {
     e.stopPropagation()
-
+    prevYearRef.current = selectedYear
+    prevMonthRef.current = selectedMonth
+    navDirectionRef.current = 'prev'
     setSelectedYear((prev) => (selectedMonth === 1 ? prev - 1 : prev))
     setSelectedMonth((prev) => (prev === 1 ? 12 : prev - 1))
     setIsExpanded(true)
@@ -90,6 +117,7 @@ export default function AvaterRoom() {
 
     if (isCurrentMonth) return
 
+    navDirectionRef.current = 'next'
     setSelectedYear((prev) => (selectedMonth === 12 ? prev + 1 : prev))
     setSelectedMonth((prev) => (prev === 12 ? 1 : prev + 1))
     setIsExpanded(true)
@@ -114,22 +142,35 @@ export default function AvaterRoom() {
 
         if (txRes.status === 'fulfilled') {
           const tx = txRes.value
-          setTxData(tx)
+          const isEmpty = !isCurrentMonth &&
+            (tx.payment_total_num ?? 0) === 0 &&
+            (tx.payment_out ?? 0) === 0 &&
+            Object.keys(tx.category_transactions ?? {}).length === 0
 
-          const fw = getFirstWeekday(selectedYear, selectedMonth)
-          const ws = new Set()
+          if (isEmpty) {
+            setIsEmptyMonth(true)
+          } else {
+            setTxData(tx)
 
-          Object.values(tx.category_transactions ?? {}).forEach((records) => {
-            records.forEach((r) => {
-              ws.add(getWeekLabel(r.payment_date, fw))
+            const fw = getFirstWeekday(selectedYear, selectedMonth)
+            const ws = new Set()
+
+            Object.values(tx.category_transactions ?? {}).forEach((records) => {
+              records.forEach((r) => {
+                ws.add(getWeekLabel(r.payment_date, fw))
+              })
             })
-          })
 
-          const sorted = Array.from(ws).sort(
-            (a, b) => parseInt(a) - parseInt(b)
-          )
+            const sorted = Array.from(ws).sort(
+              (a, b) => parseInt(a) - parseInt(b)
+            )
 
-          setSelectedWeek(sorted[0] ?? '1주')
+            const defaultWeek = navDirectionRef.current === 'prev'
+              ? (sorted[sorted.length - 1] ?? '1주')
+              : (sorted[0] ?? '1주')
+            navDirectionRef.current = 'none'
+            setSelectedWeek(defaultWeek)
+          }
         }
       })
       .finally(() => {
@@ -152,11 +193,13 @@ export default function AvaterRoom() {
     return Array.from(ws).sort((a, b) => parseInt(a) - parseInt(b))
   })()
 
-  const avatarName = persona?.avatarName ?? '내 페르소나'
-  const avatarImgUrl = persona?.avatarImgUrl ?? null
-  const avatarExplain = persona?.avatarExplain ?? ''
+  const weekAvatar = txData?.weekly_avatar?.[selectedWeek] ?? null
+  const avatarImgUrl = weekAvatar?.avatar_img_url ?? null
+  const avatarName = weekAvatar?.avatar_name ?? (persona?.avatarName ?? '내 페르소나')
+  const avatarExplain = weekAvatar?.avatar_explain ?? persona?.avatarExplain ?? ''
+  const hasWeekAvatar = !!avatarImgUrl
 
-  const changeReason = safeJsonParse(txData?.avatar_change_reason, {})
+  const changeReason = safeJsonParse(weekAvatar?.avatar_change_reason ?? txData?.avatar_change_reason, {})
 
   const descText =
     avatarExplain ||
@@ -309,14 +352,27 @@ export default function AvaterRoom() {
 
   return (
     <div className="relative w-full h-full flex flex-col overflow-hidden bg-white">
-      <div className="relative flex-1 overflow-hidden bg-white">
+      {isEmptyMonth && (
+        <EmptyMonthModal
+          year={selectedYear}
+          month={selectedMonth}
+          onClose={() => {
+            setIsEmptyMonth(false)
+            setSelectedYear(prevYearRef.current)
+            setSelectedMonth(prevMonthRef.current)
+          }}
+        />
+      )}
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden bg-white">
         {/* 아바타 이미지 영역 */}
         <section
-          onClick={() => setIsExpanded((prev) => !prev)}
-          className="relative z-30 w-full cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          onClick={() => hasWeekAvatar && setIsExpanded((prev) => !prev)}
+          className={`relative z-30 w-full transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0 ${hasWeekAvatar ? 'cursor-pointer' : 'cursor-default'}`}
           style={{
             height: isExpanded ? '100%' : '235px',
             padding: isExpanded ? '0px' : '12px 16px 0',
+            position: isExpanded ? 'absolute' : 'relative',
+            inset: isExpanded ? '0' : undefined,
           }}
         >
           <div
@@ -338,8 +394,10 @@ export default function AvaterRoom() {
                 }}
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-b from-[#1e73be] to-[#0e3f78] flex items-center justify-center text-[64px]">
-                🐝
+              <div className="w-full h-full bg-gray-100 flex flex-col items-center justify-center gap-2">
+                <span className="text-5xl">🐝</span>
+                <p className="text-sm font-medium text-gray-400">아직 아바타가 생성되지 않았습니다</p>
+                <p className="text-xs text-gray-300">소비 사진을 찍으면 분석을 시작해요!</p>
               </div>
             )}
 
@@ -433,19 +491,23 @@ export default function AvaterRoom() {
               </div>
             )}
 
-            {/* 터치 유도 */}
+            {/* 터치 유도 / 아바타 없음 안내 */}
             <div
               className="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-500 z-20"
               style={{
                 opacity: isExpanded ? 1 : 0,
               }}
             >
-              <div className="mt-28 px-4 py-2 rounded-full bg-black/35 text-white backdrop-blur-sm flex items-center gap-2 animate-pulse">
-                <span className="text-[15px]">👆</span>
-                <span className="text-sm font-semibold">
-                  화면을 터치해보세요
-                </span>
-              </div>
+              {hasWeekAvatar ? (
+                <div className="mt-28 px-4 py-2 rounded-full bg-black/35 text-white backdrop-blur-sm flex items-center gap-2 animate-pulse">
+                  <span className="text-[15px]">👆</span>
+                  <span className="text-sm font-semibold">화면을 터치해보세요</span>
+                </div>
+              ) : (
+                <div className="mt-28 px-4 py-2 rounded-full bg-black/20 text-white backdrop-blur-sm flex items-center gap-2">
+                  <span className="text-sm font-semibold">이 주에 생성된 페르소나가 없어요</span>
+                </div>
+              )}
             </div>
 
             {/* 확장 상태 하단 타이틀 + 소비 리포트 버튼 */}
@@ -474,48 +536,43 @@ export default function AvaterRoom() {
           </div>
         </section>
 
-        {/* 축소 상태 분석 영역 */}
+        {/* 축소 상태 분석 영역 — flex-1로 남은 공간 자동 채움 */}
         <section
-          className="absolute left-0 right-0 bottom-0 px-5 pb-3 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-hidden"
+          className="flex-1 min-h-0 px-5 overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{
-            top: '235px',
-            opacity: isExpanded ? 0 : 1,
-            transform: isExpanded ? 'translateY(36px)' : 'translateY(0)',
-            pointerEvents: isExpanded ? 'none' : 'auto',
+            opacity: (isExpanded || !hasWeekAvatar) ? 0 : 1,
+            transform: (isExpanded || !hasWeekAvatar) ? 'translateY(36px)' : 'translateY(0)',
+            pointerEvents: (isExpanded || !hasWeekAvatar) ? 'none' : 'auto',
           }}
         >
-          <div className="h-full flex flex-col justify-start pt-4">
-            <div className="text-center mb-3">
+          <div className="h-full flex flex-col pt-1 pb-2">
+            <div className="text-center mb-1">
               <h2 className="text-[18px] font-extrabold text-gray-900 leading-tight break-keep line-clamp-1">
                 {avatarName}
               </h2>
 
-              <p className="text-[#1e73be] font-extrabold text-[11px] mt-1 uppercase tracking-[0.18em]">
-                {selectedWeek}차 Avatar Analysis
-              </p>
-
               {descText && (
-                <p className="text-gray-500 text-[11px] mt-0 leading-relaxed break-keep line-clamp-2">
+                <p className="text-gray-500 text-[11px] mt-0.5 leading-snug break-keep line-clamp-2">
                   {descText}
                 </p>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-1.5 flex-1">
               {detailsData.map((item, idx) => (
                 <article
                   key={`${item.title}-${idx}`}
-                  className="min-h-[100px] flex flex-col px-3 pt-2 pb-3 rounded-[18px] bg-gray-50 border border-gray-100 shadow-sm active:scale-[0.98] transition-transform"
+                  className="flex flex-col px-2.5 pt-1.5 pb-1.5 rounded-[18px] bg-gray-50 border border-gray-100 shadow-sm active:scale-[0.98] transition-transform"
                 >
-                  <div className="w-9 h-9 shrink-0 bg-white rounded-full flex items-center justify-center text-lg shadow-sm border border-gray-100/50 mb-2.5">
+                  <div className="w-8 h-8 shrink-0 bg-white rounded-full flex items-center justify-center text-base shadow-sm border border-gray-100/50 mb-1.5">
                     {item.emoji}
                   </div>
 
-                  <h3 className="font-extrabold text-gray-900 text-[12.5px] mb-1 leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                  <h3 className="font-extrabold text-gray-900 text-[12.5px] mb-1 leading-tight break-keep">
                     {item.title}
                   </h3>
 
-                  <p className="text-gray-500 text-[10.5px] leading-snug break-keep line-clamp-3">
+                  <p className="text-gray-500 text-[10.5px] leading-snug break-keep overflow-hidden">
                     {item.desc}
                   </p>
                 </article>
