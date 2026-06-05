@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { getUserId } from "../../common/hooks/useAuth";
 
 const WOORI_NAVY = "#042C53";
 const WOORI_GREEN = "#1D9E75";
@@ -8,10 +9,11 @@ const WOORI_BLUE = "#1A6FBF";
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 const FASTAPI_BASE = import.meta.env.VITE_FASTAPI_BASE_URL || "http://localhost:8000";
 
-const getUserId = () => Number(localStorage.getItem("user_id")) || 1;
-
-// 컴포넌트 언마운트 후에도 메모리에 유지 (탭 이동 시 재검색 방지)
 let _searchStateCache = null;
+
+export function clearSearchCache() {
+  _searchStateCache = null
+}
 
 const api = {
     search: (searchInput, signal) =>
@@ -543,6 +545,10 @@ function DetailPage({ item, onBack }) {
 export default function ProductSearch() {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
+
+    useEffect(() => {
+        if (!getUserId()) navigate('/login')
+    }, [])
     const [query, setQuery] = useState(searchParams.get("q") || "");
     const [isSearched, setIsSearched] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -559,8 +565,9 @@ export default function ProductSearch() {
 
     const [suggestedQuestions, setSuggestedQuestions] = useState([]);
     const [questionsLoading, setQuestionsLoading] = useState(true);
+    const recentQuestionsKey = `recentQuestions_${getUserId()}`
     const [recentQuestions, setRecentQuestions] = useState(
-        () => JSON.parse(localStorage.getItem("recentQuestions") || "[]")
+        () => JSON.parse(localStorage.getItem(recentQuestionsKey) || "[]")
     );
     const [aiText, setAiText] = useState("");
     const [products, setProducts] = useState([]);
@@ -624,7 +631,7 @@ export default function ProductSearch() {
         // 최근 질문 localStorage 저장 (중복 제거 + 최대 5개)
         const updated = [searchQuery, ...recentQuestions.filter((r) => r !== searchQuery)].slice(0, 5);
         setRecentQuestions(updated);
-        localStorage.setItem("recentQuestions", JSON.stringify(updated));
+        localStorage.setItem(recentQuestionsKey, JSON.stringify(updated));
 
         try {
             const data = await api.search(searchQuery, controller.signal);
@@ -874,7 +881,7 @@ export default function ProductSearch() {
                                     <button
                                         onClick={() => {
                                             setRecentQuestions([]);
-                                            localStorage.removeItem("recentQuestions");
+                                            localStorage.removeItem(recentQuestionsKey);
                                         }}
                                         style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#8494A8", padding: 0 }}
                                     >
@@ -894,7 +901,7 @@ export default function ProductSearch() {
                                             onClick={() => {
                                                 const updated = recentQuestions.filter((_, idx) => idx !== i);
                                                 setRecentQuestions(updated);
-                                                localStorage.setItem("recentQuestions", JSON.stringify(updated));
+                                                localStorage.setItem(recentQuestionsKey, JSON.stringify(updated));
                                             }}
                                             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#B0BEC5", padding: "4px", flexShrink: 0 }}
                                         >

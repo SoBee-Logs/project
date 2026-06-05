@@ -45,12 +45,16 @@ public class UserService {
     }
 
     public UserPersonaDto getPersona(Long userId) {
-        userRepository.findById(userId)
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("유저를 찾을 수 없습니다."));
+        // 가입일을 ISO 문자열로 변환 (프론트 minDate 설정용)
+        String createdAt = user.getCreatedAt() != null
+                ? user.getCreatedAt().toString()
+                : null;
         Avatar avatar = avatarRepository.findTopByUserIdOrderByAvatarCreatedAtDesc(userId)
                 .orElse(null);
-        if (avatar == null) return new UserPersonaDto(null, null, null, null);
-        return new UserPersonaDto(avatar.getAvatarName(), avatar.getAvatarExplain(), avatar.getAvatarImgUrl(), avatar.getAvatarChangeReason());
+        if (avatar == null) return new UserPersonaDto(null, null, null, null, createdAt);
+        return new UserPersonaDto(avatar.getAvatarName(), avatar.getAvatarExplain(), avatar.getAvatarImgUrl(), avatar.getAvatarChangeReason(), createdAt);
     }
 
     // 회원 탈퇴 — Soft Delete (is_active = false)

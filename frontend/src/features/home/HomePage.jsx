@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDragScroll } from '../../common/hooks/useDragScroll'
 import StatusBar from '../../common/components/StatusBar'
@@ -7,28 +7,6 @@ import { jwtDecode } from 'jwt-decode'
 import cameraHalo from '../../assets/camera_3d_halo.png'
 import receiptHalo from '../../assets/receipt_3d_halo.png'
 
-const BANKS = [
-  { code: "0002", name: "산업은행" }, { code: "0003", name: "기업은행" },
-  { code: "0004", name: "국민은행" }, { code: "0007", name: "수협은행" },
-  { code: "0011", name: "농협은행" }, { code: "0020", name: "우리은행" },
-  { code: "0023", name: "SC은행" },  { code: "0027", name: "씨티은행" },
-  { code: "0031", name: "대구은행" }, { code: "0032", name: "부산은행" },
-  { code: "0034", name: "광주은행" }, { code: "0035", name: "제주은행" },
-  { code: "0037", name: "전북은행" }, { code: "0039", name: "경남은행" },
-  { code: "0045", name: "새마을금고" }, { code: "0048", name: "신협은행" },
-  { code: "0071", name: "우체국" },  { code: "0081", name: "KEB하나은행" },
-  { code: "0088", name: "신한은행" }, { code: "0089", name: "K뱅크" },
-]
-
-const CARDS = [
-  { code: "0301", name: "KB카드" },    { code: "0302", name: "현대카드" },
-  { code: "0303", name: "삼성카드" },  { code: "0304", name: "NH카드" },
-  { code: "0305", name: "BC카드" },    { code: "0306", name: "신한카드" },
-  { code: "0307", name: "씨티카드" },  { code: "0309", name: "우리카드" },
-  { code: "0311", name: "롯데카드" },  { code: "0313", name: "하나카드" },
-  { code: "0315", name: "전북카드" },  { code: "0316", name: "광주카드" },
-  { code: "0320", name: "수협카드" },  { code: "0321", name: "제주카드" },
-]
 
 export default function Home() {
   const navigate = useNavigate()
@@ -46,17 +24,7 @@ export default function Home() {
 
   const { ref: feedRef, dragging: feedDragging, onMouseDown, onMouseMove, onMouseUp, onMouseLeave, onClickCapture } = useDragScroll()
 
-  const [showPopup, setShowPopup] = useState(() => {
-    return localStorage.getItem(`mydataConnected_${userId}`) !== "true"
-  })
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [loadingMsg, setLoadingMsg] = useState("마이데이터 연동 중")
-  const [selected, setSelected] = useState([])
-  const [availableBankCodes, setAvailableBankCodes] = useState([])
-  const [availableCardCodes, setAvailableCardCodes] = useState([])
-  const pollTimerRef = useRef(null)
-  const timeoutTimerRef = useRef(null)
   const [persona, setPersona] = useState(null)
   const [feedPreviews, setFeedPreviews] = useState([])
   const [currentTime, setCurrentTime] = useState('')
@@ -74,25 +42,6 @@ export default function Home() {
     return () => clearInterval(timer)
   }, [])
 
-  useEffect(() => {
-    if (showPopup) {
-      fetch('/api/accounts/available', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (data) {
-            setAvailableBankCodes(data.bank_codes || [])
-            setAvailableCardCodes(data.card_codes || [])
-          }
-        })
-        .catch(() => {})
-    }
-    return () => {
-      clearInterval(pollTimerRef.current)
-      clearTimeout(timeoutTimerRef.current)
-    }
-  }, [showPopup])
 
   const fetchPersona = () => {
     if (!userId) return
@@ -143,185 +92,10 @@ export default function Home() {
     fetchFeedPreviews()
   }, [])
 
-  const toggleSelect = (code) => {
-    setSelected((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
-    )
-  }
-
-  const handleConnect = async () => {
-    if (selected.length === 0) return alert("최소 1개 이상 선택해주세요!")
-
-    const selectedBankCodes = selected.filter(c => BANKS.some(b => b.code === c))
-    const selectedCardCodes = selected.filter(c => CARDS.some(cd => cd.code === c))
-
-    // ENV에 없는 기관 사전 검증
-    const missingNames = [
-      ...selectedBankCodes
-        .filter(c => availableBankCodes.length > 0 && !availableBankCodes.includes(c))
-        .map(c => BANKS.find(b => b.code === c)?.name),
-      ...selectedCardCodes
-        .filter(c => availableCardCodes.length > 0 && !availableCardCodes.includes(c))
-        .map(c => CARDS.find(cd => cd.code === c)?.name),
-    ].filter(Boolean)
-
-    if (missingNames.length > 0) {
-      alert(`다음 기관의 연동 정보가 없습니다:\n${missingNames.join(', ')}\n\n다른 기관을 선택해주세요.`)
-      return
-    }
-
-    setLoading(true)
-    setLoadingMsg("마이데이터 연동 중")
-
-    try {
-      const res = await fetch('/api/accounts/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ bankCodes: selectedBankCodes, cardCodes: selectedCardCodes }),
-      })
-      const data = await res.json()
-
-      if (data.missing && data.missing.length > 0) {
-        setLoading(false)
-        const names = data.missing.map(code =>
-          BANKS.find(b => b.code === code)?.name ||
-          CARDS.find(cd => cd.code === code)?.name || code
-        )
-        alert(`다음 기관의 연동 정보가 없습니다:\n${names.join(', ')}`)
-        return
-      }
-
-      // 3분 타임아웃
-      timeoutTimerRef.current = setTimeout(() => {
-        clearInterval(pollTimerRef.current)
-        localStorage.setItem(`mydataConnected_${userId}`, "true")
-        setLoading(false)
-        setShowPopup(false)
-        fetchPersona()
-        alert("거래내역 동기화가 아직 완료되지 않았습니다.\n잠시 후 리포트에서 확인해주세요.")
-      }, 3 * 60 * 1000)
-
-      // 1단계: 트랜잭션 적재 완료 폴링 (3초 간격)
-      setLoadingMsg("거래내역 불러오는 중...")
-      const startAvatarPhase = () => {
-        setLoadingMsg("페르소나를 생성중입니다...")
-        pollTimerRef.current = setInterval(async () => {
-          try {
-            const r = await fetch(`/api/users/${userId}/persona`, {
-              headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-            })
-            const d = await r.json()
-            if (d?.avatarImgUrl) {
-              clearInterval(pollTimerRef.current)
-              clearTimeout(timeoutTimerRef.current)
-              setPersona(d)
-              localStorage.setItem(`mydataConnected_${userId}`, "true")
-              setLoading(false)
-              setShowPopup(false)
-            }
-          } catch {}
-        }, 5000)
-      }
-
-      pollTimerRef.current = setInterval(async () => {
-        try {
-          const r = await fetch('/api/accounts/sync-status', {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-          })
-          const s = await r.json()
-          if (s.synced) {
-            clearInterval(pollTimerRef.current)
-            startAvatarPhase()
-          }
-        } catch {}
-      }, 3000)
-
-    } catch {
-      setLoading(false)
-      alert("연동 중 오류가 발생했습니다. 다시 시도해주세요.")
-    }
-  }
 
   return (
     <main className="min-h-full text-left pb-2" style={{ background: '#FFFFFF' }}>
 
-      {showPopup && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1000,
-        }}>
-          <div style={{
-            backgroundColor: "white", borderRadius: "20px", padding: "24px",
-            width: "90%", maxWidth: "340px", maxHeight: "85vh", overflowY: "auto",
-          }}>
-            {loading ? (
-              <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <p style={{ color: "#0073BC", fontWeight: "bold", fontSize: "16px", marginBottom: "8px" }}>{loadingMsg}</p>
-                <p style={{ color: "#888", fontSize: "13px", marginBottom: "24px" }}>잠시만 기다려주세요</p>
-                <div style={{
-                  margin: "0 auto", width: "36px", height: "36px",
-                  border: "4px solid #0073BC", borderTop: "4px solid transparent",
-                  borderRadius: "50%", animation: "spin 1s linear infinite",
-                }} />
-                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-              </div>
-            ) : (
-              <>
-                <h3 style={{ color: "#0073BC", fontWeight: "bold", fontSize: "17px", marginBottom: "4px" }}>마이데이터 연동</h3>
-                <p style={{ color: "#888", fontSize: "12px", marginBottom: "20px" }}>연동할 기관을 선택해주세요</p>
-                <p style={{ fontSize: "13px", fontWeight: "bold", color: "#333", marginBottom: "10px" }}>은행</p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", marginBottom: "16px" }}>
-                  {BANKS.map((bank) => {
-                    const isSelected = selected.includes(bank.code)
-                    const isAvailable = availableBankCodes.length === 0 || availableBankCodes.includes(bank.code)
-                    return (
-                      <button key={bank.code} onClick={() => isAvailable && toggleSelect(bank.code)} style={{
-                        padding: "8px 6px", borderRadius: "8px",
-                        border: isSelected ? "2px solid #0073BC" : "1.5px solid #eee",
-                        backgroundColor: isSelected ? "#E8F4FD" : isAvailable ? "white" : "#f5f5f5",
-                        color: isSelected ? "#0073BC" : isAvailable ? "#555" : "#ccc",
-                        fontWeight: isSelected ? "bold" : "normal",
-                        fontSize: "11px", cursor: isAvailable ? "pointer" : "not-allowed",
-                      }}>{bank.name}</button>
-                    )
-                  })}
-                </div>
-                <p style={{ fontSize: "13px", fontWeight: "bold", color: "#333", marginBottom: "10px" }}>카드사</p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", marginBottom: "20px" }}>
-                  {CARDS.map((card) => {
-                    const isSelected = selected.includes(card.code)
-                    const isAvailable = availableCardCodes.length === 0 || availableCardCodes.includes(card.code)
-                    return (
-                      <button key={card.code} onClick={() => isAvailable && toggleSelect(card.code)} style={{
-                        padding: "8px 6px", borderRadius: "8px",
-                        border: isSelected ? "2px solid #0073BC" : "1.5px solid #eee",
-                        backgroundColor: isSelected ? "#E8F4FD" : isAvailable ? "white" : "#f5f5f5",
-                        color: isSelected ? "#0073BC" : isAvailable ? "#555" : "#ccc",
-                        fontWeight: isSelected ? "bold" : "normal",
-                        fontSize: "11px", cursor: isAvailable ? "pointer" : "not-allowed",
-                      }}>{card.name}</button>
-                    )
-                  })}
-                </div>
-                <button onClick={handleConnect} style={{
-                  width: "100%", padding: "14px", backgroundColor: "#0073BC", color: "white",
-                  border: "none", borderRadius: "10px", fontSize: "15px", fontWeight: "bold",
-                  cursor: "pointer", marginBottom: "8px",
-                }}>연동하기 ({selected.length}개 선택)</button>
-                <button onClick={() => setShowPopup(false)} style={{
-                  width: "100%", padding: "12px", backgroundColor: "white", color: "#aaa",
-                  border: "1px solid #eee", borderRadius: "10px", fontSize: "13px", cursor: "pointer",
-                }}>나중에 하기</button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       <section style={{ background: '#FFFFFF' }}>
         <StatusBar />

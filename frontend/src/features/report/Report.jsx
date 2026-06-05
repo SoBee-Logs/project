@@ -9,10 +9,6 @@ import {
   CartesianGrid, LabelList, ReferenceLine
 } from 'recharts'
 
-// 페이지 이동 시에도 캐시 유지 (컴포넌트 바깥 모듈 레벨)
-const _txCache = {}
-let _lifecycleCache = null
-let _personaCache = null
 
 export const CATEGORY_PALETTE = [
   '#1e73be', '#38BDF8', '#60a5fa', '#93c5fd', '#0ea5e9',
@@ -226,7 +222,7 @@ function formatPersonaWeek(startStr, endStr, year, month, weekOrder) {
   // persona_week_start가 속하는 주차 찾기
   let weekLabel = ''
   if (weekOrder?.length) {
-    const adjustedFirst = new Date(year, month - 1, 1).getDay()
+    const adjustedFirst = (new Date(year, month - 1, 1).getDay() + 6) % 7  // Mon=0..Sun=6
     const day = s.getMonth() + 1 === month ? s.getDate() : null
     if (day) {
       const w = Math.floor((day + adjustedFirst - 1) / 7) + 1
@@ -241,18 +237,22 @@ function getWeekDateRange(year, month, weekLabel) {
   if (!weekLabel) return ''
   const w = parseInt(weekLabel)
   if (isNaN(w)) return ''
-  const adjustedFirst = new Date(year, month - 1, 1).getDay()
-  const lastDay = new Date(year, month, 0).getDate()
-  const start = Math.max(1, (w - 1) * 7 - adjustedFirst + 1)
-  const end = Math.min(lastDay, w * 7 - adjustedFirst)
-  return `${month}/${start}~${month}/${end}`
+  const adjustedFirst = (new Date(year, month - 1, 1).getDay() + 6) % 7  // Mon=0..Sun=6
+  const startDate = new Date(year, month - 1, (w - 1) * 7 - adjustedFirst + 1)
+  const endDate   = new Date(year, month - 1, w * 7 - adjustedFirst)
+  const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`
+  return `${fmt(startDate)}~${fmt(endDate)}`
 }
 
 export default function Report() {
   const navigate = useNavigate()
   const location = useLocation()
   const aiRecommendRef = useRef(null)
-  const USER_ID = getUserId() ?? 1
+  const USER_ID = getUserId()
+
+  useEffect(() => {
+    if (!USER_ID) navigate('/login')
+  }, [USER_ID])
 
   const [persona,       setPersona]       = useState(null)
   const [lifecycle,     setLifecycle]     = useState(null)
@@ -264,11 +264,22 @@ export default function Report() {
   const [isEmptyMonth,  setIsEmptyMonth]  = useState(false)
 
   const today = new Date()
-  const [selectedYear,  setSelectedYear]  = useState(today.getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1)
+  const [selectedYear,  setSelectedYear]  = useState(() => {
+    const saved = sessionStorage.getItem('report_year')
+    return location.state?.year ?? (saved ? Number(saved) : today.getFullYear())
+  })
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const saved = sessionStorage.getItem('report_month')
+    return location.state?.month ?? (saved ? Number(saved) : today.getMonth() + 1)
+  })
 
   const prevYearRef  = useRef(selectedYear)
   const prevMonthRef = useRef(selectedMonth)
+
+  useEffect(() => {
+    sessionStorage.setItem('report_year',  String(selectedYear))
+    sessionStorage.setItem('report_month', String(selectedMonth))
+  }, [selectedYear, selectedMonth])
 
   const isCurrentMonth =
     selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
@@ -296,43 +307,20 @@ export default function Report() {
     }
   }, [loading, location.state])
 
-  // lifecycle, persona는 월과 무관 — 캐시 있으면 즉시, 없으면 fetch 후 캐시
   useEffect(() => {
-    if (_lifecycleCache) {
-      setLifecycle(_lifecycleCache)
-    } else {
-      fetch(`/api/lifecycle/${USER_ID}`)
-        .then(r => r.json())
-        .then(data => { _lifecycleCache = data; setLifecycle(data) })
-        .catch(() => setLifecycle({ life_stage_code: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' }))
-    }
+    fetch(`/api/lifecycle/${USER_ID}`)
+      .then(r => r.json())
+      .then(data => setLifecycle(data))
+      .catch(() => setLifecycle({ life_stage_code: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' }))
 
-    if (_personaCache) {
-      setPersona(_personaCache)
-    } else {
-      fetch(`/api/users/${USER_ID}/persona`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) { _personaCache = data; setPersona(data) } })
-        .catch(() => {})
-    }
+    fetch(`/api/users/${USER_ID}/persona`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setPersona(data) })
+      .catch(() => {})
   }, [USER_ID])
 
   useEffect(() => {
     const fetchAll = async () => {
-      const cacheKey = `${selectedYear}-${selectedMonth}`
-
-      // 이미 조회한 달은 캐시에서 즉시 표시
-      if (_txCache[cacheKey]) {
-        setTxData(_txCache[cacheKey])
-        setLoading(false)
-        setRecommendData(null)
-        fetch(`/api/report/ai-insight?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`)
-          .then(r => r.json())
-          .then(data => setRecommendData(data))
-          .catch(() => setRecommendData({ error: true }))
-        return
-      }
-
       try {
         setLoading(true)
         setTxData(null)
@@ -353,7 +341,6 @@ export default function Report() {
           if (isEmpty) {
             setIsEmptyMonth(true)
           } else {
-            _txCache[cacheKey] = txRes
             setTxData(txRes)
           }
         }
@@ -533,48 +520,6 @@ export default function Report() {
       <div className="overflow-y-auto flex-1 px-4 pb-8">
       <div className="flex flex-col gap-4 pt-4">
 
-        {/* 페르소나 배너 */}
-        {(() => {
-          const descText = persona?.avatarExplain ?? ''
-
-          const personaCat = txData?.persona_top_category
-          const personaTime = txData?.persona_peak_time
-          const traitTags = txData ? [
-            lifecycle?.life_stage_code && `🏷️ ${lifecycle.life_stage_code}`,
-            personaCat && `${personaCat} 집중`,
-            personaTime && `${TIME_ICONS[personaTime] ?? ''} ${personaTime}`,
-            txData.persona_vlm_count > 0 && `📸 사진 소비 ${txData.persona_vlm_count}건`,
-          ].filter(Boolean) : []
-
-          return (
-            <div className="rounded-2xl bg-[#1e73be] text-white p-4 flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-full bg-white/20 overflow-hidden shrink-0">
-                  {persona?.avatarImgUrl
-                    ? <img src={persona.avatarImgUrl} alt="페르소나" className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center text-2xl">🐝</div>
-                  }
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-base leading-tight">{persona?.avatarName ?? '분석 중...'}</p>
-                  {descText && (
-                    <p className="text-xs text-blue-100 mt-0.5 leading-relaxed">{descText}</p>
-                  )}
-                </div>
-              </div>
-              {traitTags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {traitTags.map((tag, i) => (
-                    <span key={i} className="text-[11px] font-semibold bg-white/20 text-white rounded-full px-3 py-1">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })()}
-
         {/* ① 소비 리포트 (월 총액) */}
         <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
           <p className="text-xs text-gray-400 mb-1">📊 {selectedYear}년 {selectedMonth}월 총 소비</p>
@@ -666,9 +611,14 @@ export default function Report() {
 
         {/* 카테고리별 소비 도넛 */}
         {categoryList.length > 0 && (() => {
-          const weekOrder = (txData?.week_order ?? []).filter(w =>
-            Object.keys(txData?.weekly_category_price?.[w] ?? {}).length > 0
-          )
+          const isCurrentMonth = selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
+          const weekOrder = (txData?.week_order ?? []).filter(w => {
+            if (!isCurrentMonth) return true  // 지난 달은 전체 주차 표시
+            const fw = (new Date(selectedYear, selectedMonth - 1, 1).getDay() + 6) % 7
+            const wNum = parseInt(w)
+            const weekStart = new Date(selectedYear, selectedMonth - 1, (wNum - 1) * 7 - fw + 1)
+            return weekStart <= today  // 주차 시작일이 오늘 이전인 것만 표시
+          })
           const weekButtons = ['전체', ...weekOrder]
           const activeCatData = catWeek === '전체'
             ? categoryList
