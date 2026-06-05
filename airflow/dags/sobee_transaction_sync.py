@@ -53,11 +53,11 @@ def task_sync(**ctx):
         res = requests.post(
             f"{FASTAPI_URL}/internal/transactions/sync",
             headers=HEADERS,
-            json={"user_id": int(user_id), "days": days},
+            json={"user_id": int(user_id), "days": days, "skip_avatar": True},
             timeout=TIMEOUT,
         )
         res.raise_for_status()
-        print(f"sync 완료: user_id={user_id} days={days}")
+        print(f"sync 완료: user_id={user_id} days={days} skip_avatar=True")
     else:
         user_ids = _get_all_user_ids()
         results = []
