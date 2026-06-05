@@ -33,7 +33,9 @@ const TIME_ICONS = {
   아침: '🌅',
   점심: '☀️',
   저녁: '🍽️',
-  심야: '🌃',
+  심야: '🌃'
+}
+
 function getWeekDateRange(year, month, weekLabel) {
   const w = parseInt(weekLabel)
   if (isNaN(w)) return ''
