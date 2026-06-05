@@ -75,12 +75,31 @@ SYSTEM_PROMPT_TEMPLATE = """\
 }}
 """
 
+# 매핑된 사진(결제 내역 연결 완료) 프롬프트
 USER_PROMPT_TEMPLATE = """\
 [Today's Consumption Info]
 - Item: {item_name}
 - Category: {category}
 - Amount paid: {price} KRW
 - Store: {store_name}
+- User mood: {mood_label} ({mood})
+- User memo: {emotion_text}
+- Group theme / context: {group_description}
+- Room writing theme: {room_theme}
+- AI photo analysis: {description}
+
+Write a JSON consumption diary based on the above.
+"""
+
+# 미매핑 사진(결제 내역 미연결) 프롬프트
+# 가격·가게명 등 결제 정보가 없으므로 환각 방지를 위해 장면·감정 위주로만 작성하도록 안내
+USER_PROMPT_UNMATCHED_TEMPLATE = """\
+[주의] 이 사진은 결제 내역과 아직 연결되지 않은 소비 사진이에요.
+item, price, store 정보를 사실인 것처럼 언급하거나 추측하지 마세요.
+AI 사진 분석(description)과 사용자 감정·메모만을 근거로,
+소비 장면과 감정 위주의 일기를 작성해주세요.
+
+[Photo & Mood Info]
 - User mood: {mood_label} ({mood})
 - User memo: {emotion_text}
 - Group theme / context: {group_description}
@@ -109,18 +128,32 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
     )
 
     system_content = SYSTEM_PROMPT_TEMPLATE.format(line_guide=line_guide)
-    user_content = USER_PROMPT_TEMPLATE.format(
-        item_name=req.item_name or "알 수 없음",
-        category=req.category or "기타",
-        price=f"{int(req.price):,}" if req.price is not None else "0",
-        store_name=req.store_name or "알 수 없음",
-        mood=req.mood or "",
-        mood_label=mood_label,
-        emotion_text=req.emotion_text or "없음",
-        group_description=req.group_description or "일반 소비",
-        room_theme=room_theme,
-        description=req.description or "특이사항 없음",
-    )
+
+    # 미매핑 사진(matched=False 또는 None)은 장면·감정 위주 프롬프트로 대체
+    is_matched = req.matched is True
+    if is_matched:
+        user_content = USER_PROMPT_TEMPLATE.format(
+            item_name=req.item_name or "알 수 없음",
+            category=req.category or "기타",
+            price=f"{int(req.price):,}" if req.price is not None else "0",
+            store_name=req.store_name or "알 수 없음",
+            mood=req.mood or "",
+            mood_label=mood_label,
+            emotion_text=req.emotion_text or "없음",
+            group_description=req.group_description or "일반 소비",
+            room_theme=room_theme,
+            description=req.description or "특이사항 없음",
+        )
+    else:
+        # 미매핑: 결제 정보 없이 사진 분석·감정만으로 일기 생성
+        user_content = USER_PROMPT_UNMATCHED_TEMPLATE.format(
+            mood=req.mood or "",
+            mood_label=mood_label,
+            emotion_text=req.emotion_text or "없음",
+            group_description=req.group_description or "일반 소비",
+            room_theme=room_theme,
+            description=req.description or "특이사항 없음",
+        )
 
     response = await client.chat.completions.create(
         model="gpt-4o-mini",
