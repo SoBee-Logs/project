@@ -832,16 +832,6 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
     except Exception as e:
         log.error(f"생애주기 예측 실패 (sync는 정상 완료): {e}")
 
-    # 아바타 생성 — sync 완료 후 페르소나 이미지 자동 생성
-    try:
-        from app.services.avatar_service import _generate_and_save_avatar
-        sd_fmt = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]}"
-        ed_fmt = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}"
-        await _generate_and_save_avatar(user_id, sd_fmt, ed_fmt)
-        log.info(f"아바타 생성 완료: user={user_id}")
-    except Exception as e:
-        log.error(f"아바타 생성 실패 (sync는 정상 완료): {e}")
-
     return {
         "user_id": user_id,
         "period": f"{start_date}~{end_date}",
