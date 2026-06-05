@@ -34,6 +34,14 @@ const TIME_ICONS = {
   점심: '☀️',
   저녁: '🍽️',
   심야: '🌃',
+function getWeekDateRange(year, month, weekLabel) {
+  const w = parseInt(weekLabel)
+  if (isNaN(w)) return ''
+  const adjustedFirst = getFirstWeekday(year, month)
+  const startDate = new Date(year, month - 1, (w - 1) * 7 - adjustedFirst + 1)
+  const endDate   = new Date(year, month - 1, w * 7 - adjustedFirst)
+  const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`
+  return `${fmt(startDate)}~${fmt(endDate)}`
 }
 
 export default function AvaterRoom() {

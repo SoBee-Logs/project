@@ -74,6 +74,8 @@ export default function AlertBoard() {
     a => a.budgetStatus !== 'SAFE' || a.diaryStatus !== 'SAFE'
   )
   const summary = buildSummary(activeAlerts)
+  // 모든 방에 목표(예산/일기 횟수)가 하나도 설정되지 않은 경우 감지
+  const hasNoGoal = alerts.length > 0 && alerts.every(a => !a.targetBudget && !a.targetDiaryCount)
 
   return (
     <section className="rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -103,7 +105,9 @@ export default function AlertBoard() {
       {/* 펼친 상태 — 방별 수치 상세 */}
       {isOpen && (
         <div className="border-t border-gray-100 px-4 py-3 bg-white flex flex-col gap-3">
-          {activeAlerts.length === 0 ? (
+          {hasNoGoal ? (
+            <p className="text-xs text-gray-400 text-center py-1">아직 목표가 설정되지 않았어요! 🎯</p>
+          ) : activeAlerts.length === 0 ? (
             <p className="text-xs text-gray-300 text-center py-1">이번 주 목표를 잘 달성하고 있어요 🎉</p>
           ) : (
             activeAlerts.map(alert => {

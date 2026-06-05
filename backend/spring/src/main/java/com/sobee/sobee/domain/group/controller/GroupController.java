@@ -5,10 +5,12 @@ import com.sobee.sobee.domain.group.dto.GroupResponseDto;
 import com.sobee.sobee.domain.group.service.GroupService;
 import com.sobee.sobee.global.jwt.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/groups")
@@ -37,13 +39,25 @@ public class GroupController {
     }
 
     @PostMapping("/join")
-    public ResponseEntity<GroupResponseDto> joinGroup(
+    public ResponseEntity<?> joinGroup(
             @RequestHeader("Authorization") String authHeader,
             @RequestParam String code
     ) {
         Long userId = extractUserId(authHeader);
-        GroupResponseDto response = groupService.joinGroup(code, userId);
-        return ResponseEntity.ok(response);
+        try {
+            GroupResponseDto response = groupService.joinGroup(code, userId);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            // 이미 참여 중인 모임 → 409 Conflict
+            if (msg.contains("이미 참여한 모임")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(Map.of("message", "이미 참여 중인 모임이에요."));
+            }
+            // 존재하지 않는 코드 → 404 Not Found
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", "존재하지 않는 코드예요."));
+        }
     }
 
     @GetMapping
