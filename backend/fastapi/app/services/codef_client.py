@@ -158,8 +158,10 @@ async def fetch_bank_transactions(
         or accounts_data.get("resDepositTrust")
         or (accounts_data if isinstance(accounts_data, list) else [])
     )
+    log.info(f"[BK:{org_code}] account-list keys={list(accounts_data.keys())} accounts={[(a.get('resAccount'), a.get('resAccountDeposit')) for a in accounts]}")
     account_nums = [a["resAccount"] for a in accounts if a.get("resAccount")]
     if not account_nums:
+        log.warning(f"[BK:{org_code}] 계좌 없음 — account-list raw keys: {list(accounts_data.keys())}")
         return []
 
     async def _fetch_one(acc_num: str) -> list[dict]:
@@ -173,8 +175,10 @@ async def fetch_bank_transactions(
             "inquiryType": "1",
         })
         if not data:
+            log.warning(f"[BK:{org_code}] transaction-list 실패 account={acc_num}")
             return []
         txs = data.get("resTrHistoryList", [])
+        log.info(f"[BK:{org_code}] account={acc_num} → {len(txs)}건")
         for tx in txs:
             tx["_org"] = org_code
             tx["_account"] = acc_num
