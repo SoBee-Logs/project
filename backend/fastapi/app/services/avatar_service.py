@@ -130,24 +130,24 @@ _ANALYSIS_PROMPT = """
 
 이 소비 데이터를 분석하여 아래 JSON 형식으로만 응답하세요 (다른 설명 없이):
 {{
-    "title": "아바타 타이틀 — 3~4어절의 한국어. 실제 소비 아이템({top_items}), 활동 시간대({dominant_slot}), 이모지({emoji_input}) 중심으로 이 사람만의 개성을 담은 감성적인 별명. 생애주기 단어 절대 쓰지 말 것. 생애주기 감성({life_stage_vibe})은 분위기 참고용으로만 활용.",
+    "title": "아바타 타이틀 — 3~4어절의 한국어. 실제 소비 아이템({top_items}), 활동 시간대({dominant_slot}), 이모지({emoji_input}) 중심으로 이 사람만의 개성을 담은 감성적인 별명. 이 사람에 대해 설명하기 위해 아바타 타이틀이 필요함. 생애주기 단어를 직접적으로 쓰지 말고 생애주기 감성({life_stage_vibe})은 분위기 참고용으로만 활용.",
     "description": "이 페르소나를 한 문장으로 소개하는 설명. 캐릭터의 성격과 라이프스타일 중심으로.",
     "change_reason": {{
         "emoji": {{
-            "header": "이모지를 실제 문자로 쓴 짧은 감성 한 줄 (예: '😊 에너지 넘치는 표정')",
-            "context": "이번 주 소비 사진 찍을 때 많이 선택한 이모지가 뭔지, 친구에게 말해주듯이"
+            "header": "이모지를 실제 문자로 쓴 짧은 감성 한 줄 (예: '😊 에너지 넘치는 표정') (공백포함 11자)",
+            "context": "이번 주 소비 사진 찍을 때 많이 선택한 이모지가 뭔지, 친구에게 말해주듯이 (공백포함 35자)"
         }},
         "background": {{
-            "header": "카테고리와 소비 스타일을 담은 감성 한 줄 (예: '카페 없인 못 사는 타입')",
-            "context": "1위 소비 카테고리가 아바타 배경과 의상에 어떻게 반영됐는지 한 문장."
+            "header": "카테고리와 소비 스타일을 담은 감성 한 줄 (예: '카페 없인 못 사는 타입') (공백포함 11자)",
+            "context": "1위 소비 카테고리가 아바타 배경과 의상에 어떻게 반영됐는지 한 문장. (공백포함 35자)"
         }},
         "time": {{
-            "header": "활동 시간대의 감성을 담은 한 줄 (예: '점심시간 = 황금시간대')",
-            "context": "이번 주 결제 시간대가 아바타 배경 분위기에 어떻게 반영됐는지 한 문장."
+            "header": "활동 시간대의 감성을 담은 한 줄 (예: '점심시간 = 황금시간대') (공백포함 11자)",
+            "context": "이번 주 결제 시간대가 아바타 배경 분위기에 어떻게 반영됐는지 한 문장. (공백포함 35자)"
         }},
         "item": {{
-            "header": "소비 아이템을 감각적으로 표현한 한 줄 (예: '아메리카노 & 마카롱 홀릭')",
-            "context": "VLM이 포착한 아이템이 아바타 손에 들려있다는 걸 한 문장."
+            "header": "소비 아이템을 감각적으로 표현한 한 줄 (예: '아메리카노 & 마카롱 홀릭') (공백포함 11자)",
+            "context": "VLM이 포착한 아이템이 어떻게 아바타 반영됐는지 한 문장. (공백포함 35자)"
         }}
     }},
     "lifestyle": "Lifestyle description in English (2-3 sentences)",
@@ -427,12 +427,14 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
 
     # 7. DB 저장 (모두 LLM 분석 결과로 통일)
     change_reason = analysis["change_reason"]
+    week_monday = datetime.strptime(start_date, "%Y-%m-%d")
     await update_user_avatar(
         user_id=user_id,
         avatar_name=analysis["title"],
         avatar_explain=analysis["description"],
         avatar_img_url=avatar_image_url,
         avatar_change_reason=json.dumps(change_reason, ensure_ascii=False) if isinstance(change_reason, dict) else change_reason,
+        avatar_created_at=week_monday,
     )
 
     change_reason_summary = f"이모지: {emoji} / 카테고리: {top_category} / 시간대: {dominant_slot} {slot_emoji} / 아이템: {top_items}"
