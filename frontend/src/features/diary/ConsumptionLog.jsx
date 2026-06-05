@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import StatusBar from '../../common/components/StatusBar'
+import { jwtDecode } from 'jwt-decode'
 
 
 const toLocalDateStr = (date) => {
@@ -21,10 +22,34 @@ export default function ConsumptionLog() {
   const [isLoading, setIsLoading] = useState(true)
   const [showCalendar, setShowCalendar] = useState(false)
   const [selectedDate, setSelectedDate] = useState(toLocalDateStr(new Date()))
+  const [joinedAt, setJoinedAt] = useState(null)
   const isToday = selectedDate === toLocalDateStr(new Date())
 
   const today = new Date()
   today.setHours(23, 59, 59, 999)
+
+  // 가입일 fetch — 달력 minDate 설정용
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    let userId
+    try {
+      userId = jwtDecode(token).sub
+    } catch {
+      return
+    }
+    fetch(`/api/users/${userId}/persona`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.createdAt) {
+          // 시간 부분 제거 후 Date 객체 생성
+          setJoinedAt(new Date(data.createdAt.substring(0, 10) + 'T00:00:00'))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const toKoreanLabel = (dateStr) => {
     return new Date(dateStr + 'T00:00:00').toLocaleDateString('ko-KR', {
@@ -124,9 +149,10 @@ export default function ConsumptionLog() {
               onChange={handleDateChange}
               value={new Date(selectedDate + 'T00:00:00')}
               maxDate={today}
+              minDate={joinedAt ?? undefined}
               locale="ko-KR"
               calendarType="gregory"
-              formatDay={(locale, date) => date.getDate()}  // ← 추가 ("일" 제거)
+              formatDay={(locale, date) => date.getDate()}
             />
             <button
               type="button"
