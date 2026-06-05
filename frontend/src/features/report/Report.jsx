@@ -9,10 +9,6 @@ import {
   CartesianGrid, LabelList, ReferenceLine
 } from 'recharts'
 
-// 페이지 이동 시에도 캐시 유지 (컴포넌트 바깥 모듈 레벨)
-const _txCache = {}
-let _lifecycleCache = null
-let _personaCache = null
 
 export const CATEGORY_PALETTE = [
   '#1e73be', '#38BDF8', '#60a5fa', '#93c5fd', '#0ea5e9',
@@ -311,43 +307,20 @@ export default function Report() {
     }
   }, [loading, location.state])
 
-  // lifecycle, persona는 월과 무관 — 캐시 있으면 즉시, 없으면 fetch 후 캐시
   useEffect(() => {
-    if (_lifecycleCache) {
-      setLifecycle(_lifecycleCache)
-    } else {
-      fetch(`/api/lifecycle/${USER_ID}`)
-        .then(r => r.json())
-        .then(data => { _lifecycleCache = data; setLifecycle(data) })
-        .catch(() => setLifecycle({ life_stage_code: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' }))
-    }
+    fetch(`/api/lifecycle/${USER_ID}`)
+      .then(r => r.json())
+      .then(data => setLifecycle(data))
+      .catch(() => setLifecycle({ life_stage_code: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' }))
 
-    if (_personaCache) {
-      setPersona(_personaCache)
-    } else {
-      fetch(`/api/users/${USER_ID}/persona`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) { _personaCache = data; setPersona(data) } })
-        .catch(() => {})
-    }
+    fetch(`/api/users/${USER_ID}/persona`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setPersona(data) })
+      .catch(() => {})
   }, [USER_ID])
 
   useEffect(() => {
     const fetchAll = async () => {
-      const cacheKey = `${selectedYear}-${selectedMonth}`
-
-      // 이미 조회한 달은 캐시에서 즉시 표시
-      if (_txCache[cacheKey]) {
-        setTxData(_txCache[cacheKey])
-        setLoading(false)
-        setRecommendData(null)
-        fetch(`/api/report/ai-insight?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`)
-          .then(r => r.json())
-          .then(data => setRecommendData(data))
-          .catch(() => setRecommendData({ error: true }))
-        return
-      }
-
       try {
         setLoading(true)
         setTxData(null)
@@ -368,7 +341,6 @@ export default function Report() {
           if (isEmpty) {
             setIsEmptyMonth(true)
           } else {
-            _txCache[cacheKey] = txRes
             setTxData(txRes)
           }
         }
