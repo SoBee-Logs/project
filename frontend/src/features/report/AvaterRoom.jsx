@@ -11,13 +11,33 @@ function getWeekLabel(dateStr, firstWeekday) {
   return `${Math.floor((d.getDate() - 1 + firstWeekday) / 7) + 1}주`
 }
 
+function getWeekDateRange(year, month, weekLabel) {
+  const w = parseInt(weekLabel)
+  if (isNaN(w)) return ''
+  const adjustedFirst = getFirstWeekday(year, month)
+  const startDate = new Date(year, month - 1, (w - 1) * 7 - adjustedFirst + 1)
+  const endDate   = new Date(year, month - 1, w * 7 - adjustedFirst)
+  const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`
+  return `${fmt(startDate)}~${fmt(endDate)}`
+}
+
 export default function AvaterRoom() {
   const navigate = useNavigate()
-  const USER_ID = getUserId() ?? 1
+  const USER_ID = getUserId()
+
+  useEffect(() => {
+    if (!USER_ID) navigate('/login')
+  }, [USER_ID])
 
   const today = new Date()
-  const [selectedYear,  setSelectedYear]  = useState(today.getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1)
+  const [selectedYear,  setSelectedYear]  = useState(() => {
+    const saved = sessionStorage.getItem('report_year')
+    return saved ? Number(saved) : today.getFullYear()
+  })
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const saved = sessionStorage.getItem('report_month')
+    return saved ? Number(saved) : today.getMonth() + 1
+  })
   const [selectedWeek,  setSelectedWeek]  = useState('1주')
 
   const [persona, setPersona] = useState(null)
@@ -35,6 +55,12 @@ export default function AvaterRoom() {
     setSelectedYear(prev => selectedMonth === 12 ? prev + 1 : prev)
     setSelectedMonth(prev => prev === 12 ? 1 : prev + 1)
   }
+
+  useEffect(() => {
+    sessionStorage.setItem('report_year',  String(selectedYear))
+    sessionStorage.setItem('report_month', String(selectedMonth))
+    setSelectedWeek('1주')
+  }, [selectedYear, selectedMonth])
 
   useEffect(() => {
     setTxData(null)
@@ -60,11 +86,15 @@ export default function AvaterRoom() {
   const weeks = (() => {
     if (!txData) return []
     const fw = getFirstWeekday(selectedYear, selectedMonth)
-    const ws = new Set()
-    Object.values(txData.category_transactions ?? {}).forEach(records =>
-      records.forEach(r => ws.add(getWeekLabel(r.payment_date, fw)))
-    )
-    return Array.from(ws).sort()
+    const lastDay = new Date(selectedYear, selectedMonth, 0).getDate()
+    const totalWeeks = Math.floor((lastDay + fw - 1) / 7) + 1
+    const isCurrentMonth = selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
+    return Array.from({ length: totalWeeks }, (_, i) => `${i + 1}주`).filter(w => {
+      if (!isCurrentMonth) return true
+      const wNum = parseInt(w)
+      const weekStartDay = (wNum - 1) * 7 - fw + 1
+      return new Date(selectedYear, selectedMonth - 1, weekStartDay) <= today
+    })
   })()
 
   let explainObj = null
@@ -116,7 +146,7 @@ export default function AvaterRoom() {
         </div>
 
         {weeks.length > 0 && (
-          <div className="flex gap-2 pb-2.5 overflow-x-auto">
+          <div className="flex gap-2 pb-2.5 overflow-x-auto justify-center">
             {weeks.map(w => (
               <button key={w} onClick={() => setSelectedWeek(w)}
                 className={`shrink-0 text-[12px] font-semibold rounded-full px-3.5 py-1.5 transition-colors ${

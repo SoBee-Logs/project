@@ -226,7 +226,7 @@ function formatPersonaWeek(startStr, endStr, year, month, weekOrder) {
   // persona_week_start가 속하는 주차 찾기
   let weekLabel = ''
   if (weekOrder?.length) {
-    const adjustedFirst = new Date(year, month - 1, 1).getDay()
+    const adjustedFirst = (new Date(year, month - 1, 1).getDay() + 6) % 7  // Mon=0..Sun=6
     const day = s.getMonth() + 1 === month ? s.getDate() : null
     if (day) {
       const w = Math.floor((day + adjustedFirst - 1) / 7) + 1
@@ -241,18 +241,22 @@ function getWeekDateRange(year, month, weekLabel) {
   if (!weekLabel) return ''
   const w = parseInt(weekLabel)
   if (isNaN(w)) return ''
-  const adjustedFirst = new Date(year, month - 1, 1).getDay()
-  const lastDay = new Date(year, month, 0).getDate()
-  const start = Math.max(1, (w - 1) * 7 - adjustedFirst + 1)
-  const end = Math.min(lastDay, w * 7 - adjustedFirst)
-  return `${month}/${start}~${month}/${end}`
+  const adjustedFirst = (new Date(year, month - 1, 1).getDay() + 6) % 7  // Mon=0..Sun=6
+  const startDate = new Date(year, month - 1, (w - 1) * 7 - adjustedFirst + 1)
+  const endDate   = new Date(year, month - 1, w * 7 - adjustedFirst)
+  const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`
+  return `${fmt(startDate)}~${fmt(endDate)}`
 }
 
 export default function Report() {
   const navigate = useNavigate()
   const location = useLocation()
   const aiRecommendRef = useRef(null)
-  const USER_ID = getUserId() ?? 1
+  const USER_ID = getUserId()
+
+  useEffect(() => {
+    if (!USER_ID) navigate('/login')
+  }, [USER_ID])
 
   const [persona,       setPersona]       = useState(null)
   const [lifecycle,     setLifecycle]     = useState(null)
@@ -264,11 +268,22 @@ export default function Report() {
   const [isEmptyMonth,  setIsEmptyMonth]  = useState(false)
 
   const today = new Date()
-  const [selectedYear,  setSelectedYear]  = useState(today.getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1)
+  const [selectedYear,  setSelectedYear]  = useState(() => {
+    const saved = sessionStorage.getItem('report_year')
+    return location.state?.year ?? (saved ? Number(saved) : today.getFullYear())
+  })
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const saved = sessionStorage.getItem('report_month')
+    return location.state?.month ?? (saved ? Number(saved) : today.getMonth() + 1)
+  })
 
   const prevYearRef  = useRef(selectedYear)
   const prevMonthRef = useRef(selectedMonth)
+
+  useEffect(() => {
+    sessionStorage.setItem('report_year',  String(selectedYear))
+    sessionStorage.setItem('report_month', String(selectedMonth))
+  }, [selectedYear, selectedMonth])
 
   const isCurrentMonth =
     selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
@@ -666,9 +681,14 @@ export default function Report() {
 
         {/* 카테고리별 소비 도넛 */}
         {categoryList.length > 0 && (() => {
-          const weekOrder = (txData?.week_order ?? []).filter(w =>
-            Object.keys(txData?.weekly_category_price?.[w] ?? {}).length > 0
-          )
+          const isCurrentMonth = selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
+          const weekOrder = (txData?.week_order ?? []).filter(w => {
+            if (!isCurrentMonth) return true  // 지난 달은 전체 주차 표시
+            const fw = (new Date(selectedYear, selectedMonth - 1, 1).getDay() + 6) % 7
+            const wNum = parseInt(w)
+            const weekStart = new Date(selectedYear, selectedMonth - 1, (wNum - 1) * 7 - fw + 1)
+            return weekStart <= today  // 주차 시작일이 오늘 이전인 것만 표시
+          })
           const weekButtons = ['전체', ...weekOrder]
           const activeCatData = catWeek === '전체'
             ? categoryList
