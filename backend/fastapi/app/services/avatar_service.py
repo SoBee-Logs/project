@@ -130,7 +130,7 @@ _ANALYSIS_PROMPT = """
 
 이 소비 데이터를 분석하여 아래 JSON 형식으로만 응답하세요 (다른 설명 없이):
 {{
-    "title": "아바타 타이틀 — 3~4어절의 한국어. 실제 소비 아이템({top_items}), 활동 시간대({dominant_slot}), 이모지({emoji_input}) 중심으로 이 사람만의 개성을 담은 감성적인 별명. 이 사람에 대해 설명하기 위해 아바타 타이틀이 필요함. 생애주기 단어를 직접적으로 쓰지 말고 생애주기 감성({life_stage_vibe})은 분위기 참고용으로만 활용.",
+    "title": "아바타 타이틀 — 2~4어절의 한국어. 실제 소비 아이템({top_items}), 소비 카테고리({top_category}), 활동 시간대({dominant_slot})를 바탕으로 이 사람을 가장 잘 표현하는 별명 또는 정체성을 작성할 것. 단순히 소비한 물건을 나열하지 말고, 소비 패턴에서 드러나는 관심사·취향·행동 특성을 한마디로 정의할 것. 친구가 '이 사람은 딱 ○○ 같은 사람이야'라고 설명하는 느낌으로 작성할 것. 예시: '디저트 탐험가', '취향 수집가', '신메뉴 개척자', '야식 연구원', '커피 애호가', '주말 여행가', '감성 기록가'. 감성적이거나 시적인 표현보다는 실제 소비 습관을 반영한 개성 있는 별명을 우선할 것. 생애주기 단어를 직접적으로 사용하지 말고 생애주기 감성({life_stage_vibe})은 분위기 참고용으로만 활용."
     "description": "이 페르소나를 한 문장으로 소개하는 설명. 캐릭터의 성격과 라이프스타일 중심으로.",
     "change_reason": {{
         "emoji": {{
@@ -148,6 +148,48 @@ _ANALYSIS_PROMPT = """
         "item": {{
             "header": "소비 아이템을 감각적으로 표현한 한 줄 (예: '아메리카노 & 마카롱 홀릭') (공백포함 11자)",
             "context": "VLM이 포착한 아이템이 어떻게 아바타 반영됐는지 한 문장. (공백포함 35자)"
+        }}
+    }},
+    "lifestyle": "Lifestyle description in English (2-3 sentences)",
+    "consumption_habit": "Consumption habit description in English (2-3 sentences)",
+    "time_pattern": "Active time pattern description in English (1-2 sentences)",
+    "personality": "Personality vibe description in English (1-2 sentences)"
+}}
+"""
+
+# 사진 데이터 없을 때 — transactions만 기반
+_ANALYSIS_PROMPT_NO_VLM = """
+다음은 사용자의 최근 결제 내역 요약입니다 (소비 사진 데이터 없음):
+{summary}
+
+이번 아바타 생성에 반영된 핵심 데이터:
+- 결제 카테고리 1위: {top_category}
+- 주 활동 시간대: {dominant_slot} {slot_emoji}
+- 대표 소비 항목: {top_items}
+
+사용자 에너지와 감성: {life_stage_vibe}
+
+소비 사진이 없으므로 이모지/VLM 데이터는 없습니다. 결제 내역만으로 분석하세요.
+아래 JSON 형식으로만 응답하세요 (다른 설명 없이):
+{{
+    "title": "아바타 타이틀 — 3~4어절의 한국어. 소비 카테고리({top_category}), 활동 시간대({dominant_slot}), 대표 소비 항목({top_items}) 중심으로 이 사람만의 개성을 담은 감성적인 별명. 생애주기 단어를 직접적으로 쓰지 말고 생애주기 감성({life_stage_vibe})은 분위기 참고용으로만 활용.",
+    "description": "이 페르소나를 한 문장으로 소개하는 설명. 캐릭터의 성격과 라이프스타일 중심으로.",
+    "change_reason": {{
+        "emoji": {{
+            "header": "소비 패턴에서 느껴지는 감성 한 줄 (공백포함 11자)",
+            "context": "결제 데이터로 파악한 이 사람의 소비 성향을 친구에게 말해주듯이 (공백포함 35자)"
+        }},
+        "background": {{
+            "header": "카테고리와 소비 스타일을 담은 감성 한 줄 (예: '카페 없인 못 사는 타입') (공백포함 11자)",
+            "context": "1위 소비 카테고리가 아바타 배경과 의상에 어떻게 반영됐는지 한 문장. (공백포함 35자)"
+        }},
+        "time": {{
+            "header": "활동 시간대의 감성을 담은 한 줄 (예: '점심시간 = 황금시간대') (공백포함 11자)",
+            "context": "이번 주 결제 시간대가 아바타 배경 분위기에 어떻게 반영됐는지 한 문장. (공백포함 35자)"
+        }},
+        "item": {{
+            "header": "대표 소비 항목을 감각적으로 표현한 한 줄 (공백포함 11자)",
+            "context": "결제 내역 기반 대표 소비 항목이 아바타에 어떻게 반영됐는지 한 문장. (공백포함 35자)"
         }}
     }},
     "lifestyle": "Lifestyle description in English (2-3 sentences)",
@@ -333,17 +375,28 @@ def _analyze_persona_sync(
     slot_emoji: str,
     top_items: str,
     life_stage_code: str,
+    has_vlm: bool = True,
 ) -> dict:
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
-    prompt = _ANALYSIS_PROMPT.format(
-        summary=summary,
-        emoji_input=emoji_input,
-        top_category=top_category,
-        dominant_slot=dominant_slot,
-        slot_emoji=slot_emoji,
-        top_items=top_items,
-        life_stage_vibe=_LIFE_STAGE_VIBE.get(life_stage_code, "활기찬 일상을 살아가는 에너지"),
-    )
+    if has_vlm:
+        prompt = _ANALYSIS_PROMPT.format(
+            summary=summary,
+            emoji_input=emoji_input,
+            top_category=top_category,
+            dominant_slot=dominant_slot,
+            slot_emoji=slot_emoji,
+            top_items=top_items,
+            life_stage_vibe=_LIFE_STAGE_VIBE.get(life_stage_code, "활기찬 일상을 살아가는 에너지"),
+        )
+    else:
+        prompt = _ANALYSIS_PROMPT_NO_VLM.format(
+            summary=summary,
+            top_category=top_category,
+            dominant_slot=dominant_slot,
+            slot_emoji=slot_emoji,
+            top_items=top_items,
+            life_stage_vibe=_LIFE_STAGE_VIBE.get(life_stage_code, "활기찬 일상을 살아가는 에너지"),
+        )
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -362,11 +415,12 @@ async def _analyze_persona(
     slot_emoji: str,
     top_items: str,
     life_stage_code: str,
+    has_vlm: bool = True,
 ) -> dict:
     return await asyncio.to_thread(
         _analyze_persona_sync,
         summary, emoji_input, top_category, dominant_slot, slot_emoji, top_items,
-        life_stage_code,
+        life_stage_code, has_vlm,
     )
 
 
@@ -381,12 +435,13 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
 
     # 2. VLM 매핑 데이터 조회 및 추출
     mapped = await get_mapped_transactions_with_vlm(user_id, start_date, end_date)
-    vlm_items = list(dict.fromkeys(r["vlm_item_name"] for r in mapped if r.get("vlm_item_name")))  # 중복 제거
+    vlm_items = list(dict.fromkeys(r["vlm_item_name"] for r in mapped if r.get("vlm_item_name")))
     vlm_descriptions = [r["vlm_description"] for r in mapped if r.get("vlm_description")]
-    emoji = next((r["emoji"] for r in mapped if r.get("emoji")), "😊")
+    emoji = next((r["emoji"] for r in mapped if r.get("emoji")), None)
+    has_vlm = bool(vlm_items or emoji)
 
     # 3. 페르소나 핵심 요소 추출
-    elements = _extract_persona_elements(transactions, vlm_items, emoji)
+    elements = _extract_persona_elements(transactions, vlm_items, emoji or "")
     top_category = elements["top_category"]
     dominant_slot = elements["dominant_slot"]
     props_hint = elements["props_hint"]
@@ -400,15 +455,17 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
     life_stage_ko = LIFE_STAGE_KO.get(life_stage_code, "회원")
     analysis = await _analyze_persona(
         summary=summary,
-        emoji_input=emoji,
+        emoji_input=emoji or "",
         top_category=top_category,
         dominant_slot=dominant_slot,
         slot_emoji=slot_emoji,
         top_items=top_items,
         life_stage_code=life_stage_code,
+        has_vlm=has_vlm,
     )
 
-    # 5. 이미지 프롬프트 조립
+    # 5. 이미지 프롬프트 조립 — 사진 없으면 무표정
+    face_expression = emoji if emoji else "calm neutral expressionless face"
     time_pattern = f"{slot_en} — {analysis['time_pattern']}"
     prompt = _AVATAR_PROMPT.format(
         lifestyle=analysis["lifestyle"],
@@ -417,7 +474,7 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
         personality=analysis["personality"],
         top_category=top_category,
         props_hint=props_hint,
-        emoji=emoji,
+        emoji=face_expression,
         top_items=top_items,
     )
 
@@ -437,7 +494,10 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
         avatar_created_at=week_monday,
     )
 
-    change_reason_summary = f"이모지: {emoji} / 카테고리: {top_category} / 시간대: {dominant_slot} {slot_emoji} / 아이템: {top_items}"
+    if has_vlm:
+        change_reason_summary = f"이모지: {emoji} / 카테고리: {top_category} / 시간대: {dominant_slot} {slot_emoji} / 아이템: {top_items}"
+    else:
+        change_reason_summary = f"카테고리: {top_category} / 시간대: {dominant_slot} {slot_emoji} / 아이템: {top_items}"
 
     return AvatarResponse(
         avatar_title=analysis["title"],
