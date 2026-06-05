@@ -7,6 +7,7 @@ from typing import List, Optional
 from app.core.config import settings
 from langsmith import traceable
 from datetime import datetime, timedelta
+from langsmith.wrappers import wrap_openai
 
 router = APIRouter()
 
@@ -88,10 +89,12 @@ GROUP_MAPPING_PROMPT = """너는 소비 사진의 특정 그룹과 결제 내역
 
 5. 금액 근접도
    추정 금액(price)과 payment_out을 비교해.
-   추정값이므로 ±30% 허용. 단 간편결제/이체는 위 규칙 우선 적용.
+   추정값이므로 ±50% 허용. 단 간편결제/이체는 위 규칙 우선 적용.
+   가게명을 알 수 없는 경우 금액보다 시간 근접도를 우선시해.
 
 6. 시간 근접도
    후보 목록에 표시된 시간 차이 값을 그대로 읽어. 절대 직접 계산하지 말 것.
+   가게명을 알 수 없는 경우 시간이 가장 가까운 후보를 최우선으로 선택해.
    시간이 가까울수록 우선 고려해.
    동일 가맹점이 여러 개면 시간이 가장 가까운 걸 선택해.
 
@@ -110,10 +113,10 @@ GROUP_MAPPING_PROMPT = """너는 소비 사진의 특정 그룹과 결제 내역
   "reason": "선택 이유 한 줄"
 }}"""
 
-def _get_client() -> AsyncOpenAI:
+def _get_client():
     if not settings.OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY가 설정되지 않았습니다.")
-    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    return wrap_openai(AsyncOpenAI(api_key=settings.OPENAI_API_KEY))
 
 
 def _time_diff_str(taken_at_kst: str, payment_time: Optional[str]) -> str:

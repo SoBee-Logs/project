@@ -40,6 +40,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -368,5 +369,27 @@ public class PhotoService {
         }
         return ldt;
     }
+        @Transactional(readOnly = true)
+        public List<Map<String, Object>> getMappingResult(Long photoId, Long userId) {
+                List<PersonaTransaction> mappings = personaTransactionRepository.findByPhotoId(photoId);
+        
+                return mappings.stream().map(m -> {
+                Map<String, Object> result = new java.util.LinkedHashMap<>();
+                result.put("groupId", m.getGroupId());
+                result.put("groupStore", m.getGroupStore());
+                result.put("groupCategory", m.getGroupCategory());
+                result.put("groupPrice", m.getGroupPrice());
+                result.put("paymentId", m.getPaymentId());
+        
+                // 결제 상세 정보 조회
+                transactionRepository.findByPaymentId(m.getPaymentId()).ifPresent(t -> {
+                        result.put("paymentPlace", t.getPaymentPlace());
+                        result.put("paymentOut", t.getPaymentOut());
+                        result.put("paymentTime", t.getPaymentTime());
+                });
+        
+                return result;
+                }).collect(Collectors.toList());
+        }
 
 }
