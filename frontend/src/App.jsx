@@ -13,7 +13,6 @@ import LoadingPage from './features/diary/LoadingPage'
 import DiaryResult from './features/diary/DiaryResult'
 import Login from './features/auth/Login'
 import Register from './features/auth/Register'
-import MyDataConnect from './features/auth/MyDataConnect'
 import ProductSearch from './features/search/ProductSearch'
 import ProductDetail from './features/search/ProductDetail'
 
@@ -22,7 +21,7 @@ const routeConfig = [
   { path: '/login',          element: <Login />,        bottomNav: false, floatingNav: false, appBar: false },
   { path: '/home',           element: <Home />,         bottomNav: true,  floatingNav: true,  appBar: false },
   { path: '/home/detail',    element: <HomeDetail />,   bottomNav: false, floatingNav: false, appBar: true, title: '홈 상세' },
-  { path: '/report',         element: <AvaterRoom />,   bottomNav: true,  floatingNav: false, appBar: true,  title: '아바타 룸' },
+  { path: '/report',         element: <AvaterRoom />,   bottomNav: true,  floatingNav: false, appBar: true,  title: '리포트', noScroll: true },
   { path: '/report/monthly', element: <Report />,       bottomNav: false, floatingNav: false, appBar: true,  title: '리포트' },
   { path: '/report/detail',  element: <ReportDetail />, bottomNav: false, floatingNav: false, appBar: true,  title: '리포트 상세' },
   { path: '/feed',           element: <Feed />,         bottomNav: true,  floatingNav: false, appBar: false },
@@ -31,7 +30,6 @@ const routeConfig = [
   { path: '/loading',        element: <LoadingPage />,  bottomNav: false, floatingNav: false, appBar: false },
   { path: '/diary-result',   element: <DiaryResult />,  bottomNav: false, floatingNav: false, appBar: false },
   { path: '/register',       element: <Register />,     bottomNav: false, floatingNav: false, appBar: false },
-  { path: '/mydata',         element: <MyDataConnect />,bottomNav: false, floatingNav: false, appBar: false },
   { path: '/search',         element: <ProductSearch />,bottomNav: true,  floatingNav: false, appBar: false },
   { path: '/product/detail', element: <ProductDetail />,bottomNav: false, floatingNav: false, appBar: false },
 ]
@@ -47,7 +45,7 @@ function Layout() {
   return (
     <div className="flex flex-col w-[375px] h-[100dvh] mx-auto bg-white overflow-hidden shadow-xl relative">
       {config.appBar && <AppBar title={config.title} />}
-      <div className={`flex-1 overflow-y-auto ${config.floatingNav ? 'pb-0' : ''}`}>
+      <div className={`flex-1 min-h-0 ${config.noScroll ? 'overflow-hidden' : 'overflow-y-auto'} ${config.floatingNav ? 'pb-0' : ''}`}>
         <Routes>
           {routeConfig.map(({ path, element }) => (
             <Route key={path} path={path} element={element} />

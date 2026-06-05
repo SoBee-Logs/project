@@ -107,50 +107,66 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
 
   const handleJoin = async () => {
     if (!joinCode.trim()) return alert('초대 코드를 입력해주세요!')
-    try {
-      const token = localStorage.getItem("token")
-      const res = await fetch(`/api/groups/join?code=${joinCode}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-      })
-      if (!res.ok) throw new Error('참여 실패')
-      const data = await res.json()
-      const newRoom = {
-        id: `room_${data.groupId}`,
-        label: data.groupName,
-        hashtag: `#${data.groupName}`,
-        diaryTab: data.groupName,
-        desc: data.groupDescription,
-        code: data.groupCode,
-      }
-      setRooms([...rooms, newRoom])
-      setJoinCode('')
-      setShowJoinPopup(false)
-      onChange?.(newRoom.id)
-    } catch (err) {
-      alert('존재하지 않는 코드예요.')
-      console.error(err)
+    const token = localStorage.getItem("token")
+    const res = await fetch(`/api/groups/join?code=${joinCode}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+    }).catch(() => null)
+
+    // 네트워크 오류
+    if (!res) {
+      alert('네트워크 오류가 발생했어요. 다시 시도해주세요.')
+      return
     }
+    // API 에러 — 서버 응답 메시지로 분기 처리
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      alert(err.message || '존재하지 않는 코드예요.')
+      return
+    }
+
+    const data = await res.json()
+    const newRoom = {
+      id: `room_${data.groupId}`,
+      label: data.groupName,
+      hashtag: `#${data.groupName}`,
+      diaryTab: data.groupName,
+      desc: data.groupDescription,
+      code: data.groupCode,
+    }
+    setRooms([...rooms, newRoom])
+    setJoinCode('')
+    setShowJoinPopup(false)
+    onChange?.(newRoom.id)
   }
 
   const handleLeaveRoom = async () => {
     if (!window.confirm('정말 이 모임에서 나가시겠어요?')) return
+
+    // fetch 성공 여부만 판별 — 성공 후 상태 갱신은 try 밖에서 처리
+    const token = localStorage.getItem('token')
+    const groupId = currentRoomId.replace('room_', '')
+    let success = false
     try {
-      const token = localStorage.getItem('token')
-      const groupId = currentRoomId.replace('room_', '')
       const res = await fetch(`/api/groups/${groupId}/leave`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (!res.ok) throw new Error('나가기 실패')
-      const updatedRooms = rooms.filter((r) => r.id !== currentRoomId)
-      setRooms(updatedRooms)
-      setShowCodePopup(false)
-      onChange?.(updatedRooms[0]?.id ?? null)
-    } catch (err) {
-      alert('모임 나가기에 실패했어요.')
-      console.error(err)
+      success = res.ok
+    } catch {
+      success = false
     }
+
+    if (!success) {
+      alert('모임 나가기에 실패했어요.')
+      return
+    }
+
+    // API 성공 후 클라이언트 상태 갱신
+    const updatedRooms = rooms.filter((r) => r.id !== currentRoomId)
+    setRooms(updatedRooms)
+    setShowCodePopup(false)
+    onChange?.(updatedRooms[0]?.id ?? null)
   }
 
   const popupStyle = {

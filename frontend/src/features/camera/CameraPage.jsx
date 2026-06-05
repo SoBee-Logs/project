@@ -353,7 +353,7 @@ export default function CameraPage() {
           </div>
         )}
 
-        <label className="block text-left">
+        <label className="block text-left mt-2">
           <span className="text-[15px] font-bold text-gray-900 mb-2 block">텍스트</span>
           <input
             type="text"

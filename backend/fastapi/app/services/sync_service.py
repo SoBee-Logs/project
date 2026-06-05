@@ -574,10 +574,12 @@ async def register_accounts_from_env(
     user_id: int,
     bank_codes: list[str],
     card_codes: list[str],
+    force_register: bool = False,
 ) -> dict:
     """
     사용자가 선택한 org_code를 ENV에서 조회해 CODEF 등록.
     loginId 기준 그룹핑으로 connected_id 최소화.
+    force_register=True: 기존 Secrets Manager 항목 삭제 후 재등록 (자격증명 변경 시 사용)
     반환: {"registered": [...], "missing": [...]}
     """
     env_bank = {acc["organization"]: acc for acc in settings.get_codef_bank_accounts()}
@@ -594,17 +596,22 @@ async def register_accounts_from_env(
         {"businessType": "CD", **env_card[c]} for c in card_codes
     ]
 
-    # 이미 Secrets Manager에 등록된 기관은 skip
-    existing = _load_connected_ids(user_id)
-    registered_set: set[tuple] = {
-        (inst["businessType"], inst["organization"])
-        for insts in existing.values()
-        for inst in insts
-    }
-    to_register = [
-        acc for acc in to_register
-        if (acc["businessType"], acc["organization"]) not in registered_set
-    ]
+    # force_register=True면 기존 Secrets Manager 항목 초기화 후 전체 재등록
+    if force_register:
+        _write_connected_ids(user_id, {})
+        log.info(f"Secrets Manager 초기화 (force_register): user={user_id}")
+    else:
+        # 이미 Secrets Manager에 등록된 기관은 skip
+        existing = _load_connected_ids(user_id)
+        registered_set: set[tuple] = {
+            (inst["businessType"], inst["organization"])
+            for insts in existing.values()
+            for inst in insts
+        }
+        to_register = [
+            acc for acc in to_register
+            if (acc["businessType"], acc["organization"]) not in registered_set
+        ]
 
     registered: list[str] = []
     if to_register:
@@ -643,6 +650,8 @@ async def sync_transactions_env(
     days: int = INITIAL_SYNC_DAYS,
     start_date: str | None = None,
     end_date: str | None = None,
+    skip_avatar: bool = False,
+    force_register: bool = False,
 ) -> dict:
     """
     ENV 기반 sync (팀원 로컬 테스트용).
@@ -664,13 +673,18 @@ async def sync_transactions_env(
     if not card_accounts and not bank_accounts:
         raise ValueError("ENV에 CODEF_CARD_ACCOUNTS / CODEF_BANK_ACCOUNTS 설정이 없습니다.")
 
-    # 이미 Secrets Manager에 등록된 (businessType, org) 확인
-    existing = _load_connected_ids(user_id)
-    registered: set[tuple] = {
-        (inst["businessType"], inst["organization"])
-        for insts in existing.values()
-        for inst in insts
-    }
+    # force_register=True면 기존 Secrets Manager 항목 초기화
+    if force_register:
+        _write_connected_ids(user_id, {})
+        log.info(f"Secrets Manager 초기화 (force_register): user={user_id}")
+        registered: set[tuple] = set()
+    else:
+        existing = _load_connected_ids(user_id)
+        registered: set[tuple] = {
+            (inst["businessType"], inst["organization"])
+            for insts in existing.values()
+            for inst in insts
+        }
 
     # 미등록 계정만 추려서 businessType 붙여 통합 리스트 구성
     to_register = [
@@ -712,7 +726,7 @@ async def sync_transactions_env(
                             _save_institution(user_id, cid, btype, org)
 
     # 등록 완료 후 Secrets Manager 기반 일반 sync 실행
-    return await sync_transactions(user_id, days=days)
+    return await sync_transactions(user_id, days=days, skip_avatar=skip_avatar)
 
 
 def _sync_date_range(days: int) -> tuple[str, str]:
@@ -721,7 +735,7 @@ def _sync_date_range(days: int) -> tuple[str, str]:
     return start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
 
 
-async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS) -> dict:
+async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS, skip_avatar: bool = False) -> dict:
     """
     Airflow DAG / 최초 가입 후 호출 (Secrets Manager 모드).
 

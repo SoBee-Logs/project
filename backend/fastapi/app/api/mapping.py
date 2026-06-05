@@ -7,18 +7,16 @@ from typing import List, Optional
 from app.core.config import settings
 from langsmith import traceable
 from datetime import datetime, timedelta
+from langsmith.wrappers import wrap_openai
 
 router = APIRouter()
 
-class VlmData(BaseModel):
+class VlmGroup(BaseModel):
+    group_id: Optional[int] = None
+    store: Optional[str] = None
     category: Optional[str] = None
-    item_name: Optional[str] = None
-    price_estimate: Optional[float] = None
-    store_type: Optional[str] = None
-    store_name: Optional[str] = None
-    description: Optional[str] = None
-    taken_at: Optional[str] = None
-    store_address: Optional[str] = None
+    items: Optional[List[str]] = None
+    price: Optional[float] = None
 
 class TransactionCandidate(BaseModel):
     payment_id: int
@@ -31,24 +29,24 @@ class TransactionCandidate(BaseModel):
 class MappingRequest(BaseModel):
     photo_id: int
     user_id: int
-    vlm_data: VlmData
+    taken_at: Optional[str] = None
+    location: Optional[str] = None
+    groups: List[VlmGroup]
     candidates: List[TransactionCandidate]
 
 class MappingResponse(BaseModel):
+    group_id: Optional[int] = None
     payment_id: Optional[int] = None
     reason: Optional[str] = None
 
-MAPPING_PROMPT = """너는 소비 사진과 결제 내역을 매핑하는 AI야.
+GROUP_MAPPING_PROMPT = """너는 소비 사진의 특정 그룹과 결제 내역을 매핑하는 AI야.
 
-아래 사진 분석 결과와 결제 후보 목록을 보고, 가장 적합한 결제 내역 1개를 선택해줘.
-
-[사진 분석 결과]
+[매핑 대상 그룹]
+- 그룹 ID: {group_id}
+- 가게명: {store}
 - 카테고리: {category}
-- 품목: {item_name}
-- 사진 설명: {description} ← 사진에서 직접 추출한 정보이므로 매핑 판단 시 적극 활용
-- 추정 금액: {price_estimate}원 (※ 추정값이므로 실제와 다를 수 있음)
-- 가게 유형: {store_type}
-- 가게명: {store_name}
+- 품목: {items}
+- 금액: {price}원
 - 촬영 시각: {taken_at}
 - 촬영 위치: {location}
 
@@ -60,9 +58,8 @@ MAPPING_PROMPT = """너는 소비 사진과 결제 내역을 매핑하는 AI야.
 - 요식업 → 한식, 중식, 양식, 일식, 분식, 패스트푸드, 치킨, 피자, 버거, 고기, 해산물 등 식당 관련 결제 포함
 - 카페/디저트 → 커피전문점, 카페, 제과점, 베이커리, 아이스크림 등 포함
 - 유통/마트 → 대형마트, 슈퍼마켓, 편의점, 백화점 등 포함
-- 편의점 → 편의점, 슈퍼 등 포함
 - 교통 → 주유소, 대중교통, 택시, 주차, 고속도로 등 포함
-- 문화/레져 → 영화관, 공연, 스포츠, 게임, 놀이공원, 동물원, 테마파크, 키즈카페, 실내동물카페 등 포함
+- 문화/레져 → 영화관, 공연, 스포츠, 게임, 놀이공원, 동물원, 테마파크 등 포함
 - 의류/잡화 → 옷, 신발, 가방, 액세서리, 화장품 등 포함
 - 보건/의료 → 병원, 약국, 헬스, 뷰티 등 포함
 - 기타 → 위 카테고리에 해당하지 않는 결제
@@ -74,17 +71,34 @@ MAPPING_PROMPT = """너는 소비 사진과 결제 내역을 매핑하는 AI야.
    가게명이 있으면 후보 목록의 payment_place와 비교해.
    일치하거나 포함 관계면 강하게 우선 고려해.
 
-2. 사진 설명과 결제 장소의 연관성 (핵심)
-   사진 설명, 품목명, 가게 유형을 결제 장소명과 적극 비교해.
+2. 품목/카테고리와 결제 장소 연관성 (핵심)
+   품목명, 카테고리, 가게명을 결제 장소명과 적극 비교해.
    메뉴명, 업종, 분위기가 장소명과 연관되면 높게 평가해.
    payment_category는 카드사 오분류가 많으니 무시하고 장소명 위주로 판단해.
 
-3. 시간 근접도
+3. 간편결제 처리 (네이버페이, 카카오페이 등)
+   payment_place가 "네이버페이", "카카오페이", "페이코" 등 간편결제 수단인 경우
+   가게명으로 매핑이 불가능하므로 시간 근접도와 금액 근접도만으로 판단해.
+   촬영 시각과 가장 가깝고 금액이 유사한 간편결제 건을 우선 선택해.
+
+4. 1/N 더치페이 이체 처리
+   식당, 카페 등에서 동행인과 함께 소비한 경우 본인이 직접 결제하지 않고
+   이체로 정산했을 수 있어. 이 경우 payment_place가 "이체", "송금" 등으로 나타나거나
+   금액이 추정 금액의 절반 또는 1/N 수준일 수 있어.
+   시간이 매우 근접하고 금액이 추정 금액의 1/2~1/4 범위이면 더치페이 이체로 판단해.
+
+5. 금액 근접도
+   추정 금액(price)과 payment_out을 비교해.
+   추정값이므로 ±50% 허용. 단 간편결제/이체는 위 규칙 우선 적용.
+   가게명을 알 수 없는 경우 금액보다 시간 근접도를 우선시해.
+
+6. 시간 근접도
    후보 목록에 표시된 시간 차이 값을 그대로 읽어. 절대 직접 계산하지 말 것.
+   가게명을 알 수 없는 경우 시간이 가장 가까운 후보를 최우선으로 선택해.
    시간이 가까울수록 우선 고려해.
    동일 가맹점이 여러 개면 시간이 가장 가까운 걸 선택해.
 
-4. 위치 유사도
+7. 위치 유사도
    촬영 위치와 결제 장소 주소의 도로명, 동 이름이 일치하면 높게 평가해.
 
 위 기준을 종합해서 적합한 후보가 없으면 null을 반환해.
@@ -99,15 +113,13 @@ MAPPING_PROMPT = """너는 소비 사진과 결제 내역을 매핑하는 AI야.
   "reason": "선택 이유 한 줄"
 }}"""
 
-
-def _get_client() -> AsyncOpenAI:
+def _get_client():
     if not settings.OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY가 설정되지 않았습니다.")
-    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    return wrap_openai(AsyncOpenAI(api_key=settings.OPENAI_API_KEY))
 
 
 def _time_diff_str(taken_at_kst: str, payment_time: Optional[str]) -> str:
-    """촬영시각과 결제시간 차이를 문자열로 반환"""
     try:
         t1 = datetime.strptime(taken_at_kst[:19], "%Y-%m-%d %H:%M:%S")
         t2 = datetime.strptime(payment_time[:19], "%Y-%m-%d %H:%M:%S")
@@ -120,32 +132,16 @@ def _time_diff_str(taken_at_kst: str, payment_time: Optional[str]) -> str:
         return "알 수 없음"
 
 
-def _to_kst(taken_at: Optional[str]) -> Optional[str]:
-    """DB에 UTC로 저장된 taken_at을 KST(-9시간)로 변환"""
-    if not taken_at:
-        return None
-    try:
-        dt = datetime.fromisoformat(taken_at) - timedelta(hours=9)
-        return dt.strftime("%Y-%m-%d %H:%M:%S")
-    except Exception:
-        return taken_at
-
-
-@router.post("/match", response_model=MappingResponse)
-@traceable(name="사진-결제 매핑")
+@router.post("/match", response_model=List[MappingResponse])
+@traceable(name="그룹 단위 매핑")
 async def match_photo_to_transaction(req: MappingRequest):
-    if not req.candidates:
-        return MappingResponse(payment_id=None, reason="결제 후보 없음")
+    if not req.candidates or not req.groups:
+        return []
 
     client = _get_client()
+    taken_at_kst = req.taken_at or "알 수 없음"
+    location = req.location or "알 수 없음"
 
-    # 촬영 위치 (store_address 직접 사용)
-    location = req.vlm_data.store_address or "알 수 없음"
-
-    # taken_at (DB에 KST로 저장되어 있으므로 변환 없이 그대로 사용)
-    taken_at_kst = req.vlm_data.taken_at or "알 수 없음"
-
-    # 후보 목록 시간 차이 오름차순 정렬
     def _diff_minutes(c) -> int:
         try:
             t1 = datetime.strptime(taken_at_kst[:19], "%Y-%m-%d %H:%M:%S")
@@ -155,60 +151,79 @@ async def match_photo_to_transaction(req: MappingRequest):
             return 99999
 
     sorted_candidates = sorted(req.candidates, key=_diff_minutes)
+    used_payment_ids = set()
+    results = []
 
-    candidates_text = "\n".join([
-        f"- payment_id: {c.payment_id}, 금액: {c.payment_out}원, "
-        f"시간: {c.payment_time} (촬영시각과 {_time_diff_str(taken_at_kst, c.payment_time)}), "
-        f"장소: {c.payment_place}, 카테고리: {c.payment_category}, 주소: {c.payment_address}"
-        for c in sorted_candidates
-    ])
+    for group in req.groups:
+        available = [c for c in sorted_candidates
+                     if c.payment_id not in used_payment_ids]
+        if not available:
+            results.append(MappingResponse(
+                group_id=group.group_id,
+                payment_id=None,
+                reason="남은 후보 없음"
+            ))
+            continue
 
-    valid_ids = [c.payment_id for c in req.candidates]
+        candidates_text = "\n".join([
+            f"- payment_id: {c.payment_id}, 금액: {c.payment_out}원, "
+            f"시간: {c.payment_time} (촬영시각과 {_time_diff_str(taken_at_kst, c.payment_time)}), "
+            f"장소: {c.payment_place}, 카테고리: {c.payment_category}, 주소: {c.payment_address}"
+            for c in available
+        ])
 
-    prompt = MAPPING_PROMPT.format(
-        category=req.vlm_data.category or "알 수 없음",
-        item_name=req.vlm_data.item_name or "알 수 없음",
-        price_estimate=int(req.vlm_data.price_estimate) if req.vlm_data.price_estimate else 0,
-        store_type=req.vlm_data.store_type or "알 수 없음",
-        store_name=req.vlm_data.store_name or "알 수 없음",
-        description=req.vlm_data.description or "",
-        taken_at=taken_at_kst,
-        location=location,
-        candidates=candidates_text,
-        valid_ids=valid_ids,
-    )
+        prompt = GROUP_MAPPING_PROMPT.format(
+            group_id=group.group_id,
+            store=group.store or "알 수 없음",
+            category=group.category or "알 수 없음",
+            items=", ".join(group.items) if group.items else "알 수 없음",
+            price=int(group.price) if group.price else 0,
+            taken_at=taken_at_kst,
+            location=location,
+            candidates=candidates_text,
+            valid_ids=[c.payment_id for c in available],
+        )
 
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"},
-        temperature=0.1,
-        max_tokens=200,
-    )
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.1,
+                max_tokens=200,
+            )
+            content = response.choices[0].message.content
+            data = json.loads(content)
+            payment_id = data.get("payment_id")
+            reason = data.get("reason")
 
-    content = response.choices[0].message.content
-    if not content:
-        return MappingResponse(payment_id=None, reason="LLM 응답 없음")
+            if payment_id is not None:
+                try:
+                    payment_id = int(payment_id)
+                except (ValueError, TypeError):
+                    payment_id = None
 
-    try:
-        data = json.loads(content)
-        payment_id = data.get("payment_id")
-        reason = data.get("reason")
-
-        if payment_id is not None:
-            try:
-                payment_id = int(payment_id)
-            except (ValueError, TypeError):
+            available_ids = {c.payment_id for c in available}
+            if payment_id not in available_ids:
                 payment_id = None
+                reason = "유효하지 않은 payment_id"
 
-        candidate_ids = {c.payment_id for c in req.candidates}
+            if payment_id:
+                used_payment_ids.add(payment_id)
 
-        if payment_id not in candidate_ids:
-            payment_id = None
-            reason = "유효하지 않은 payment_id"
+            print(f"[매핑] photo_id={req.photo_id} group_id={group.group_id} → payment_id={payment_id} | {reason}")
 
-        print(f"[매핑 결과] photo_id={req.photo_id} → payment_id={payment_id} | taken_at_kst={taken_at_kst} | {reason}")
+            results.append(MappingResponse(
+                group_id=group.group_id,
+                payment_id=payment_id,
+                reason=reason
+            ))
 
-        return MappingResponse(payment_id=payment_id, reason=reason)
-    except json.JSONDecodeError:
-        return MappingResponse(payment_id=None, reason="파싱 실패")
+        except Exception as e:
+            results.append(MappingResponse(
+                group_id=group.group_id,
+                payment_id=None,
+                reason=f"오류: {str(e)}"
+            ))
+
+    return results
