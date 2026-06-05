@@ -17,53 +17,40 @@ public class LlmMatchingClient {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    // FastAPI로 매핑 요청 보내고 payment_id 반환 — null이면 미매핑
-    public Long match(MatchRequest req) {
+    public List<MatchResponse> match(MatchRequest req) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<MatchRequest> entity = new HttpEntity<>(req, headers);
-
-            ResponseEntity<MatchResponse> res = restTemplate.exchange(
-                    mappingUrl,
-                    HttpMethod.POST,
-                    entity,
-                    MatchResponse.class
-            );
-
-            if (res.getBody() == null) return null;
-            return res.getBody().getPayment_id();
+            ResponseEntity<MatchResponse[]> res = restTemplate.exchange(
+                    mappingUrl, HttpMethod.POST, entity, MatchResponse[].class);
+            if (res.getBody() == null) return List.of();
+            return List.of(res.getBody());
         } catch (Exception e) {
-            return null;  // 실패 시 미매핑
+            return List.of();
         }
     }
 
-    // Request DTO
-    @Getter @Builder
-    @AllArgsConstructor @NoArgsConstructor
+    @Getter @Builder @AllArgsConstructor @NoArgsConstructor
     public static class MatchRequest {
         private Long photo_id;
         private Long user_id;
-        private VlmData vlm_data;
+        private String taken_at;
+        private String location;
+        private List<VlmGroupItem> groups;
         private List<TransactionCandidate> candidates;
     }
 
-    @Getter @Builder
-    @AllArgsConstructor @NoArgsConstructor
-    public static class VlmData {
+    @Getter @Builder @AllArgsConstructor @NoArgsConstructor
+    public static class VlmGroupItem {
+        private Integer group_id;
+        private String store;
         private String category;
-        private String item_name;
-        private Double price_estimate;
-        private String store_type;
-        private String store_name;
-        private String description;
-        private String taken_at;
-        private Double latitude;
-        private Double longitude;
+        private List<String> items;
+        private Double price;
     }
 
-    @Getter @Builder
-    @AllArgsConstructor @NoArgsConstructor
+    @Getter @Builder @AllArgsConstructor @NoArgsConstructor
     public static class TransactionCandidate {
         private Long payment_id;
         private Integer payment_out;
@@ -73,10 +60,9 @@ public class LlmMatchingClient {
         private String payment_address;
     }
 
-    // Response DTO
-    @Getter @Setter
-    @NoArgsConstructor
+    @Getter @Setter @NoArgsConstructor
     public static class MatchResponse {
+        private Integer group_id;
         private Long payment_id;
         private String reason;
     }
