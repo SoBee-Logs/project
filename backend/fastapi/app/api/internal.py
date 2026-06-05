@@ -232,3 +232,20 @@ async def diary_generate(request: DiaryGenerateRequest):
 async def parse_search(request: ParseSearchRequest):
     result = await parse_search_query(request.query)
     return ParseSearchResponse(**result)
+
+
+@router.get("/persona/has-photo")
+async def persona_has_photo(user_id: int, start_date: str, end_date: str):
+    """지난주(start_date~end_date) 기간에 photo-결제 매핑 데이터 존재 여부 반환 (Airflow용)."""
+    from app.db.connection import get_pool
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+                SELECT COUNT(*) FROM persona_transaction pt
+                JOIN transactions t ON pt.payment_id = t.payment_id
+                WHERE pt.user_id = %s
+                  AND t.payment_date BETWEEN %s AND %s
+            """, (user_id, start_date, end_date))
+            row = await cur.fetchone()
+    return {"user_id": user_id, "has_photo": (row[0] > 0) if row else False}
