@@ -207,7 +207,7 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
     weekly_avatar = {}
     try:
         cr_df = pd.read_sql(text("""
-            SELECT avatar_name, avatar_img_url, avatar_change_reason, avatar_created_at
+            SELECT avatar_name, avatar_img_url, avatar_change_reason, avatar_explain, avatar_created_at
             FROM avatar
             WHERE user_id = :user_id
               AND YEAR(avatar_created_at) = :year
@@ -221,8 +221,10 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
                 if pd.notna(created_at):
                     week_label = classify_week(created_at)
                     weekly_avatar[week_label] = {
-                        "avatar_img_url": row['avatar_img_url'],
-                        "avatar_name":    row['avatar_name'],
+                        "avatar_img_url":       row['avatar_img_url'],
+                        "avatar_name":          row['avatar_name'],
+                        "avatar_change_reason": row['avatar_change_reason'],
+                        "avatar_explain":       row['avatar_explain'],
                     }
     except Exception:
         pass
