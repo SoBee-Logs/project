@@ -13,7 +13,6 @@ import LoadingPage from './features/diary/LoadingPage'
 import DiaryResult from './features/diary/DiaryResult'
 import Login from './features/auth/Login'
 import Register from './features/auth/Register'
-import MyDataConnect from './features/auth/MyDataConnect'
 import ProductSearch from './features/search/ProductSearch'
 import ProductDetail from './features/search/ProductDetail'
 
@@ -31,7 +30,6 @@ const routeConfig = [
   { path: '/loading',        element: <LoadingPage />,  bottomNav: false, floatingNav: false, appBar: false },
   { path: '/diary-result',   element: <DiaryResult />,  bottomNav: false, floatingNav: false, appBar: false },
   { path: '/register',       element: <Register />,     bottomNav: false, floatingNav: false, appBar: false },
-  { path: '/mydata',         element: <MyDataConnect />,bottomNav: false, floatingNav: false, appBar: false },
   { path: '/search',         element: <ProductSearch />,bottomNav: true,  floatingNav: false, appBar: false },
   { path: '/product/detail', element: <ProductDetail />,bottomNav: false, floatingNav: false, appBar: false },
 ]

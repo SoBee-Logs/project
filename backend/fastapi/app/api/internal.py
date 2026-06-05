@@ -204,9 +204,9 @@ async def transactions_sync(request: SyncRequest):
     days = request.days if request.days is not None else DAILY_SYNC_DAYS
     try:
         if request.mode == "env":
-            result = await sync_transactions_env(request.user_id, days=days)
+            result = await sync_transactions_env(request.user_id, days=days, skip_avatar=request.skip_avatar, force_register=request.force_register)
         else:
-            result = await sync_transactions(request.user_id, days=days)
+            result = await sync_transactions(request.user_id, days=days, skip_avatar=request.skip_avatar)
     except ValueError as e:
         return SyncResponse(message=f"skip (연동 계정 없음): {e}")
     msg = (
