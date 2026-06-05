@@ -520,48 +520,6 @@ export default function Report() {
       <div className="overflow-y-auto flex-1 px-4 pb-8">
       <div className="flex flex-col gap-4 pt-4">
 
-        {/* 페르소나 배너 */}
-        {(() => {
-          const descText = persona?.avatarExplain ?? ''
-
-          const personaCat = txData?.persona_top_category
-          const personaTime = txData?.persona_peak_time
-          const traitTags = txData ? [
-            lifecycle?.life_stage_code && `🏷️ ${lifecycle.life_stage_code}`,
-            personaCat && `${personaCat} 집중`,
-            personaTime && `${TIME_ICONS[personaTime] ?? ''} ${personaTime}`,
-            txData.persona_vlm_count > 0 && `📸 사진 소비 ${txData.persona_vlm_count}건`,
-          ].filter(Boolean) : []
-
-          return (
-            <div className="rounded-2xl bg-[#1e73be] text-white p-4 flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-full bg-white/20 overflow-hidden shrink-0">
-                  {persona?.avatarImgUrl
-                    ? <img src={persona.avatarImgUrl} alt="페르소나" className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center text-2xl">🐝</div>
-                  }
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-base leading-tight">{persona?.avatarName ?? '분석 중...'}</p>
-                  {descText && (
-                    <p className="text-xs text-blue-100 mt-0.5 leading-relaxed">{descText}</p>
-                  )}
-                </div>
-              </div>
-              {traitTags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {traitTags.map((tag, i) => (
-                    <span key={i} className="text-[11px] font-semibold bg-white/20 text-white rounded-full px-3 py-1">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })()}
-
         {/* ① 소비 리포트 (월 총액) */}
         <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
           <p className="text-xs text-gray-400 mb-1">📊 {selectedYear}년 {selectedMonth}월 총 소비</p>
