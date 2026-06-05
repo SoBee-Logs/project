@@ -196,10 +196,10 @@ export default function AvaterRoom() {
   const weekAvatar = txData?.weekly_avatar?.[selectedWeek] ?? null
   const avatarImgUrl = weekAvatar?.avatar_img_url ?? null
   const avatarName = weekAvatar?.avatar_name ?? (persona?.avatarName ?? '내 페르소나')
-  const avatarExplain = persona?.avatarExplain ?? ''
+  const avatarExplain = weekAvatar?.avatar_explain ?? persona?.avatarExplain ?? ''
   const hasWeekAvatar = !!avatarImgUrl
 
-  const changeReason = safeJsonParse(txData?.avatar_change_reason, {})
+  const changeReason = safeJsonParse(weekAvatar?.avatar_change_reason ?? txData?.avatar_change_reason, {})
 
   const descText =
     avatarExplain ||
@@ -363,14 +363,16 @@ export default function AvaterRoom() {
           }}
         />
       )}
-      <div className="relative flex-1 overflow-hidden bg-white">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden bg-white">
         {/* 아바타 이미지 영역 */}
         <section
           onClick={() => hasWeekAvatar && setIsExpanded((prev) => !prev)}
-          className={`relative z-30 w-full transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${hasWeekAvatar ? 'cursor-pointer' : 'cursor-default'}`}
+          className={`relative z-30 w-full transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0 ${hasWeekAvatar ? 'cursor-pointer' : 'cursor-default'}`}
           style={{
             height: isExpanded ? '100%' : '235px',
             padding: isExpanded ? '0px' : '12px 16px 0',
+            position: isExpanded ? 'absolute' : 'relative',
+            inset: isExpanded ? '0' : undefined,
           }}
         >
           <div
@@ -534,48 +536,43 @@ export default function AvaterRoom() {
           </div>
         </section>
 
-        {/* 축소 상태 분석 영역 — 해당 주차 아바타 있을 때만 표시 */}
+        {/* 축소 상태 분석 영역 — flex-1로 남은 공간 자동 채움 */}
         <section
-          className="absolute left-0 right-0 bottom-0 px-5 pb-3 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-hidden"
+          className="flex-1 min-h-0 px-5 overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{
-            top: '235px',
             opacity: (isExpanded || !hasWeekAvatar) ? 0 : 1,
             transform: (isExpanded || !hasWeekAvatar) ? 'translateY(36px)' : 'translateY(0)',
             pointerEvents: (isExpanded || !hasWeekAvatar) ? 'none' : 'auto',
           }}
         >
-          <div className="h-full flex flex-col justify-start pt-4">
-            <div className="text-center mb-3">
+          <div className="h-full flex flex-col pt-1 pb-2">
+            <div className="text-center mb-1">
               <h2 className="text-[18px] font-extrabold text-gray-900 leading-tight break-keep line-clamp-1">
                 {avatarName}
               </h2>
 
-              <p className="text-[#1e73be] font-extrabold text-[11px] mt-1 uppercase tracking-[0.18em]">
-                {selectedWeek}차 Avatar Analysis
-              </p>
-
               {descText && (
-                <p className="text-gray-500 text-[11px] mt-0 leading-relaxed break-keep line-clamp-2">
+                <p className="text-gray-500 text-[11px] mt-0.5 leading-snug break-keep line-clamp-2">
                   {descText}
                 </p>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-1.5 flex-1">
               {detailsData.map((item, idx) => (
                 <article
                   key={`${item.title}-${idx}`}
-                  className="min-h-[100px] flex flex-col px-3 pt-2 pb-3 rounded-[18px] bg-gray-50 border border-gray-100 shadow-sm active:scale-[0.98] transition-transform"
+                  className="flex flex-col px-2.5 pt-1.5 pb-1.5 rounded-[18px] bg-gray-50 border border-gray-100 shadow-sm active:scale-[0.98] transition-transform"
                 >
-                  <div className="w-9 h-9 shrink-0 bg-white rounded-full flex items-center justify-center text-lg shadow-sm border border-gray-100/50 mb-2.5">
+                  <div className="w-8 h-8 shrink-0 bg-white rounded-full flex items-center justify-center text-base shadow-sm border border-gray-100/50 mb-1.5">
                     {item.emoji}
                   </div>
 
-                  <h3 className="font-extrabold text-gray-900 text-[12.5px] mb-1 leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                  <h3 className="font-extrabold text-gray-900 text-[12.5px] mb-1 leading-tight break-keep">
                     {item.title}
                   </h3>
 
-                  <p className="text-gray-500 text-[10.5px] leading-snug break-keep line-clamp-3">
+                  <p className="text-gray-500 text-[10.5px] leading-snug break-keep overflow-hidden">
                     {item.desc}
                   </p>
                 </article>
