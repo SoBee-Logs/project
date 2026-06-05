@@ -98,7 +98,7 @@ def task_persona(**ctx):
     for uid in user_ids:
         try:
             res = requests.post(
-                f"{FASTAPI_URL}/internal/persona/generate",
+                f"{FASTAPI_URL}/api/avatar",
                 headers=HEADERS,
                 json={"user_id": uid},
                 timeout=TIMEOUT,
