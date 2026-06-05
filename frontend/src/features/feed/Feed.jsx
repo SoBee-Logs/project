@@ -12,6 +12,8 @@ const mapDiaryToPost = (item) => ({
   date: item.date || '',
   time: item.time || '',
   authorNickname: item.authorName || '익명',
+  // 작성자 userId — 타 사용자 페르소나 이미지 조회에 사용
+  authorId: item.authorId ?? null,
   personaTitle: item.roomLabel || '',
   imageUrls: item.imageUrls?.length > 0 ? item.imageUrls : [item.imageUrl].filter(Boolean),
   liked: false,
@@ -115,28 +117,8 @@ export default function Feed() {
   const [activeRoom, setActiveRoom] = useState(initialRoomId)
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(false)
-  const [personaImage, setPersonaImage] = useState(null)
-
-  useEffect(() => {
-    const fetchPersona = async () => {
-      try {
-        const token = localStorage.getItem('token')
-        if (!token) return
-        const decoded = JSON.parse(atob(token.split('.')[1]))
-        const userId = decoded.sub
-        const res = await fetch(`/api/avatar/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.ok) {
-          const data = await res.json()
-          if (data.avatarImgUrl) setPersonaImage(data.avatarImgUrl)
-        }
-      } catch {
-        // 실패 시 기본 이미지 유지
-      }
-    }
-    fetchPersona()
-  }, [])
+  // 작성자 userId → 아바타 이미지 URL 캐시 (타 사용자 페르소나 버그 수정)
+  const [personaImages, setPersonaImages] = useState({})
 
   useEffect(() => {
     if (!activeRoom || !activeRoom.startsWith('room_')) return
@@ -152,7 +134,25 @@ export default function Feed() {
         })
         if (!res.ok) return
         const data = await res.json()
-        setPosts(data.map(mapDiaryToPost))
+        const mapped = data.map(mapDiaryToPost)
+        setPosts(mapped)
+
+        // 각 작성자의 아바타 이미지를 개별 fetch (중복 요청 방지)
+        const uniqueAuthorIds = [...new Set(mapped.map(p => p.authorId).filter(Boolean))]
+        uniqueAuthorIds.forEach(async (authorId) => {
+          try {
+            const r = await fetch(`/api/avatar/${authorId}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            if (!r.ok) return
+            const d = await r.json()
+            if (d.avatarImgUrl) {
+              setPersonaImages(prev => ({ ...prev, [authorId]: d.avatarImgUrl }))
+            }
+          } catch {
+            // 실패 시 기본 이미지 유지
+          }
+        })
       } catch (err) {
         console.error('일기 목록 조회 실패', err)
       } finally {
@@ -218,7 +218,7 @@ export default function Feed() {
                   key={post.id}
                   post={post}
                   onToggleLike={handleToggleLike}
-                  personaImage={personaImage}
+                  personaImage={personaImages[post.authorId] ?? null}
                 />
               ))}
             </div>

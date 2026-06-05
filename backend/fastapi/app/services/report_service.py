@@ -30,7 +30,7 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
     last_day_num   = calendar.monthrange(target_year, target_month)[1]
     last_day_obj   = datetime(target_year, target_month, last_day_num)
     first_weekday  = first_day_obj.weekday()
-    adjusted_first = (first_weekday + 1) % 7
+    adjusted_first = first_weekday  # 월=0 ... 일=6
 
     df = pd.read_sql(text("""
         SELECT
@@ -44,6 +44,7 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
             ON t.payment_category_id = cm.payment_category_id
         WHERE t.user_id = :user_id
           AND t.payment_date BETWEEN :start AND :end
+          AND t.payment_out > 0
     """), engine, params={
         "user_id": user_id,
         "start": first_day_obj.strftime("%Y-%m-%d"),
