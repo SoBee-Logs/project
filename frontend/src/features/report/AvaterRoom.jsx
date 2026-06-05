@@ -36,6 +36,18 @@ const TIME_ICONS = {
   심야: '🌃'
 }
 
+function getTimeEmojiFromReason(timeReason) {
+  const text = `${timeReason?.header ?? ''} ${timeReason?.context ?? ''}`
+
+  if (text.includes('새벽')) return TIME_ICONS.새벽
+  if (text.includes('아침')) return TIME_ICONS.아침
+  if (text.includes('점심')) return TIME_ICONS.점심
+  if (text.includes('저녁')) return TIME_ICONS.저녁
+  if (text.includes('심야') || text.includes('밤')) return TIME_ICONS.심야
+
+  return '⏰'
+}
+
 function getWeekDateRange(year, month, weekLabel) {
   const w = parseInt(weekLabel)
   if (isNaN(w)) return ''
@@ -203,7 +215,10 @@ export default function AvaterRoom() {
     if (hasChangeReason) {
       return [
         {
-          emoji: extractEmoji(changeReason?.emoji?.header) ?? '🙂',
+          emoji:
+            getTopEmotionByWeek()?.emoji ??
+            extractEmoji(changeReason?.emoji?.header) ??
+            '🙂',
           title:
             changeReason?.emoji?.header?.replace(/^\p{Emoji}\uFE0F?\s*/u, '') ??
             '감정이 담긴 표정',
@@ -300,7 +315,7 @@ export default function AvaterRoom() {
           onClick={() => setIsExpanded((prev) => !prev)}
           className="relative z-30 w-full cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{
-            height: isExpanded ? '100%' : '255px',
+            height: isExpanded ? '100%' : '235px',
             padding: isExpanded ? '0px' : '12px 16px 0',
           }}
         >
@@ -329,7 +344,7 @@ export default function AvaterRoom() {
             )}
 
             {/* 상단 월/주차 네비게이션 */}
-            <div className="absolute top-0 left-0 w-full z-20 pt-4 pb-3 bg-gradient-to-b from-black/40 to-transparent">
+            <div className="absolute top-0 left-0 w-full z-20 pt-2 pb-3 bg-gradient-to-b from-black/40 to-transparent">
               <div className="flex items-center justify-center gap-2 px-4">
                 <button
                   onClick={goPrev}
@@ -350,16 +365,16 @@ export default function AvaterRoom() {
                   </svg>
                 </button>
 
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[17px] font-extrabold text-white tracking-tight drop-shadow">
-                    {selectedYear}년 {selectedMonth}월
-                  </span>
-
+                <div className="flex flex-col items-center leading-none">
                   {isCurrentMonth && (
-                    <span className="text-[10px] font-bold bg-white/30 text-white rounded-full px-2 py-0.5 backdrop-blur-sm">
+                    <span className="mb-1 text-[9px] font-bold bg-white/30 text-white rounded-full px-2 py-1 backdrop-blur-sm">
                       이번 달
                     </span>
                   )}
+
+                  <span className="text-[16px] font-extrabold text-white tracking-tight drop-shadow">
+                    {selectedYear}년 {selectedMonth}월
+                  </span>
                 </div>
 
                 <button
@@ -388,7 +403,7 @@ export default function AvaterRoom() {
               </div>
 
               {weeks.length > 0 && (
-                <div className="flex gap-2 mt-2 px-4 overflow-x-auto scrollbar-hide">
+                <div className="flex gap-1.5 mt-1 px-4 overflow-x-auto scrollbar-hide">
                   {weeks.map((w) => (
                     <button
                       key={w}
@@ -396,7 +411,7 @@ export default function AvaterRoom() {
                         e.stopPropagation()
                         setSelectedWeek(w)
                       }}
-                      className={`shrink-0 text-[12px] font-bold rounded-full px-3.5 py-1.5 transition-colors ${
+                      className={`shrink-0 text-[11px] leading-none font-bold rounded-full px-2.5 py-1 transition-colors ${
                         selectedWeek === w
                           ? 'bg-white text-[#1e73be]'
                           : 'bg-white/20 text-white'
@@ -461,17 +476,17 @@ export default function AvaterRoom() {
 
         {/* 축소 상태 분석 영역 */}
         <section
-          className="absolute left-0 right-0 bottom-0 px-5 pb-5 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-hidden"
+          className="absolute left-0 right-0 bottom-0 px-5 pb-3 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-hidden"
           style={{
-            top: '255px',
+            top: '235px',
             opacity: isExpanded ? 0 : 1,
             transform: isExpanded ? 'translateY(36px)' : 'translateY(0)',
             pointerEvents: isExpanded ? 'none' : 'auto',
           }}
         >
-          <div className="h-full flex flex-col justify-start pt-5">
-            <div className="text-center mb-4">
-              <h2 className="text-[20px] font-extrabold text-gray-900 leading-tight break-keep line-clamp-1">
+          <div className="h-full flex flex-col justify-start pt-4">
+            <div className="text-center mb-3">
+              <h2 className="text-[18px] font-extrabold text-gray-900 leading-tight break-keep line-clamp-1">
                 {avatarName}
               </h2>
 
@@ -480,7 +495,7 @@ export default function AvaterRoom() {
               </p>
 
               {descText && (
-                <p className="text-gray-500 text-[11px] mt-1.0 leading-relaxed break-keep line-clamp-2">
+                <p className="text-gray-500 text-[11px] mt-0 leading-relaxed break-keep line-clamp-2">
                   {descText}
                 </p>
               )}
@@ -490,7 +505,7 @@ export default function AvaterRoom() {
               {detailsData.map((item, idx) => (
                 <article
                   key={`${item.title}-${idx}`}
-                  className="min-h-[112px] flex flex-col px-3.5 pt-2.5 pb-3.5 rounded-[18px] bg-gray-50 border border-gray-100 shadow-sm active:scale-[0.98] transition-transform"
+                  className="min-h-[100px] flex flex-col px-3 pt-2 pb-3 rounded-[18px] bg-gray-50 border border-gray-100 shadow-sm active:scale-[0.98] transition-transform"
                 >
                   <div className="w-9 h-9 shrink-0 bg-white rounded-full flex items-center justify-center text-lg shadow-sm border border-gray-100/50 mb-2.5">
                     {item.emoji}
