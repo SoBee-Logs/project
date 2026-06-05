@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { removeToken, getUserId } from '../../common/hooks/useAuth'
+import { clearSearchCache } from '../search/ProductSearch'
 
 // 로그아웃 시 지워야 할 localStorage 키
 function clearLocalStorage(userId) {
   removeToken()
   localStorage.removeItem('user_id')
   localStorage.removeItem('alertSeenKey')
+  clearSearchCache()
   if (userId) localStorage.removeItem(`mydataConnected_${userId}`)
 }
 
