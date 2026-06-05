@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 const BANKS = [
   { code: "0002", name: "산업은행" },
@@ -54,12 +55,33 @@ function MyDataConnect() {
     }
   };
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     if (selected.length === 0) return alert("최소 1개 이상 선택해주세요!");
     setLoading(true);
-    setTimeout(() => {
-      navigate("/home");
-    }, 2000);
+
+    const bankCodes = selected.filter((c) => BANKS.some((b) => b.code === c));
+    const cardCodes = selected.filter((c) => CARDS.some((cd) => cd.code === c));
+
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        "/api/accounts/register",
+        { bankCodes, cardCodes },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      // 홈 팝업이 다시 뜨지 않도록 연동 완료 플래그 설정
+      try {
+        const { jwtDecode } = await import("jwt-decode");
+        const decoded = jwtDecode(token);
+        if (decoded.sub) {
+          localStorage.setItem(`mydataConnected_${decoded.sub}`, "true");
+        }
+      } catch {}
+    } catch (e) {
+      console.error("마이데이터 연동 실패:", e);
+    }
+
+    navigate("/home");
   };
 
   if (loading) {
