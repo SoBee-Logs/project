@@ -34,7 +34,11 @@ function formatDateLabel(dateStr) {
 export default function ReportDetail() {
   const navigate = useNavigate()
   const location = useLocation()
-  const USER_ID  = getUserId() ?? 1
+  const USER_ID = getUserId()
+
+  useEffect(() => {
+    if (!USER_ID) navigate('/login')
+  }, [USER_ID])
  
   const today = new Date()
   const year  = location.state?.year  ?? today.getFullYear()
@@ -80,7 +84,7 @@ export default function ReportDetail() {
     <div className="flex flex-col items-center justify-center h-64 gap-3 px-4">
       <p className="text-2xl">😢</p>
       <p className="text-sm text-gray-500 text-center">데이터를 불러올 수 없어요.<br />{error}</p>
-      <button onClick={() => navigate('/report')} className="mt-2 px-5 py-2 rounded-xl bg-[#1e73be] text-white text-sm font-semibold">
+      <button onClick={() => navigate('/report', { state: { year, month } })} className="mt-2 px-5 py-2 rounded-xl bg-[#1e73be] text-white text-sm font-semibold">
         돌아가기
       </button>
     </div>
