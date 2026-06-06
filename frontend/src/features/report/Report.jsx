@@ -696,12 +696,15 @@ export default function Report() {
           const catVlmCount = scene.category_counts?.[name] ?? 0
           const vlmPct = totalVlm > 0 ? Math.round((catVlmCount / totalVlm) * 100) : 0
 
-          // avatar_change_reason JSON에서 item 컨텍스트 추출
+          // avatar_change_reason JSON에서 item 컨텍스트 추출 (마지막 변경 월과 현재 선택 월이 같을 때만 표시)
           let changeReasonItem = null
           try {
             const cr = txData.avatar_change_reason
             const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
-            changeReasonItem = parsed?.item ?? null
+            const crMonth = txData.avatar_change_reason_month
+            if (crMonth === selectedMonth) {
+              changeReasonItem = parsed?.item ?? null
+            }
           } catch {}
 
 
@@ -797,7 +800,10 @@ export default function Report() {
           try {
             const cr = txData.avatar_change_reason
             const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
-            emojiContext = parsed?.emoji?.context ?? null
+            const crMonth = txData.avatar_change_reason_month
+            if (crMonth === selectedMonth) {
+              emojiContext = parsed?.emoji?.context ?? null
+            }
           } catch {}
 
           return (
@@ -836,7 +842,10 @@ export default function Report() {
           try {
             const cr = txData?.avatar_change_reason
             const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
-            timeContext = parsed?.time ?? null
+            const crMonth = txData?.avatar_change_reason_month
+            if (crMonth === selectedMonth) {
+              timeContext = parsed?.time ?? null
+            }
           } catch {}
 
           const weekOrder = (txData?.week_order ?? []).filter(w =>

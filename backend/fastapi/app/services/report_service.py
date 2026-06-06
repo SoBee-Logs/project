@@ -203,15 +203,17 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
 
     # avatar_change_reason — avatar 테이블 최신 레코드에서 조회
     avatar_change_reason = None
+    avatar_change_reason_month = None
     try:
         cr_df = pd.read_sql(text("""
-            SELECT avatar_change_reason FROM avatar
+            SELECT avatar_change_reason, avatar_created_at FROM avatar
             WHERE user_id = :user_id
             ORDER BY avatar_created_at DESC
             LIMIT 1
         """), engine, params={"user_id": user_id})
         if not cr_df.empty:
             avatar_change_reason = cr_df.iloc[0]['avatar_change_reason']
+            avatar_change_reason_month = pd.to_datetime(cr_df.iloc[0]['avatar_created_at']).month if cr_df.iloc[0]['avatar_created_at'] else None
     except Exception:
         pass
 
@@ -330,5 +332,6 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         "category_colors":       CATEGORY_COLORS,
         "vlm_items":             vlm_items,
         "vlm_summary":           vlm_summary,
-        "avatar_change_reason":  avatar_change_reason,
+        "avatar_change_reason":        avatar_change_reason,
+        "avatar_change_reason_month":   avatar_change_reason_month,
     }
