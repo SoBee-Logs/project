@@ -26,13 +26,15 @@ def _make_repo_mock():
 # ── Step 1: 외부 패키지 및 DB 모듈을 import 전에 가짜로 등록 ─────────────
 #   - 가상환경에 설치 여부에 관계없이 테스트가 동작하도록 차단
 _settings_mock = MagicMock()
-_settings_mock.OPENAI_API_KEY = "test-key"
+_settings_mock.GEMINI_API_KEY = "test-key"
 
 _config_mock = MagicMock()
 _config_mock.settings = _settings_mock
 
 sys.modules.setdefault("aiomysql",                           MagicMock())
-sys.modules.setdefault("openai",                             MagicMock())
+sys.modules.setdefault("google",                             MagicMock())
+sys.modules.setdefault("google.genai",                       MagicMock())
+sys.modules.setdefault("google.genai.types",                 MagicMock())
 sys.modules.setdefault("pydantic_settings",                  MagicMock())
 sys.modules.setdefault("app.core.config",                    _config_mock)
 sys.modules.setdefault("app.db.connection",                  MagicMock())
