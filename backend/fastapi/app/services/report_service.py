@@ -210,6 +210,7 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
     # avatar_change_reason — avatar 테이블 최신 레코드에서 조회
     # weekly_avatar — 해당 월 각 주차에 생성된 아바타 이미지
     avatar_change_reason = None
+    avatar_change_reason_month = None
     weekly_avatar = {}
     try:
         cr_df = pd.read_sql(text("""
@@ -222,6 +223,8 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         """), engine, params={"user_id": user_id, "year": year, "month": month})
         if not cr_df.empty:
             avatar_change_reason = cr_df.iloc[-1]['avatar_change_reason']
+            last_created_at = cr_df.iloc[-1]['avatar_created_at']
+            avatar_change_reason_month = pd.to_datetime(last_created_at).month if pd.notna(last_created_at) else None
             for _, row in cr_df.iterrows():
                 created_at = row['avatar_created_at']
                 if pd.notna(created_at):
@@ -343,6 +346,7 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         "category_colors":       CATEGORY_COLORS,
         "vlm_items":             vlm_items,
         "vlm_summary":           vlm_summary,
-        "avatar_change_reason":  avatar_change_reason,
-        "weekly_avatar":         weekly_avatar,
+        "avatar_change_reason":        avatar_change_reason,
+        "avatar_change_reason_month":   avatar_change_reason_month,
+        "weekly_avatar":               weekly_avatar,
     }
