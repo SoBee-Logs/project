@@ -40,5 +40,12 @@ sys.modules.setdefault("app.core.config",                    _config_mock)
 sys.modules.setdefault("app.db.connection",                  MagicMock())
 sys.modules.setdefault("app.db.category_mapping_repository", _make_repo_mock())
 
+# lifecycle_service가 import 시점에 engine을 생성하므로 sqlalchemy도 차단
+_sqlalchemy_mock = MagicMock()
+_sqlalchemy_mock.create_engine = MagicMock(return_value=MagicMock())
+sys.modules.setdefault("sqlalchemy",            _sqlalchemy_mock)
+sys.modules.setdefault("sqlalchemy.orm",        MagicMock())
+
 # ── Step 2: 서비스 모듈을 미리 import → patch()가 모듈을 찾을 수 있게 됨 ──
 import app.services.category_mapping_service  # noqa: E402, F401
+import app.services.lifecycle_service         # noqa: E402, F401
