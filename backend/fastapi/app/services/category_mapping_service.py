@@ -4,7 +4,8 @@ category_mapping_service.py
 import json
 import logging
 from typing import Optional
-from openai import AsyncOpenAI
+from google import genai
+from google.genai import types
 
 from app.db import category_mapping_repository as repo
 from app.models.schemas import CategoryResolveResponse
@@ -13,7 +14,9 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+def _get_gemini_client():
+    return genai.Client(api_key=settings.GEMINI_API_KEY)
 
 STANDARD_CATEGORIES = [
     (1,  "식비",      "한식, 일식, 양식, 중식, 분식 등 일반 음식점. 식당, 분식집, 패스트푸드, 배달음식 등 식사 목적의 소비. 편의점 도시락/삼각김밥도 식비. 카페/베이커리 전문점은 제외(→2). 주점/술집은 제외(→8)."),
@@ -179,18 +182,18 @@ JSON으로만 응답하세요:
   ]
 }}"""
 
-async def _call_openai_classify(items: list[dict]) -> list[dict]:
-    """OpenAI gpt-4o-mini로 일괄 분류 요청."""
-    response = await _openai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "당신은 카드 결제 데이터를 정확하게 분류하는 분석가입니다."},
-            {"role": "user", "content": _build_llm_prompt(items)},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0,
+async def _call_gemini_classify(items: list[dict]) -> list[dict]:
+    """Gemini 2.5 flash로 일괄 분류 요청."""
+    client = _get_gemini_client()
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=_build_llm_prompt(items),
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0,
+        ),
     )
-    return json.loads(response.choices[0].message.content).get("results", [])
+    return json.loads(response.text).get("results", [])
 
 
 async def process_llm_for_etc_transactions(batch_size: int = 50) -> dict:
@@ -201,7 +204,7 @@ async def process_llm_for_etc_transactions(batch_size: int = 50) -> dict:
         return {"message": "처리할 페어 없음", "processed": 0, "transactions_backfilled": 0}
 
     try:
-        llm_results = await _call_openai_classify(pairs)
+        llm_results = await _call_gemini_classify(pairs)
     except Exception as e:
         logger.exception("OpenAI 호출 실패")
         return {

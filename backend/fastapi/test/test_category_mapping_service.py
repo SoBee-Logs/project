@@ -1,6 +1,6 @@
 """
 단위 테스트: category_mapping_service.py
-- 실제 DB, OpenAI API 연결 없이 Mock으로 대체
+- 실제 DB, Gemini API 연결 없이 Mock으로 대체
 - 총 13개 테스트
 """
 import pytest
@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, patch, call
 # 테스트 전체에서 공통으로 쓰는 Mock 경로 상수
 # ─────────────────────────────────────────────
 REPO = "app.services.category_mapping_service.repo"
-LLM  = "app.services.category_mapping_service._call_openai_classify"
+LLM  = "app.services.category_mapping_service._call_gemini_classify"
 
 
 # ══════════════════════════════════════════════════════════════
