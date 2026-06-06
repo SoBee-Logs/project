@@ -162,6 +162,12 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
     except Exception as e:
         print(f"[VLM ERROR] {e}")
 
+    # 페르소나 기준 주: 직전 월~일 구간 (오늘 기준)
+    today_obj = datetime.now().date()
+    days_since_sunday = (today_obj.weekday() + 1) % 7
+    prev_sunday = today_obj - timedelta(days=days_since_sunday if days_since_sunday > 0 else 7)
+    prev_monday = prev_sunday - timedelta(days=6)
+
     # VLM 장면 — 페르소나 기준 주간 (직전 월~일)
     persona_vlm_scene = {}
     try:
@@ -275,13 +281,6 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         week_df = df[df['week_label'] == week]
         weekly_category_price[week] = week_df.groupby('payment_category')['payment_out'].sum().astype(int).to_dict() if not week_df.empty else {}
         weekly_timepattern_price[week] = week_df.groupby('time_label')['payment_out'].sum().astype(int).to_dict() if not week_df.empty else {}
-
-    # 페르소나 기준 주: 직전 월~일 구간 (오늘 기준)
-    today_obj = datetime.now().date()
-    # 가장 최근 일요일(직전 주 마지막날)
-    days_since_sunday = (today_obj.weekday() + 1) % 7  # 월=1 ... 일=0
-    prev_sunday = today_obj - timedelta(days=days_since_sunday if days_since_sunday > 0 else 7)
-    prev_monday = prev_sunday - timedelta(days=6)
 
     persona_week_df = df[
         (df['payment_date'].astype(str) >= str(prev_monday)) &
