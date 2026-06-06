@@ -54,7 +54,9 @@ async def update_user_avatar(
     avatar_explain: str,
     avatar_img_url: str,
     avatar_change_reason: str,
+    avatar_created_at: datetime | None = None,
 ) -> None:
+    created_at = avatar_created_at if avatar_created_at is not None else datetime.now()
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
@@ -63,7 +65,7 @@ async def update_user_avatar(
                 INSERT INTO avatar (user_id, avatar_name, avatar_explain, avatar_img_url, avatar_change_reason, avatar_created_at)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,
-                (user_id, avatar_name, avatar_explain, avatar_img_url, avatar_change_reason, datetime.now()),
+                (user_id, avatar_name, avatar_explain, avatar_img_url, avatar_change_reason, created_at),
             )
             # users 테이블도 업데이트 (Spring persona 엔드포인트가 읽는 테이블)
             await cur.execute(

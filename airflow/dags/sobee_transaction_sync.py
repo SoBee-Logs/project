@@ -1,16 +1,17 @@
 """
 sobee_transaction_sync
 ────────────────────────────────────────
-[스케줄] 매일 새벽 2시 — 전체 유저 sync (days=3)
-         월요일만: sync 완료 후 페르소나(아바타) 생성까지 실행
+[스케줄] 매일 새벽 2시
+  1. 전체 유저 transactions sync (3일치 fetch → merge → 카테고리 → 생애주기)
+  2. 월요일만: 지난주(월~일) photo 데이터 있는 유저에 한해 아바타 생성
 
 [트리거 A] 회원가입 직후 특정 유저 초기 sync
   conf: {"user_id": 1, "days": 30}
-  → 해당 유저 sync만 실행, persona 생략
+  → 해당 유저 sync만 실행, 아바타 생성 없음
 
-[트리거 B] 전체 유저 수동 실행 (persona 강제 포함)
+[트리거 B] 전체 유저 수동 아바타 강제 생성
   conf: {"force_persona": true}
-  → 전체 유저 sync + persona 실행
+  → 전체 유저 sync + 아바타 생성 (photo 데이터 없는 유저도 포함)
 
 트리거 방법:
   Airflow UI → Trigger DAG w/ config
@@ -19,7 +20,7 @@ sobee_transaction_sync
     Body: {"conf": {"user_id": 1, "days": 30}}
 """
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 from airflow import DAG
@@ -40,10 +41,19 @@ def _get_all_user_ids() -> list[int]:
     return res.json()["user_ids"]
 
 
+def _last_week_range() -> tuple[str, str]:
+    """지난주 월요일~일요일 반환 (YYYY-MM-DD)"""
+    today = datetime.utcnow().date()
+    this_monday = today - timedelta(days=today.weekday())
+    last_monday = this_monday - timedelta(days=7)
+    last_sunday = last_monday + timedelta(days=6)
+    return str(last_monday), str(last_sunday)
+
+
 def task_sync(**ctx):
     """
     conf에 user_id 있음 → 해당 유저만 sync (회원가입 트리거 A)
-    conf 없음 or force_persona → 전체 유저 sync (스케줄 / 트리거 B)
+    conf 없음            → 전체 유저 sync (스케줄 / 트리거 B)
     """
     conf = ctx["dag_run"].conf or {}
     user_id = conf.get("user_id")
@@ -60,7 +70,6 @@ def task_sync(**ctx):
         print(f"sync 완료: user_id={user_id} days={days} skip_avatar=True")
     else:
         user_ids = _get_all_user_ids()
-        results = []
         for uid in user_ids:
             try:
                 res = requests.post(
@@ -70,17 +79,14 @@ def task_sync(**ctx):
                     timeout=TIMEOUT,
                 )
                 res.raise_for_status()
-                results.append({"user_id": uid, "status": "ok"})
             except Exception as e:
-                results.append({"user_id": uid, "status": "error", "error": str(e)})
                 print(f"sync 실패 user={uid}: {e}")
-        ctx["ti"].xcom_push(key="sync_results", value=results)
-        print(f"전체 sync 완료: {len(results)}명")
+        print(f"전체 sync 완료: {len(user_ids)}명")
 
 
 def should_run_persona(**ctx) -> bool:
     """
-    persona 실행 조건:
+    아바타 생성 실행 조건:
     - 특정 유저 트리거(user_id 있음)면 skip
     - 월요일 스케줄 또는 force_persona=true 트리거면 실행
     """
@@ -93,25 +99,53 @@ def should_run_persona(**ctx) -> bool:
 
 
 def task_persona(**ctx):
-    """전체 유저 페르소나(아바타) 생성 → S3 업로드 → users 업데이트"""
+    """
+    유저별로 지난주(월~일) persona_transaction 데이터 존재 여부 확인.
+    - photo 데이터 있음 → /api/avatar 호출 (사진+transactions 기반 아바타)
+    - photo 데이터 없음 → skip (transactions만으론 이번 주기 아바타 미생성)
+    force_persona=true 트리거 시에는 photo 데이터 없어도 생성.
+    """
+    conf = ctx["dag_run"].conf or {}
+    force = conf.get("force_persona", False)
+    start_date, end_date = _last_week_range()
+
     user_ids = _get_all_user_ids()
     for uid in user_ids:
+        # 지난주 photo 데이터 존재 여부 확인
+        if not force:
+            try:
+                res = requests.get(
+                    f"{FASTAPI_URL}/internal/persona/has-photo",
+                    headers=HEADERS,
+                    params={"user_id": uid, "start_date": start_date, "end_date": end_date},
+                    timeout=30,
+                )
+                res.raise_for_status()
+                if not res.json().get("has_photo", False):
+                    print(f"photo 데이터 없음 — 아바타 skip: user_id={uid}")
+                    continue
+            except Exception as e:
+                print(f"photo 체크 실패 user={uid}: {e} — skip")
+                continue
+
         try:
             res = requests.post(
                 f"{FASTAPI_URL}/api/avatar",
                 headers=HEADERS,
-                json={"user_id": uid},
+                json={"user_id": uid, "start_date": start_date, "end_date": end_date},
                 timeout=TIMEOUT,
             )
             res.raise_for_status()
+            print(f"아바타 생성 완료: user_id={uid}")
         except Exception as e:
-            print(f"persona 실패 user={uid}: {e}")
-    print(f"persona 생성 완료: {len(user_ids)}명")
+            print(f"아바타 생성 실패 user={uid}: {e}")
+
+    print(f"persona 완료: {len(user_ids)}명 처리")
 
 
 with DAG(
     dag_id="sobee_transaction_sync",
-    description="매일 sync + 월요일 persona | 트리거: 특정 유저 sync / 전체 persona 강제 실행",
+    description="매일 sync, 월요일 photo 있는 유저 아바타 생성",
     schedule="0 2 * * *",
     start_date=datetime(2026, 1, 1),
     catchup=False,
