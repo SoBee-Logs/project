@@ -12,4 +12,8 @@ aws s3 cp "s3://${S3_BUCKET_NAME}/ml/lifecycle_model.py" "$ML_DIR/lifecycle_mode
 aws s3 cp "s3://${S3_BUCKET_NAME}/ml/model.pkl" "$ML_DIR/model.pkl" && \
     echo "model.pkl 다운로드 완료" || echo "model.pkl 다운로드 실패"
 
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+if [ "$ENV" = "dev" ]; then
+    exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+else
+    exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+fi
