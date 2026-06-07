@@ -38,11 +38,10 @@ class LifecycleResponse(BaseModel):
 class SyncRequest(BaseModel):
     user_id: int
     days: Optional[int] = None  # None → daily default (3일), 30 → 최초 가입 시
-    mode: Literal["secrets", "env"] = "secrets"
+    
     # secrets: AWS Secrets Manager (기본, Airflow 운영)
     # env:     CODEF_CARD/BANK_ACCOUNTS ENV JSON 배열 (팀원 테스트용)
-    skip_avatar: bool = False  # True → 아바타 생성 스킵 (마이데이터 초기 연동 시 사용)
-    force_register: bool = False  # True → Secrets Manager 기존 connected_id 무시하고 재등록 (env 모드 전용)
+    mode: Literal["secrets", "env"] = "env"
 
 class SyncResponse(BaseModel):
     message: str
