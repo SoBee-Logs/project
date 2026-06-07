@@ -17,10 +17,11 @@ export default function CameraPage() {
   const [previewUrl, setPreviewUrl] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingStep, setLoadingStep] = useState('')
+  // 고친 것
+  const groupsFromState = location.state?.myGroups ?? []  // ← 먼저 선언
   const [rooms, setRooms] = useState(
     groupsFromState.map(g => ({ id: g.groupId, label: g.groupName }))
   )
-  const groupsFromState = location.state?.myGroups ?? []
   // VLM 분석 상태 — 사진 선택 즉시 백그라운드 분석
 
   const [vlmData, setVlmData] = useState(null)
@@ -184,7 +185,7 @@ export default function CameraPage() {
 
       if (result.photoId && finalVlmData?.category) {
         try {
-          await fetch(`/api/photos/${result.photoId}/vlm-result`, {
+          const vlmSaveRes = await fetch(`/api/photos/${result.photoId}/vlm-result`, {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${token}`,
@@ -320,6 +321,12 @@ export default function CameraPage() {
                     <div className="text-[11px] text-gray-600 col-span-2">
                       <span className="text-gray-400">판단 근거</span>
                       <span className="block font-semibold text-gray-800">{vlmData.reasoning}</span>
+                    </div>
+                  )}
+                  {vlmData._elapsed_ms && (
+                    <div className="text-[11px] text-gray-600 col-span-2">
+                      <span className="text-gray-400">응답 시간</span>
+                      <span className="block font-semibold text-gray-800">{vlmData._elapsed_ms}ms</span>
                     </div>
                   )}
                 </div>
