@@ -360,11 +360,12 @@ def _upload_to_s3(image_bytes: bytes, user_id: int) -> str:
 
 
 def _get_last_week_range() -> tuple[str, str]:
-    today = datetime.today()
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo("Asia/Seoul")).date()
     this_monday = today - timedelta(days=today.weekday())
     last_monday = this_monday - timedelta(days=7)
     last_sunday = last_monday + timedelta(days=6)
-    return last_monday.strftime("%Y-%m-%d"), last_sunday.strftime("%Y-%m-%d")
+    return str(last_monday), str(last_sunday)
 
 
 def _analyze_persona_sync(
@@ -517,10 +518,8 @@ def _is_valid_date(value: str) -> bool:
 
 
 async def generate_avatar(request: AvatarRequest) -> AvatarResponse:
-    from app.services.mapping_service import run_mapping
     start_date = request.start_date
     end_date = request.end_date
     if not start_date or not end_date or not _is_valid_date(start_date) or not _is_valid_date(end_date):
         start_date, end_date = _get_last_week_range()
-    await run_mapping(request.user_id, start_date, end_date)
     return await _generate_and_save_avatar(request.user_id, start_date, end_date)
