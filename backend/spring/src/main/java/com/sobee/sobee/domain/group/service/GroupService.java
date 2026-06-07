@@ -65,11 +65,12 @@ public class GroupService {
 
     public List<GroupResponseDto> getMyGroups(Long userId) {
         List<UserGroup> userGroups = userGroupRepository.findByUserId(userId);
-        return userGroups.stream()
-                .map(ug -> groupRepository.findById(ug.getGroupId())
-                        .map(this::toDto)
-                        .orElse(null))
-                .filter(g -> g != null)
+        List<Long> groupIds = userGroups.stream()
+                .map(UserGroup::getGroupId)
+                .collect(Collectors.toList());
+        if (groupIds.isEmpty()) return List.of();
+        return groupRepository.findAllByGroupIdIn(groupIds).stream()
+                .map(this::toDto)
                 .collect(Collectors.toList());
     }
 

@@ -65,26 +65,27 @@ export default function Home() {
         })
         if (!groupsRes.ok) return
         const groups = await groupsRes.json()
-       const previews = await Promise.all(
-        groups.map(async (g) => {
+  
+        // 그룹 먼저 세팅 (이미지 없이)
+        setFeedPreviews(groups.map(g => ({
+          groupId: g.groupId,
+          groupName: g.groupName,
+          imageUrl: null,  // 일단 null
+        })))
+  
+        // 이미지는 비동기로 하나씩 채우기
+        groups.forEach(async (g) => {
           try {
             const diaryRes = await fetch(`/api/diary/list?groupId=${g.groupId}`, {
               headers: { Authorization: `Bearer ${token}` },
             })
             const diaries = await diaryRes.json()
-            // 가장 최신 일기의 첫 번째 이미지
             const latestImage = diaries?.[0]?.imageUrls?.[0] ?? diaries?.[0]?.imageUrl ?? null
-            return {
-              groupId: g.groupId,
-              groupName: g.groupName,
-              imageUrl: latestImage,
-            }
-          } catch {
-            return { groupId: g.groupId, groupName: g.groupName, imageUrl: null }
-          }
+            setFeedPreviews(prev => prev.map(f =>
+              f.groupId === g.groupId ? { ...f, imageUrl: latestImage } : f
+            ))
+          } catch {}
         })
-      )
-        setFeedPreviews(previews)
       } catch (err) {
         console.error('피드 미리보기 로딩 실패', err)
       }
