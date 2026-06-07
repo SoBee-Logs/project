@@ -1,13 +1,13 @@
 # app/api/mapping.py
 import json
-from openai import AsyncOpenAI
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from app.core.config import settings
-from langsmith import traceable
+from langsmith import traceable, get_current_run_tree
 from datetime import datetime, timedelta
 from langsmith.wrappers import wrap_openai
+from openai import OpenAI  # AsyncOpenAI → OpenAI로 변경
 
 router = APIRouter()
 
@@ -116,7 +116,7 @@ GROUP_MAPPING_PROMPT = """너는 소비 사진의 특정 그룹과 결제 내역
 def _get_client():
     if not settings.OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY가 설정되지 않았습니다.")
-    return wrap_openai(AsyncOpenAI(api_key=settings.OPENAI_API_KEY))
+    return wrap_openai(OpenAI(api_key=settings.OPENAI_API_KEY))
 
 
 def _time_diff_str(taken_at_kst: str, payment_time: Optional[str]) -> str:
@@ -134,7 +134,7 @@ def _time_diff_str(taken_at_kst: str, payment_time: Optional[str]) -> str:
 
 @router.post("/match", response_model=List[MappingResponse])
 @traceable(name="그룹 단위 매핑")
-async def match_photo_to_transaction(req: MappingRequest):
+def match_photo_to_transaction(req: MappingRequest):
     if not req.candidates or not req.groups:
         return []
 
@@ -185,12 +185,13 @@ async def match_photo_to_transaction(req: MappingRequest):
         )
 
         try:
-            response = await client.chat.completions.create(
+            response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=0.1,
                 max_tokens=200,
+                langsmith_extra={"run_tree": get_current_run_tree()},
             )
             content = response.choices[0].message.content
             data = json.loads(content)
