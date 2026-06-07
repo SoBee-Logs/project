@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getUserId } from '../../common/hooks/useAuth'
+import defaultAvatar from '../../assets/image 61.png'
 
 function getFirstWeekday(year, month) {
   return (new Date(year, month - 1, 1).getDay() + 6) % 7
@@ -394,10 +395,12 @@ export default function AvaterRoom() {
                 }}
               />
             ) : (
-              <div className="w-full h-full bg-gray-100 flex flex-col items-center justify-center gap-2">
-                <span className="text-5xl">🐝</span>
-                <p className="text-sm font-medium text-gray-400">아직 아바타가 생성되지 않았습니다</p>
-                <p className="text-xs text-gray-300">소비 사진을 찍으면 분석을 시작해요!</p>
+              <div className="w-full h-full bg-white flex items-center justify-center">
+                <img
+                  src={defaultAvatar}
+                  alt="기본 아바타"
+                  className="w-[70%] h-auto object-contain"
+                />
               </div>
             )}
 
@@ -518,9 +521,11 @@ export default function AvaterRoom() {
                 pointerEvents: isExpanded ? 'auto' : 'none',
               }}
             >
-              <h2 className="text-white text-[26px] font-extrabold mb-4 drop-shadow-lg leading-tight break-keep">
-                {avatarName}
-              </h2>
+              {!isEmptyMonth && hasWeekAvatar && (
+                <h2 className="text-white text-[26px] font-extrabold mb-4 drop-shadow-lg leading-tight break-keep">
+                  {avatarName}
+                </h2>
+              )}
 
               <button
                 onClick={(e) => {
@@ -547,9 +552,11 @@ export default function AvaterRoom() {
         >
           <div className="h-full flex flex-col pt-1 pb-2">
             <div className="text-center mb-1">
-              <h2 className="text-[18px] font-extrabold text-gray-900 leading-tight break-keep line-clamp-1">
-                {avatarName}
-              </h2>
+              {!isEmptyMonth && hasWeekAvatar && (
+                <h2 className="text-[18px] font-extrabold text-gray-900 leading-tight break-keep line-clamp-1">
+                  {avatarName}
+                </h2>
+              )}
 
               {descText && (
                 <p className="text-gray-500 text-[11px] mt-0.5 leading-snug break-keep line-clamp-2">

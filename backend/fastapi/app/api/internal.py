@@ -203,14 +203,11 @@ async def transactions_sync(request: SyncRequest):
     )
     days = request.days if request.days is not None else DAILY_SYNC_DAYS
     try:
-        if request.mode == "env":
-            result = await sync_transactions_env(request.user_id, days=days, skip_avatar=request.skip_avatar, force_register=request.force_register)
-        else:
-            result = await sync_transactions(request.user_id, days=days, skip_avatar=request.skip_avatar)
+        result = await sync_transactions_env(request.user_id, days=days)
     except ValueError as e:
         return SyncResponse(message=f"skip (연동 계정 없음): {e}")
     msg = (
-        f"sync 완료 [{request.mode}] | 기간:{result['period']} "
+        f"sync 완료 [env] | 기간:{result['period']} "
         f"계좌:{result['bank_saved']} 카드:{result['card_saved']} "
         f"transactions:{result['transactions_merged']}"
     )
@@ -235,3 +232,20 @@ async def diary_generate(request: DiaryGenerateRequest):
 async def parse_search(request: ParseSearchRequest):
     result = await parse_search_query(request.query)
     return ParseSearchResponse(**result)
+
+
+@router.get("/persona/has-photo")
+async def persona_has_photo(user_id: int, start_date: str, end_date: str):
+    """지난주(start_date~end_date) 기간에 photo-결제 매핑 데이터 존재 여부 반환 (Airflow용)."""
+    from app.db.connection import get_pool
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+                SELECT COUNT(*) FROM persona_transaction pt
+                JOIN transactions t ON pt.payment_id = t.payment_id
+                WHERE pt.user_id = %s
+                  AND t.payment_date BETWEEN %s AND %s
+            """, (user_id, start_date, end_date))
+            row = await cur.fetchone()
+    return {"user_id": user_id, "has_photo": (row[0] > 0) if row else False}

@@ -10,7 +10,6 @@ const MOOD_TYPES = ['HAPPY', 'SAD', 'SURPRISED', 'LOVE', 'ANGRY']
 export default function CameraPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const groupsFromState = location.state?.myGroups ?? []
   const [text, setText] = useState('')
   const [selectedMood, setSelectedMood] = useState(0)
   const [selectedRooms, setSelectedRooms] = useState([])
@@ -18,10 +17,10 @@ export default function CameraPage() {
   const [previewUrl, setPreviewUrl] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingStep, setLoadingStep] = useState('')
-  // const [rooms, setRooms] = useState([])
   const [rooms, setRooms] = useState(
     groupsFromState.map(g => ({ id: g.groupId, label: g.groupName }))
-)
+  )
+  const groupsFromState = location.state?.myGroups ?? []
   // VLM 분석 상태 — 사진 선택 즉시 백그라운드 분석
 
   const [vlmData, setVlmData] = useState(null)
@@ -32,7 +31,19 @@ export default function CameraPage() {
   const vlmPromiseRef = useRef(null)
   const fileInputRef = useRef(null)
 
-  // 컴포넌트 마운트 시 실제 기기 GPS 위치 요청
+ // 홈에서 group 정보 못 받아왔을때 groups api 호출해서 방 정보 가져오기
+  useEffect(() => {
+    if (groupsFromState.length > 0) return  // 이미 있으면 스킵
+    
+    // 없을 때만 API 호출
+    const token = localStorage.getItem('token')
+    fetch('/api/groups', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(groups => setRooms(groups.map(g => ({ id: g.groupId, label: g.groupName }))))
+      .catch(() => {})
+  }, [])
+
+   // 컴포넌트 마운트 시 실제 기기 GPS 위치 요청
   useEffect(() => {
     if (!navigator.geolocation) {
       setGpsError('이 기기는 위치 정보를 지원하지 않아요. 기본 위치로 대체합니다.')
