@@ -250,7 +250,7 @@ def _query_card(cate_names: list[str], top_category: str, top_amount: int = 0) -
     r = df.iloc[0]
     card_info_id = int(r['card_info_id'])
     gorilla_id = r['gorilla_id']
-    card_url = f"https://www.card-gorilla.com/card/detail/{gorilla_id}" if gorilla_id else None
+    card_url = f"https://www.card-gorilla.com/card/detail/{gorilla_id}" if (gorilla_id and pd.notna(gorilla_id)) else None
     reason = f"이번 달 {top_category} 지출이 많아 관련 혜택 카드를 추천해요"
 
     benefits_df = pd.read_sql(text("""
