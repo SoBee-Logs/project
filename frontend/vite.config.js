@@ -11,7 +11,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.js',
-    css: false,
+    // css: false, #단위테스트 진행
   },
   plugins: [
     react(),
