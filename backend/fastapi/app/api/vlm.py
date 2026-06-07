@@ -3,6 +3,7 @@ import io
 import json
 import os
 import urllib.request
+import time
 
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
@@ -20,7 +21,6 @@ EXTRACTION_PROMPT = """이 사진을 분석해서 소비 정보를 추출해줘.
 
 {
     "category": "식비 | 카페간식 | 온라인쇼핑 | 패션쇼핑 | 교통 | 여행숙박 | 문화여가 | 술유흥 | 의료건강 | 뷰티미용 | 주거통신 | 교육학습 | 금융 | 경조선물 | 생활 | 기타",
-    "secondary_category": null,
     "item_name": "품목 또는 메뉴 이름",
     "price": 숫자만 원단위,
     "location_type": "식당 | 카페 | 마트 | 편의점 | 온라인 등",
@@ -75,7 +75,7 @@ EXTRACTION_PROMPT = """이 사진을 분석해서 소비 정보를 추출해줘.
 
 groups 규칙:
 - 카테고리가 다른 품목은 별도 group으로 분리하기
-- 같은 가게 품목만 하나의 group으로 묶기
+- 같은 가게 품목은 하나의 group으로 묶기 (예를 들어 편의점에서 산 것으로 추정되면 카테고리 달라도 같은 group)
 - 가게가 다르거나 불분명하면 반드시 별도 group으로 분리하기
 - 브랜드/로고로 가게 추정 가능하면 store에 입력
 - 소비 없는 사진은 groups 빈 배열
@@ -206,15 +206,21 @@ def _get_mime_type(filename: str) -> str:
 
 async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str) -> dict:
     image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-
+    
+    start = time.time() 
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=[image_part, EXTRACTION_PROMPT],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             temperature=0.1,
+            thinking_config=types.ThinkingConfig(  # 이거 추가
+                thinking_budget=0
+            ),
         ),
     )
+    elapsed = time.time() - start
+    print(f"[Gemini] 응답시간: {elapsed:.2f}s | thinking_budget=0")
 
     content = response.text
     if not content:
@@ -226,7 +232,9 @@ async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str) -> di
             cleaned = cleaned.split("```")[1]
             if cleaned.startswith("json"):
                 cleaned = cleaned[4:]
-        return json.loads(cleaned.strip())
+        result = json.loads(cleaned.strip())
+        result["_elapsed_ms"] = round(elapsed * 1000)  # ← 이게 없음
+        return result
     except json.JSONDecodeError:
         return {"error": "JSON 파싱 실패", "raw_response": content[:200]}
 
