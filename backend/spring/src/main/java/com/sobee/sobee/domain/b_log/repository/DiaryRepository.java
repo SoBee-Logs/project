@@ -24,4 +24,7 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
+
+    @Query("SELECT COALESCE(SUM(d.likes), 0) FROM Diary d WHERE d.userId = :userId")
+        int sumLikesByUserId(@Param("userId") Long userId);
 }

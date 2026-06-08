@@ -4,10 +4,11 @@ import { useDragScroll } from '../../common/hooks/useDragScroll'
 import StatusBar from '../../common/components/StatusBar'
 import SettingsDrawer from './SettingsDrawer'
 import { jwtDecode } from 'jwt-decode'
-import cameraHalo from '../../assets/camera_3d_halo.png'
-import receiptHalo from '../../assets/receipt_3d_halo.png'
+import { ChevronRight } from 'lucide-react'
+import cameraHalo from '../../assets/camera.png'
+import receiptHalo from '../../assets/log.png'
+import productBag from '../../assets/recommend.png'
 import beeImage from '../../assets/image 61.png'
-
 
 export default function Home() {
   const navigate = useNavigate()
@@ -29,6 +30,10 @@ export default function Home() {
   const [persona, setPersona] = useState(null)
   const [feedPreviews, setFeedPreviews] = useState([])
   const [currentTime, setCurrentTime] = useState('')
+  const [userName, setUserName] = useState('')
+
+  const [totalLikes, setTotalLikes] = useState(0)
+  const [diaryCount, setDiaryCount] = useState(0)
 
   useEffect(() => {
     const update = () => {
@@ -43,7 +48,6 @@ export default function Home() {
     return () => clearInterval(timer)
   }, [])
 
-
   const fetchPersona = () => {
     if (!userId) return
     fetch(`/api/users/${userId}/persona`)
@@ -57,6 +61,26 @@ export default function Home() {
   }, [userId])
 
   useEffect(() => {
+    if (!userId) return
+    fetch(`/api/users/${userId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setUserName(data.userName) })
+      .catch(() => {})
+  }, [userId])
+
+  useEffect(() => {
+    if (!userId) return
+    fetch(`/api/users/${userId}/likes`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setTotalLikes(data.totalLikes) })
+      .catch(() => {})
+  }, [userId])
+
+  useEffect(() => {
     const fetchFeedPreviews = async () => {
       try {
         const token = localStorage.getItem('token')
@@ -66,21 +90,22 @@ export default function Home() {
         })
         if (!groupsRes.ok) return
         const groups = await groupsRes.json()
-  
-        // 그룹 먼저 세팅 (이미지 없이)
+
         setFeedPreviews(groups.map(g => ({
           groupId: g.groupId,
           groupName: g.groupName,
-          imageUrl: null,  // 일단 null
+          imageUrl: null,
         })))
-  
-        // 이미지는 비동기로 하나씩 채우기
+
+        let count = 0
         groups.forEach(async (g) => {
           try {
             const diaryRes = await fetch(`/api/diary/list?groupId=${g.groupId}`, {
               headers: { Authorization: `Bearer ${token}` },
             })
             const diaries = await diaryRes.json()
+            count += diaries?.length ?? 0
+            setDiaryCount(count)
             const latestImage = diaries?.[0]?.imageUrls?.[0] ?? diaries?.[0]?.imageUrl ?? null
             setFeedPreviews(prev => prev.map(f =>
               f.groupId === g.groupId ? { ...f, imageUrl: latestImage } : f
@@ -94,153 +119,204 @@ export default function Home() {
     fetchFeedPreviews()
   }, [])
 
-
   return (
-    <main className="min-h-full text-left pb-2" style={{ background: '#FFFFFF' }}>
-
-
-      <section style={{ background: '#FFFFFF' }}>
+    <main className="min-h-full text-left pb-2 home-no-scrollbar" style={{ background: '#FFFFFF' }}>
+      <section style={{ background: '#FFFFFF'}}>
         <StatusBar />
 
-        {/* 검색바 */}
-        <header className="px-3 pt-1 pb-2 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate('/search')}
-            className="flex-1 flex items-center gap-2 rounded-2xl px-4 py-1.5 text-left cursor-pointer"
-            style={{ background: '#F0F6FF' }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#21BCEA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <span className="text-[11px] flex-1" style={{ color: '#0073BC' }}>궁금한 걸 자유롭게 물어보세요!</span>
-          </button>
-          <button type="button" onClick={() => setSettingsOpen(true)} className="w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer border-0" style={{ background: '#F0F6FF' }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0073BC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
-        </header>
-
         {/* 페르소나 이미지 */}
-        <figure className="relative w-full mt-1 mb-0 m-0 px-3 min-h-[240px]">
+        <figure className="relative w-full m-0 p-0" style={{ marginTop: '-1px' }}>
           {persona?.avatarImgUrl ? (
             <>
               <img
                 src={persona.avatarImgUrl}
                 alt="페르소나 꿀벌 아바타"
-                className="w-full h-auto block rounded-2xl"
+                className="w-full block"
+                style={{ objectFit: 'contain', objectPosition: 'center top' }}
               />
-              <div className="absolute bottom-0 left-3 right-3 h-20 bg-gradient-to-t from-black/40 to-transparent rounded-b-2xl" />
-              <div className="absolute bottom-3 left-6 text-white">
-                <span className="block text-[10px] font-extrabold opacity-80">나의 소비 페르소나</span>
-                <span className="block text-[16px] font-extrabold leading-tight">{persona.avatarName}</span>
+              {/* 하단 페이드 */}
+              <div style={{
+                position: 'absolute',
+                bottom: 0, left: 0, right: 0,
+                height: '60px',
+                background: 'linear-gradient(to bottom, transparent, #FFFFFF)',
+              }} />
+              
+              {/* 검색바 오버레이 */}
+              <div className="absolute top-4 left-0 right-0 z-20 px-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/search')}
+                  className="flex-1 flex items-center gap-2 rounded-2xl px-4 py-1.5 text-left cursor-pointer"
+                  style={{ background: 'rgba(240,246,255,0.85)' }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#21BCEA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <span className="text-[11px] flex-1" style={{ color: '#0073BC' }}>궁금한 걸 자유롭게 물어보세요!</span>
+                </button>
+                <button type="button" onClick={() => setSettingsOpen(true)} className="w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer border-0" style={{ background: 'rgba(240,246,255,0.85)' }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0073BC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
+                </button>
               </div>
             </>
           ) : (
-            <div className="w-full min-h-[240px] rounded-2xl bg-white flex flex-col items-center justify-center gap-2">
+            <div className="w-full min-h-[240px] rounded-2xl bg-white flex flex-col items-center justify-center gap-1">
               <img src={beeImage} alt="아바타" style={{ width: '60%', maxWidth: 200, objectFit: 'contain' }} />
               <p className="text-sm font-medium text-gray-400">아직 아바타가 생성되지 않았습니다</p>
               <p className="text-xs text-gray-300">소비 사진을 찍으면 분석을 시작해요!</p>
             </div>
           )}
         </figure>
-
-        {/* 금융상품 추천 버튼 */}
-        <div className="px-3">
-          <button
-            type="button"
-            onClick={() => navigate('/report', { state: { scrollTo: 'aiRecommend' } })}
-            style={{
-              width: '100%',
-              height: '48px',
-              margin: '10px 0 12px',
-              padding: '0 24px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              border: 'none',
-              borderRadius: '14px',
-              background: '#0073BC',
-              color: '#ffffff',
-              boxShadow: '0 8px 18px rgba(0,115,188,0.24)',
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{
-              width: '28px', height: '28px', flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: '50%', background: 'rgba(255,255,255,0.18)', fontSize: '15px',
-            }}>💰</span>
-            <span style={{
-              fontSize: '12px', fontWeight: 700,
-              letterSpacing: '-0.3px', textAlign: 'left', whiteSpace: 'nowrap',
-            }}>페르소나 기반 금융 상품 추천 바로가기</span>
-          </button>
-        </div>
+        {/* 페르소나 카드 */}
+        {persona?.avatarImgUrl && (
+          <div className="px-3 -mt-3 relative z-10">
+            <button
+              type="button"
+              onClick={() => navigate('/report')}
+              className="w-full border-0 cursor-pointer text-left"
+              style={{
+                background: '#FFFFFF',
+                borderRadius: '16px',
+                padding: '8px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
+              }}
+            >
+              {/* 텍스트 */}
+              <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+                <p style={{ margin: '0 0 1px', fontSize: '12px', fontWeight: 700, color: '#9AA6B2' }}>
+                  {userName ? `${userName}님의 소비 페르소나` : '나의 소비 페르소나'}
+                </p>
+                <p style={{ margin: '0 0 6px', fontSize: '15px', fontWeight: 800, color: '#111827', letterSpacing: '-0.5px', lineHeight: 1.2 }}>
+                  {persona.avatarName}
+                </p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{
+                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    background: '#F0F6FF', borderRadius: '10px', padding: '1px 0',
+                  }}>
+                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>📸 기록한 순간</span>
+                    <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{diaryCount}</strong>
+                  </div>
+                  <div style={{
+                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    background: '#F0F6FF', borderRadius: '10px', padding: '1px 0',
+                  }}>
+                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>❤️ 받은 좋아요</span>
+                    <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{totalLikes}</strong>
+                  </div>
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
       </section>
 
       {/* 기능 카드 */}
-      <section className="px-3 mt-1">
+      <section className="px-3 mt-2">
         <div className="grid grid-cols-2 gap-3">
+
+          {/* 카메라 카드 */}
           <button
             type="button"
-            onClick={() => navigate('/camera', { 
-              state: { myGroups: feedPreviews } //groups 재호출 하지 않도록
-          })}
-            className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
+            onClick={() => navigate('/camera', { state: { myGroups: feedPreviews } })}
+            className="rounded-[18px] flex flex-col cursor-pointer border-0 text-left relative"
             style={{
-              background: '#EBF5FF',
-              borderRadius: '14px',
+              background: '#2F7DF6',
               border: 'none',
-              boxShadow: 'none',
+              boxShadow: '0 8px 18px rgba(47,125,246,0.18)',
+              minHeight: '85px',
+              overflow: 'visible',
             }}
           >
-            <div className="w-full flex items-center justify-center pt-1 pb-0">
-              <img src={cameraHalo} alt="camera" className="w-16 h-16 object-contain block" />
+            <div className="px-4 pt-4">
+              <span className="block text-[13px] font-bold leading-tight" style={{ color: '#FFFFFF' }}>
+                카메라
+              </span>
+              <span className="block text-[11px] font-bold leading-tight mt-2.5" style={{ color: '#FFFFFF' }}>
+                소비 사진을 찍어주세요!
+              </span>
             </div>
-            <div className="px-2 pb-2 -mt-3">
-              <span className="block text-[9px] mb-0.5" style={{ color: '#21BCEA' }}>{currentTime}</span>
-              <span className="block text-[12px] font-bold leading-tight" style={{ color: '#003B72' }}>소비가 있다면 찍어주세요!</span>
+            <div className="flex-1 flex items-end justify-end">
+              <img
+                src={cameraHalo}
+                alt="camera"
+                className="object-contain block"
+                style={{ width: '100px', height: '100px', marginBottom: '-5px', marginRight: '8px' }}
+              />
             </div>
           </button>
 
-          <button
-            type="button" //consumption-log로 이동할 때 selectedRooms와 myGroups 상태를 함께 전달
-            onClick={() => {
-              const roomIds = feedPreviews.map(f => f.groupId)
-              navigate('/consumption-log', { 
-                  state: { 
-                      selectedRooms: roomIds,
-                      myGroups: feedPreviews
-                  } 
-              })
-          }}
-            className="rounded-2xl overflow-hidden flex flex-col cursor-pointer border-0 text-left"
-            style={{
-              background: '#EBF5FF',
-              borderRadius: '14px',
-              border: 'none',
-              boxShadow: 'none',
-            }}
-          >
-            <div className="w-full flex items-center justify-center pt-1 pb-0">
-              <img src={receiptHalo} alt="receipt" className="w-16 h-16 object-contain block" />
-            </div>
-            <div className="px-2 pb-2 -mt-3">
-              <span className="block text-[9px] mb-0.5" style={{ color: '#21BCEA' }}>오늘의 소비 사진을 확인해보세요</span>
-              <span className="block text-[12px] font-bold leading-tight" style={{ color: '#003B72' }}>나의 소비 로그</span>
-            </div>
-          </button>
+          {/* 오른쪽 2단 카드 */}
+          <div className="grid grid-rows-2 gap-3">
+
+            {/* 소비 로그 카드 */}
+            <button
+              type="button"
+              onClick={() => {
+                const roomIds = feedPreviews.map(f => f.groupId)
+                navigate('/consumption-log', { state: { selectedRooms: roomIds, myGroups: feedPreviews } })
+              }}
+              className="rounded-[18px] flex items-end justify-between cursor-pointer border-0 text-left relative"
+              style={{
+                background: '#EBF5FF',
+                border: 'none',
+                boxShadow: 'none',
+                minHeight: '40px',
+                padding: '5px 12px',
+                overflow: 'visible',
+              }}
+            >
+              <span className="block text-[12px] font-bold leading-tight self-start pt-1" style={{ color: '#003B72' }}>
+                나의<br />소비 로그
+              </span>
+              <img
+                src={receiptHalo}
+                alt="receipt"
+                className="object-contain block"
+                style={{ width: '68px', height: '68px', marginBottom: '-10px', marginRight: '-6px' }}
+              />
+            </button>
+
+            {/* 상품 추천 카드 */}
+            <button
+              type="button"
+              onClick={() => navigate('/report', { state: { scrollTo: 'aiRecommend' } })}
+              className="rounded-[18px] flex items-end justify-between cursor-pointer border-0 text-left relative"
+              style={{
+                background: '#EBF5FF',
+                border: 'none',
+                boxShadow: 'none',
+                minHeight: '40px',
+                padding: '5px 12px',
+                overflow: 'visible',
+              }}
+            >
+              <span className="block text-[12px] font-bold leading-tight self-start pt-1" style={{ color: '#003B72' }}>
+                상품 추천
+              </span>
+              <img
+                src={productBag}
+                alt="product recommendation"
+                className="object-contain block"
+                style={{ width: '75px', height: '75px', marginBottom: '-10px', marginRight: '-6px' }}
+              />
+            </button>
+          </div>
         </div>
       </section>
 
       {/* 피드 */}
-      <section className="px-3 pt-5 pb-24">
-        <h2 className="text-[17px] font-bold mb-3" style={{ color: '#003B72' }}>피드</h2>
+      <section className="px-3 pt-3 pb-22">
+        <h2 className="text-[14px] font-bold mb-0.5" style={{ color: '#003B72', paddingLeft: '2px' }}>피드 하이라이트</h2>
         {feedPreviews.length === 0 ? (
           <p className="text-[13px] text-gray-400 text-center py-6">
             아직 모임방이 없어요. 모임을 만들어보세요!
@@ -248,7 +324,7 @@ export default function Home() {
         ) : (
           <div
             ref={feedRef}
-            className={`flex gap-3 overflow-x-auto pb-2 scrollbar-hide ${feedDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+            className={`flex gap-3 overflow-x-auto scrollbar-hide ${feedDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
@@ -260,9 +336,10 @@ export default function Home() {
                 key={item.groupId}
                 type="button"
                 onClick={() => navigate('/feed', { state: { roomId: item.groupId } })}
-                className="shrink-0 w-[150px] text-left p-0 border-0 bg-transparent cursor-pointer"
+                className="shrink-0 text-left p-0 border-0 bg-transparent cursor-pointer"
+                style={{ width: 'calc(50% - 6px)' }}
               >
-                <figure className="relative w-[150px] h-[150px] rounded-2xl overflow-hidden bg-gray-100 m-0 mb-1.5 shadow-sm">
+                <figure className="relative w-full aspect-square rounded-2xl overflow-hidden bg-gray-100 m-0 shadow-sm">
                   {item.imageUrl ? (
                     <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
