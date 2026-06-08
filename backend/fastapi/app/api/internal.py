@@ -199,15 +199,15 @@ async def accounts_register(request: RegisterAccountRequest):
 @router.post("/transactions/sync", response_model=SyncResponse)
 async def transactions_sync(request: SyncRequest):
     from app.services.sync_service import (
-        DAILY_SYNC_DAYS, sync_transactions, sync_transactions_env,
+        DAILY_SYNC_DAYS, sync_transactions,
     )
     days = request.days if request.days is not None else DAILY_SYNC_DAYS
     try:
-        result = await sync_transactions_env(request.user_id, days=days)
+        result = await sync_transactions(request.user_id, days=days)
     except ValueError as e:
         return SyncResponse(message=f"skip (연동 계정 없음): {e}")
     msg = (
-        f"sync 완료 [env] | 기간:{result['period']} "
+        f"sync 완료 | 기간:{result['period']} "
         f"계좌:{result['bank_saved']} 카드:{result['card_saved']} "
         f"transactions:{result['transactions_merged']}"
     )

@@ -8,6 +8,12 @@ const LOADING_MESSAGES = [
   'LLM이 일기를 쓰는 중입니다!',
 ]
 
+// UTC → KST 변환 유틸
+const getTodayKST = () =>
+  new Date(new Date().getTime() + 9 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
+
 export default function LoadingPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -28,7 +34,7 @@ export default function LoadingPage() {
     const fetchUserPhotos = async () => {
       try {
         const token = localStorage.getItem('token')
-        const today = new Date().toISOString().slice(0, 10)
+        const today = getTodayKST() // KST 기준 오늘 날짜
 
         // 페르소나 이미지 가져오기
         try {
@@ -67,7 +73,7 @@ export default function LoadingPage() {
 
     const runPipeline = async () => {
       const token = localStorage.getItem('token')
-      const today = new Date().toISOString().slice(0, 10)
+      const today = getTodayKST() // KST 기준 오늘 날짜
 
       let roomIds = selectedRooms
       let roomMap = {}

@@ -42,8 +42,9 @@ def _get_all_user_ids() -> list[int]:
 
 
 def _last_week_range() -> tuple[str, str]:
-    """지난주 월요일~일요일 반환 (YYYY-MM-DD)"""
-    today = datetime.utcnow().date()
+    """지난주 월요일~일요일 반환 (YYYY-MM-DD, KST 기준)"""
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo("Asia/Seoul")).date()
     this_monday = today - timedelta(days=today.weekday())
     last_monday = this_monday - timedelta(days=7)
     last_sunday = last_monday + timedelta(days=6)
@@ -146,7 +147,7 @@ def task_persona(**ctx):
 with DAG(
     dag_id="sobee_transaction_sync",
     description="매일 sync, 월요일 photo 있는 유저 아바타 생성",
-    schedule="0 2 * * *",
+    schedule="0 17 * * *",  # KST 02:00 (UTC 17:00)
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["sobee", "transaction", "persona"],

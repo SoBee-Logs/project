@@ -722,7 +722,7 @@ export default function Report() {
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-gray-400">📸 사진 비중</span>
                   {totalVlm > 0
-                    ? <span className="text-[10px] font-bold text-[#1e73be]">{catVlmCount}건 ({vlmPct}%)</span>
+                    ? <span className="text-[10px] font-bold text-[#1e73be]">{catVlmCount}/{totalVlm}건 ({vlmPct}%)</span>
                     : <span className="text-[10px] text-gray-300">사진 기록 없음</span>
                   }
                 </div>
@@ -750,45 +750,6 @@ export default function Report() {
           )
         })()}
 
-
-        {/* ③ 소비 장면 (페르소나 기준 주간 VLM 기반) */}
-        {txData?.persona_vlm_scene?.total_count > 0 && (() => {
-          const { total_count, store_type_counts, top_items, category_items } = txData.persona_vlm_scene
-          const topStores = Object.entries(store_type_counts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
-            .map(([type, cnt]) => `${type} ${cnt}회`)
-
-          return (
-            <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#FFF8F0', border: '1px solid #FFE4C4' }}>
-              <p className="text-xs font-semibold" style={{ color: '#B45309' }}>📷 이번 주 소비 장면</p>
-              <div>
-                <p className="text-lg font-extrabold text-gray-900">VLM 분석 기반</p>
-                {topStores.length > 0 && (
-                  <p className="text-sm text-gray-600 mt-0.5">{topStores.join(' · ')}</p>
-                )}
-                {top_items.length > 0 && (
-                  <p className="text-[11px] text-gray-400 mt-1">
-                    주요 아이템: {top_items.join(', ')}
-                    {total_count > 5 ? '...' : ''}
-                  </p>
-                )}
-              </div>
-              {Object.keys(category_items).length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {Object.entries(category_items).flatMap(([cat, items]) =>
-                    items.slice(0, 2).map((item, i) => (
-                      <span key={`${cat}-${i}`} className="text-[11px] font-medium rounded-full px-2.5 py-0.5"
-                        style={{ background: '#FDEBC8', color: '#92400E' }}>
-                        {item}
-                      </span>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })()}
 
         {/* ④ 주차별 소비 감정 */}
         {txData?.week_order?.length > 0 && (() => {
