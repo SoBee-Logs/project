@@ -533,17 +533,16 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
         await conn.begin()
         try:
             async with conn.cursor() as cur:
-                await cur.execute(
-                    "DELETE FROM transactions WHERE user_id=%s AND payment_date BETWEEN %s AND %s",
-                    (user_id, sd, ed),
-                )
                 if records:
                     await cur.executemany("""
                         INSERT INTO transactions
                             (user_id, payment_date, payment_time,
-                             payment_out, payment_in,
-                             payment_place, payment_category, payment_address)
+                            payment_out, payment_in,
+                            payment_place, payment_category, payment_address)
                         VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                        ON DUPLICATE KEY UPDATE
+                            payment_category = VALUES(payment_category),
+                            payment_address = VALUES(payment_address)
                     """, records)
             await conn.commit()
         except Exception:
@@ -657,7 +656,7 @@ async def sync_transactions_env(
     ENV 기반 sync (팀원 로컬 테스트용).
 
     ENV 형식:
-      CODEF_CARD_ACCOUNTS=[{"organization":"0301","loginId":"myid","loginPw":"mypw","cardName":"신한카드"}]
+      CODEF_CARD_ACCOUNTS=[{"organization":"0306","loginId":"myid","loginPw":"mypw","cardName":"신한카드"}]
       CODEF_BANK_ACCOUNTS=[{"organization":"0020","loginId":"myid","loginPw":"mypw","account":"1234567890","bankName":"우리은행"}]
 
     흐름:

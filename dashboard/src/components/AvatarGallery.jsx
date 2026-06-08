@@ -36,7 +36,7 @@ export default function AvatarGallery() {
               <div style={styles.placeholder}>🧬</div>
             )}
             <div style={styles.name}>{u.avatar_name || u.name}</div>
-            <div style={styles.meta}>{u.name} · {u.age}세 · {u.gender === 'M' ? '남' : u.gender === 'F' ? '여' : '-'}</div>
+            <div style={styles.meta}>{u.name} · {u.age}세 · {u.gender?.toLowerCase() === 'm' ? '남' : u.gender?.toLowerCase() === 'f' ? '여' : '-'}</div>
             <div style={styles.badge}>{LIFE_STAGE[u.life_stage_code] || u.life_stage_code || '미분류'}</div>
             <div style={styles.txCount}>persona 거래 {u.persona_tx_count}건</div>
           </div>
@@ -52,7 +52,7 @@ export default function AvatarGallery() {
             )}
             <h3>{selected.avatar_name || selected.name}</h3>
             <p style={{ color: '#666', fontSize: 13, margin: '4px 0 12px' }}>
-              {selected.name} · {selected.age}세 · {LIFE_STAGE[selected.life_stage_code] || '미분류'}
+              {selected.name} · {selected.age}세 · {selected.gender?.toLowerCase() === 'm' ? '남' : selected.gender?.toLowerCase() === 'f' ? '여' : '-'} · {LIFE_STAGE[selected.life_stage_code] || '미분류'}
             </p>
             {selected.avatar_explain && (
               <p style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12, color: '#444' }}>{selected.avatar_explain}</p>

@@ -62,6 +62,13 @@ async def update_user_avatar(
         async with conn.cursor() as cur:
             await cur.execute(
                 """
+                DELETE FROM avatar
+                WHERE user_id = %s AND DATE(avatar_created_at) = DATE(%s)
+                """,
+                (user_id, created_at),
+            )
+            await cur.execute(
+                """
                 INSERT INTO avatar (user_id, avatar_name, avatar_explain, avatar_img_url, avatar_change_reason, avatar_created_at)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,

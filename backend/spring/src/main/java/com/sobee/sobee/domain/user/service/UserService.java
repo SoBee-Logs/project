@@ -57,8 +57,14 @@ public class UserService {
                 : null;
         Avatar avatar = avatarRepository.findTopByUserIdOrderByAvatarCreatedAtDesc(userId)
                 .orElse(null);
-        if (avatar == null) return new UserPersonaDto(null, null, null, null, createdAt);
-        return new UserPersonaDto(avatar.getAvatarName(), avatar.getAvatarExplain(), avatar.getAvatarImgUrl(), avatar.getAvatarChangeReason(), createdAt);
+        if (avatar == null) return new UserPersonaDto(user.getName(), null, null, null, null, createdAt);
+        return new UserPersonaDto(user.getName(), avatar.getAvatarName(), avatar.getAvatarExplain(), avatar.getAvatarImgUrl(), avatar.getAvatarChangeReason(), createdAt);
+    }
+
+    public String getUserName(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("유저를 찾을 수 없습니다."));
+        return user.getName();
     }
 
     // 회원 탈퇴 — Soft Delete (is_active = false)
