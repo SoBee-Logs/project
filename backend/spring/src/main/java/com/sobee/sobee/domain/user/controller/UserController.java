@@ -41,4 +41,11 @@ public class UserController {
         userService.deactivateUser(userId);
         return ResponseEntity.ok("회원 탈퇴 완료");
     }
+
+    @GetMapping("/{userId}/likes")
+    public ResponseEntity<?> getTotalLikes(@PathVariable Long userId) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("totalLikes", userService.getTotalLikes(userId));
+        return ResponseEntity.ok(response);
+    }
 }
