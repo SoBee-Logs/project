@@ -661,7 +661,7 @@ export default function Report() {
                         className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
                           catWeek === w
                             ? 'bg-[#1e73be] text-white'
-                            : 'bg-gray-100 text-gray-500'
+                            : 'bg-white text-gray-500 border border-gray-200'
                         }`}
                       >
                         {w}
@@ -678,7 +678,7 @@ export default function Report() {
               {activeCatData.length > 0 ? (
                 <CategoryDonut categoryList={activeCatData} selectedCat={displayCat} onSelect={(cat) => { setSelectedCat(cat); setCatDeselected(false) }} />
               ) : (
-                <p className="text-[11px] text-gray-300 text-center py-6">{catWeek} 소비 내역이 없어요</p>
+                <p className="text-[11px] text-gray-300 text-center py-6">{catWeek}는 마이데이터 수집 전이에요</p>
               )}
             </div>
           )
@@ -809,9 +809,13 @@ export default function Report() {
             }
           } catch {}
 
-          const weekOrder = (txData?.week_order ?? []).filter(w =>
-            Object.values(txData?.weekly_timepattern_price?.[w] ?? {}).some(v => v > 0)
-          )
+          const weekOrder = (txData?.week_order ?? []).filter(w => {
+            if (!isCurrentMonth) return true
+            const fw = (new Date(selectedYear, selectedMonth - 1, 1).getDay() + 6) % 7
+            const wNum = parseInt(w)
+            const weekStart = new Date(selectedYear, selectedMonth - 1, (wNum - 1) * 7 - fw + 1)
+            return weekStart <= today
+          })
           const weekButtons = ['전체', ...weekOrder]
           const activeTimeData = timeWeek === '전체'
             ? timeList
@@ -825,7 +829,8 @@ export default function Report() {
                   icon: TIME_ICONS[label],
                 }))
               })()
-          const activePeak = activeTimeData.length > 0 && activeTimeData.some(d => d.pct > 0)
+          const hasTimeData = activeTimeData.some(d => d.pct > 0)
+          const activePeak = hasTimeData
             ? activeTimeData.reduce((a, b) => a.pct > b.pct ? a : b)
             : null
 
@@ -844,7 +849,7 @@ export default function Report() {
                         className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
                           timeWeek === w
                             ? 'bg-[#1e73be] text-white'
-                            : 'bg-gray-100 text-gray-500'
+                            : 'bg-white text-gray-500 border border-gray-200'
                         }`}
                       >
                         {w}
@@ -858,6 +863,9 @@ export default function Report() {
                   )}
                 </div>
               )}
+              {!hasTimeData ? (
+                <p className="text-[11px] text-gray-300 text-center py-6">{timeWeek === '전체' ? '이번 달' : timeWeek}는 마이데이터 수집 전이에요</p>
+              ) : (
               <ResponsiveContainer width="100%" height={160}>
                 <AreaChart data={activeTimeData} margin={{ top: 20, right: 20, left: 20, bottom: 10 }}>
                   <defs>
@@ -902,6 +910,7 @@ export default function Report() {
                   </Area>
                 </AreaChart>
               </ResponsiveContainer>
+              )}
               {activePeak && (
                 <p className="text-[11px] text-center text-gray-400 mt-2">
                   {activePeak.icon} {activePeak.label} 시간대 소비가 가장 활발해요
