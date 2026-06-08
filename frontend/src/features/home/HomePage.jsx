@@ -4,7 +4,6 @@ import { useDragScroll } from '../../common/hooks/useDragScroll'
 import StatusBar from '../../common/components/StatusBar'
 import SettingsDrawer from './SettingsDrawer'
 import { jwtDecode } from 'jwt-decode'
-import { ChevronRight } from 'lucide-react'
 import cameraHalo from '../../assets/camera.png'
 import receiptHalo from '../../assets/log.png'
 import productBag from '../../assets/recommend.png'
@@ -31,7 +30,6 @@ export default function Home() {
   const [userName, setUserName] = useState(null)
   const [feedPreviews, setFeedPreviews] = useState([])
   const [currentTime, setCurrentTime] = useState('')
-  const [userName, setUserName] = useState('')
 
   const [totalLikes, setTotalLikes] = useState(0)
   const [diaryCount, setDiaryCount] = useState(0)
@@ -53,77 +51,62 @@ export default function Home() {
     if (!userId) return
     fetch(`/api/users/${userId}/persona`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setPersona(data) })
+      .then(data => { if (data) { setPersona(data); if (data.name) setUserName(data.name) } })
       .catch(() => {})
   }
 
   useEffect(() => {
     if (!userId) return
-    fetchPersona()
-    fetch(`/api/users/${userId}/name`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.name) setUserName(data.name) })
-      .catch(() => {})
-  }, [userId])
 
-  useEffect(() => {
-    if (!userId) return
-    fetch(`/api/users/${userId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setUserName(data.userName) })
-      .catch(() => {})
-  }, [userId])
-
-  useEffect(() => {
-    if (!userId) return
-    fetch(`/api/users/${userId}/likes`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setTotalLikes(data.totalLikes) })
-      .catch(() => {})
-  }, [userId])
-
-  useEffect(() => {
-    const fetchFeedPreviews = async () => {
+    const fetchAll = async () => {
       try {
-        const token = localStorage.getItem('token')
-        if (!token) return
-        const groupsRes = await fetch('/api/groups', {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!groupsRes.ok) return
-        const groups = await groupsRes.json()
+        const [personaRes, likesRes, groupsRes] = await Promise.all([
+          fetch(`/api/users/${userId}/persona`),
+          fetch(`/api/users/${userId}/likes`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch('/api/groups', { headers: { Authorization: `Bearer ${token}` } }),
+        ])
 
-        setFeedPreviews(groups.map(g => ({
-          groupId: g.groupId,
-          groupName: g.groupName,
-          imageUrl: null,
-        })))
+        if (personaRes.ok) {
+          const data = await personaRes.json()
+          if (data) { setPersona(data); if (data.name) setUserName(data.name) }
+        }
 
-        let count = 0
-        groups.forEach(async (g) => {
-          try {
-            const diaryRes = await fetch(`/api/diary/list?groupId=${g.groupId}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            })
-            const diaries = await diaryRes.json()
-            count += diaries?.length ?? 0
-            setDiaryCount(count)
-            const latestImage = diaries?.[0]?.imageUrls?.[0] ?? diaries?.[0]?.imageUrl ?? null
-            setFeedPreviews(prev => prev.map(f =>
-              f.groupId === g.groupId ? { ...f, imageUrl: latestImage } : f
-            ))
-          } catch {}
-        })
+        if (likesRes.ok) {
+          const data = await likesRes.json()
+          if (data) setTotalLikes(data.totalLikes)
+        }
+
+        if (groupsRes.ok) {
+          const groups = await groupsRes.json()
+          setFeedPreviews(groups.map(g => ({ groupId: g.groupId, groupName: g.groupName, imageUrl: null })))
+
+          const previewResults = await Promise.all(
+            groups.map(g =>
+              fetch(`/api/diary/preview?groupId=${g.groupId}`, { headers: { Authorization: `Bearer ${token}` } })
+                .then(r => r.ok ? r.json() : { count: 0, imageUrl: null })
+                .catch(() => ({ count: 0, imageUrl: null }))
+            )
+          )
+
+          let count = 0
+          const previews = groups.map((g, i) => {
+            count += previewResults[i].count
+            return {
+              groupId: g.groupId,
+              groupName: g.groupName,
+              imageUrl: previewResults[i].imageUrl ?? null,
+            }
+          })
+          setDiaryCount(count)
+          setFeedPreviews(previews)
+        }
       } catch (err) {
-        console.error('피드 미리보기 로딩 실패', err)
+        console.error('홈 화면 로딩 실패', err)
       }
     }
-    fetchFeedPreviews()
-  }, [])
+
+    fetchAll()
+  }, [userId])
 
   return (
     <main className="min-h-full text-left pb-2 home-no-scrollbar" style={{ background: '#FFFFFF' }}>
