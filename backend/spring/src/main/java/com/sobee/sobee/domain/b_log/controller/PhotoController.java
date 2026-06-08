@@ -120,4 +120,15 @@ public ResponseEntity<List<Map<String, Object>>> getMappingResult(
     Long userId = extractUserId(authHeader);
     return ResponseEntity.ok(photoService.getMappingResult(photoId, userId));
 }
+
+    // 추가: 매핑 전용 엔드포인트
+    @PostMapping("/{photoId}/mapping")
+    public ResponseEntity<Void> matchPhoto(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable Long photoId
+    ) {
+        Long userId = extractUserId(authHeader);
+        photoService.performMatchingForPhoto(photoId, userId);
+        return ResponseEntity.ok().build();
+    }
 }
