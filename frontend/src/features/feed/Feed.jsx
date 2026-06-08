@@ -34,7 +34,7 @@ function FeedPost({ post, onToggleLike, personaImage }) {
         <img
           src={personaImage ?? beeImage}
           alt={post.authorNickname}
-          className="w-9 h-9 rounded-full object-contain bg-white"
+          className="w-9 h-9 rounded-full object-cover bg-white overflow-hidden"
         />
         <span className="flex-1 min-w-0 text-left">
           <span className="block text-sm font-bold text-gray-900">{post.authorNickname}</span>
