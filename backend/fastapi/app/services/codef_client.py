@@ -61,7 +61,7 @@ async def _post(session: aiohttp.ClientSession, token: str, endpoint: str, paylo
         data = json.loads(unquote(await res.text()))
         code = data.get("result", {}).get("code", "")
         if code != "CF-00000":
-            log.warning(f"CODEF [{code}] {data.get('result', {}).get('message')} | {endpoint}")
+            log.warning(f"CODEF [{code}] {data.get('result', {}).get('message')} | {endpoint} | full={data}")
             return None
         return data.get("data", {})
 

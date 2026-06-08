@@ -38,7 +38,7 @@ async def get_mapped_transactions_with_vlm(user_id: int, start_date: str, end_da
                     ON pt.payment_id = t.payment_id
                 JOIN photo_vlm_results pvr
                     ON pt.vlm_id = pvr.vlm_id
-                JOIN emotions_text et
+                LEFT JOIN emotions_text et
                     ON pt.photo_id = et.photo_id
                 WHERE pt.user_id = %s
                 AND t.payment_date BETWEEN %s AND %s
