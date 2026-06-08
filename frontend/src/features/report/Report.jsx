@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getUserId } from '../../common/hooks/useAuth'
+import beeImage from '../../assets/image 61.png'
 import AlertBoard from './AlertBoard'
 import {
   PieChart, Pie, Cell, Tooltip,
@@ -80,11 +81,20 @@ function CategoryDonut({ categoryList, selectedCat, onSelect }) {
 
 function CardImage({ src, alt, containerW, containerH }) {
   const [landscape, setLandscape] = useState(false)
+  const [error, setError] = useState(false)
   useEffect(() => {
     const img = new Image()
     img.onload = () => setLandscape(img.naturalWidth > img.naturalHeight)
     img.src = src
   }, [src])
+
+  if (error) {
+    return (
+      <div style={{ width: containerW, height: containerH, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <img src={beeImage} alt="상품 이미지" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      </div>
+    )
+  }
 
   return landscape ? (
     <div style={{ width: containerW, height: containerH, flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
@@ -98,13 +108,13 @@ function CardImage({ src, alt, containerW, containerH }) {
         overflow: 'hidden',
       }}>
         <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          onError={() => setError(true)} />
       </div>
     </div>
   ) : (
     <div style={{ width: containerW, height: containerH, overflow: 'hidden', flexShrink: 0 }}>
       <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-        onError={(e) => { e.currentTarget.style.display = 'none' }} />
+        onError={() => setError(true)} />
     </div>
   )
 }
@@ -126,22 +136,26 @@ function RecommendCard({ item }) {
           {product_img_url ? (
             <CardImage src={product_img_url} alt={product_name} containerW={72} containerH={110} />
           ) : (
-            <div style={{ width: 72, height: 110 }} className="flex items-center justify-center text-2xl">💳</div>
+            <div style={{ width: 72, height: 110, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img src={beeImage} alt="상품 이미지" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </div>
           )}
         </div>
       ) : (
         <div className="shrink-0 rounded-lg overflow-hidden shadow-md self-center"
-          style={{ width: 72, height: 72, background: product_img_url ? '#fff' : 'linear-gradient(135deg, #1D9E75, #0A6B4E)' }}
+          style={{ width: 72, height: 72, background: '#fff' }}
         >
           {product_img_url ? (
             <img
               src={product_img_url}
               alt={product_name}
               style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 8, display: 'block' }}
-              onError={(e) => { e.currentTarget.parentElement.style.background = 'linear-gradient(135deg, #1D9E75, #0A6B4E)'; e.currentTarget.style.display = 'none' }}
+              onError={(e) => { e.currentTarget.src = beeImage; e.currentTarget.style.padding = '4px' }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-2xl">🏦</div>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img src={beeImage} alt="상품 이미지" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </div>
           )}
         </div>
       )}
