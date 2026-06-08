@@ -42,6 +42,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.Map;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PhotoService {
@@ -282,7 +285,7 @@ public class PhotoService {
                 .taken_at(takenAtStr)
                 .location(location)
                 .groups(groups)
-                .candidates(candidates.stream()  // 수정: available → candidates
+                .candidates(candidates.stream()
                         .map(t -> LlmMatchingClient.TransactionCandidate.builder()
                                 .payment_id(t.getId().getPaymentId())
                                 .payment_out(t.getPaymentOut())
@@ -318,7 +321,13 @@ public class PhotoService {
                     .paymentId(result.getPayment_id())
                     .userId(userId)
                     .build();
-            personaTransactionRepository.save(mapping);
+    
+            // 추가: 중복 insert 예외 처리 (StrictMode 등으로 인한 동시 호출 방어)
+            try {
+                personaTransactionRepository.save(mapping);
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                log.warn("이미 매핑된 photo+group, skip: photoId={}, groupId={}", photoId, result.getGroup_id());
+            }
         }
     }
     
