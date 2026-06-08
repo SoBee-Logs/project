@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.core.config import settings
 from app.models.schemas import DiaryRequest, DiaryResponse
+from app.core.prompt_store import register, get_prompt
 
 router = APIRouter()
 
@@ -109,6 +110,11 @@ AI 사진 분석(description)과 사용자 감정·메모만을 근거로,
 Write a JSON consumption diary based on the above.
 """
 
+register("diary_system", SYSTEM_PROMPT_TEMPLATE)
+register("diary_user_matched", USER_PROMPT_TEMPLATE)
+register("diary_user_unmatched", USER_PROMPT_UNMATCHED_TEMPLATE)
+
+
 def _get_client() -> AsyncOpenAI:
     if not settings.OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY가 설정되지 않았습니다.")
@@ -127,12 +133,12 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
         ROOM_CATEGORY_THEME["DEFAULT"]
     )
 
-    system_content = SYSTEM_PROMPT_TEMPLATE.format(line_guide=line_guide)
+    system_content = get_prompt("diary_system").format(line_guide=line_guide)
 
     # 미매핑 사진(matched=False 또는 None)은 장면·감정 위주 프롬프트로 대체
     is_matched = req.matched is True
     if is_matched:
-        user_content = USER_PROMPT_TEMPLATE.format(
+        user_content = get_prompt("diary_user_matched").format(
             item_name=req.item_name or "알 수 없음",
             category=req.category or "기타",
             price=f"{int(req.price):,}" if req.price is not None else "0",
@@ -146,7 +152,7 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
         )
     else:
         # 미매핑: 결제 정보 없이 사진 분석·감정만으로 일기 생성
-        user_content = USER_PROMPT_UNMATCHED_TEMPLATE.format(
+        user_content = get_prompt("diary_user_unmatched").format(
             mood=req.mood or "",
             mood_label=mood_label,
             emotion_text=req.emotion_text or "없음",

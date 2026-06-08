@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import beeImage from '../../assets/image 61.png'
 
 const WOORI_NAVY  = "#042C53"
 const WOORI_GREEN = "#1D9E75"
@@ -7,11 +8,20 @@ const WOORI_BLUE  = "#1A6FBF"
 
 function CardImage({ src, alt, containerW, containerH }) {
     const [landscape, setLandscape] = useState(false)
+    const [error, setError] = useState(false)
     useEffect(() => {
         const img = new Image()
         img.onload = () => setLandscape(img.naturalWidth > img.naturalHeight)
         img.src = src
     }, [src])
+
+    if (error) {
+        return (
+            <div style={{ width: containerW, height: containerH, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <img src={beeImage} alt="상품 이미지" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </div>
+        )
+    }
 
     return landscape ? (
         <div style={{ width: containerW, height: containerH, flexShrink: 0, overflow: "hidden", position: "relative" }}>
@@ -25,13 +35,13 @@ function CardImage({ src, alt, containerW, containerH }) {
                 overflow: "hidden",
             }}>
                 <img src={src} alt={alt} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                    onError={(e) => { e.currentTarget.style.display = "none" }} />
+                    onError={() => setError(true)} />
             </div>
         </div>
     ) : (
         <div style={{ width: containerW, height: containerH, overflow: "hidden", flexShrink: 0 }}>
             <img src={src} alt={alt} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                onError={(e) => { e.currentTarget.style.display = "none" }} />
+                onError={() => setError(true)} />
         </div>
     )
 }
@@ -64,8 +74,8 @@ function CompanyLogo({ src, company, fallbackEmoji, size, bg }) {
 
     if (srcs.length === 0 || stage >= srcs.length) {
         return (
-            <div style={{ width: size, height: size, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(size * 0.3) }}>
-                {fallbackEmoji}
+            <div style={{ width: size, height: size, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: Math.floor(size * 0.1) }}>
+                <img src={beeImage} alt="company" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
         )
     }
