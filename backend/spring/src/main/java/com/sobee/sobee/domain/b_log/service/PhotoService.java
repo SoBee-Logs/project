@@ -291,7 +291,7 @@ public class PhotoService {
                         .map(t -> LlmMatchingClient.TransactionCandidate.builder()
                                 .payment_id(t.getId().getPaymentId())
                                 .payment_out(t.getPaymentOut())
-                                .payment_time(t.getPaymentTime())
+                                .payment_time(t.getPaymentDate() + " " + t.getPaymentTime())
                                 .payment_place(t.getPaymentPlace())
                                 .payment_category(t.getPaymentCategory())
                                 .payment_address(t.getPaymentAddress())
