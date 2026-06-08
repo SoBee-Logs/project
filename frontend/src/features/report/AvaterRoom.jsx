@@ -153,18 +153,16 @@ export default function AvaterRoom() {
           } else {
             setTxData(tx)
 
+            const isCurrent = selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
             const fw = getFirstWeekday(selectedYear, selectedMonth)
-            const ws = new Set()
-
-            Object.values(tx.category_transactions ?? {}).forEach((records) => {
-              records.forEach((r) => {
-                ws.add(getWeekLabel(r.payment_date, fw))
+            const sorted = (tx.week_order ?? [])
+              .filter(w => {
+                if (!isCurrent) return true
+                const wNum = parseInt(w)
+                const weekStart = new Date(selectedYear, selectedMonth - 1, (wNum - 1) * 7 - fw + 1)
+                return weekStart <= today
               })
-            })
-
-            const sorted = Array.from(ws).sort(
-              (a, b) => parseInt(a) - parseInt(b)
-            )
+              .sort((a, b) => parseInt(a) - parseInt(b))
 
             const defaultWeek = navDirectionRef.current === 'prev'
               ? (sorted[sorted.length - 1] ?? '1주')
@@ -179,20 +177,15 @@ export default function AvaterRoom() {
       })
   }, [USER_ID, selectedYear, selectedMonth])
 
-  const weeks = (() => {
-    if (!txData) return []
-
-    const fw = getFirstWeekday(selectedYear, selectedMonth)
-    const ws = new Set()
-
-    Object.values(txData.category_transactions ?? {}).forEach((records) => {
-      records.forEach((r) => {
-        ws.add(getWeekLabel(r.payment_date, fw))
-      })
+  const weeks = (txData?.week_order ?? [])
+    .filter(w => {
+      if (!isCurrentMonth) return true
+      const fw = getFirstWeekday(selectedYear, selectedMonth)
+      const wNum = parseInt(w)
+      const weekStart = new Date(selectedYear, selectedMonth - 1, (wNum - 1) * 7 - fw + 1)
+      return weekStart <= today
     })
-
-    return Array.from(ws).sort((a, b) => parseInt(a) - parseInt(b))
-  })()
+    .sort((a, b) => parseInt(a) - parseInt(b))
 
   const weekAvatar = txData?.weekly_avatar?.[selectedWeek] ?? null
   const avatarImgUrl = weekAvatar?.avatar_img_url ?? null
@@ -464,7 +457,7 @@ export default function AvaterRoom() {
               </div>
 
               {weeks.length > 0 && (
-                <div className="flex gap-1.5 mt-1 px-4 overflow-x-auto scrollbar-hide">
+                <div className="flex justify-center gap-1.5 mt-1 px-4 overflow-x-auto scrollbar-hide">
                   {weeks.map((w) => (
                     <button
                       key={w}
