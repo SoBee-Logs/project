@@ -300,16 +300,18 @@ public class PhotoService {
         List<LlmMatchingClient.MatchResponse> results = llmMatchingClient.match(req);
     
         for (LlmMatchingClient.MatchResponse result : results) {
-            if (result.getPayment_id() == null) continue;
-    
-            // 중복 저장 방지: 동일 photo+group 이미 매핑됐으면 skip
+            if (result.getPayment_id() == null) {
+                log.info("[매핑 실패] photoId={} groupId={} reason={}", photoId, result.getGroup_id(), result.getReason());
+                continue;
+            }
+
             if (personaTransactionRepository.existsByPhotoIdAndGroupId(photoId, result.getGroup_id())) continue;
-    
+
             LlmMatchingClient.VlmGroupItem matchedGroup = groups.stream()
                     .filter(g -> g.getGroup_id() != null
                             && g.getGroup_id().equals(result.getGroup_id()))
                     .findFirst().orElse(null);
-    
+
             PersonaTransaction mapping = PersonaTransaction.builder()
                     .vlmId(vlm.getVlmId())
                     .photoId(photoId)
@@ -321,15 +323,16 @@ public class PhotoService {
                     .paymentId(result.getPayment_id())
                     .userId(userId)
                     .build();
-    
-            // 추가: 중복 insert 예외 처리 (StrictMode 등으로 인한 동시 호출 방어)
+
+            log.info("[매핑 성공] photoId={} groupId={} paymentId={} reason={}", photoId, result.getGroup_id(), result.getPayment_id(), result.getReason());
+
             try {
                 personaTransactionRepository.save(mapping);
             } catch (org.springframework.dao.DataIntegrityViolationException e) {
                 log.warn("이미 매핑된 photo+group, skip: photoId={}, groupId={}", photoId, result.getGroup_id());
             }
         }
-    }
+    }  // ← performMatchingForPhoto 닫는 중괄호 추가
     
     private List<LlmMatchingClient.VlmGroupItem> parseVlmGroups(String vlmGroupsJson) {
         if (vlmGroupsJson == null || vlmGroupsJson.isBlank()) return List.of();
