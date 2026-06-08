@@ -22,7 +22,6 @@ import org.springframework.web.client.RestTemplate;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @Service
@@ -76,29 +75,6 @@ public class DiaryService {
                 if (todayPhotos.isEmpty()) {
                     throw new IllegalArgumentException("이 모임방에 등록된 사진이 없어 일기를 생성할 수 없습니다.");
                 }
-
-        // 당일 transactions sync (최신 결제 데이터 반영)
-        try {
-            HttpHeaders syncHeaders = new HttpHeaders();
-            syncHeaders.setContentType(MediaType.APPLICATION_JSON);
-            syncHeaders.set("X-Internal-Secret", internalSecret);
-            Map<String, Object> syncBody = Map.of("user_id", userId, "days", 1);
-            restTemplate.exchange(fastapiSyncUrl, HttpMethod.POST,
-                    new HttpEntity<>(syncBody, syncHeaders), String.class);
-        } catch (Exception ignored) {
-            // sync 실패해도 일기 생성 계속 진행
-        }
-
-        // 미매핑 사진 일괄 매핑 (결제 동기화 완료 시점 보장)
-        for (Photo photo : todayPhotos) {
-            if (!personaTransactionRepository.existsByPhotoId(photo.getPhotoId())) {
-                try {
-                    photoService.performMatchingForPhoto(photo.getPhotoId(), userId);
-                } catch (Exception ignored) {
-                    // 개별 사진 매핑 실패해도 일기 생성 계속 진행
-                }
-            }
-        }
 
         // 매핑된 사진만 따로 필터링 (LLM 일기 생성용)
         List<Photo> matchedPhotos = todayPhotos.stream()
@@ -355,4 +331,17 @@ public class DiaryService {
         private List<String> diary_lines;
         private List<String> tags;
     }
+
+    public void syncTransactions(Long userId) {
+    try {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Internal-Secret", internalSecret);
+        Map<String, Object> body = Map.of("user_id", userId, "days", 1);
+        restTemplate.exchange(fastapiSyncUrl, HttpMethod.POST,
+                new HttpEntity<>(body, headers), String.class);
+    } catch (Exception ignored) {
+        // sync 실패해도 계속 진행
+    }
+}
 }

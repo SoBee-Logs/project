@@ -71,4 +71,13 @@ public class DiaryController {
         diaryService.toggleLike(diaryId);
         return ResponseEntity.ok().build();
     }
+
+    @PostMapping("/sync")
+        public ResponseEntity<Void> syncTransactions(
+                @RequestHeader("Authorization") String authHeader
+        ) {
+            Long userId = extractUserId(authHeader);
+            diaryService.syncTransactions(userId);
+            return ResponseEntity.ok().build();
+        }
 }
