@@ -44,6 +44,13 @@ public class DiaryService {
 
     @Value("${fastapi.base-url}/api/diary/generate")
     private String fastapiDiaryUrl;
+
+    @Value("${fastapi.base-url}/internal/transactions/sync")
+    private String fastapiSyncUrl;
+
+    @Value("${fastapi.internal-secret}")
+    private String internalSecret;
+
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Transactional
@@ -69,6 +76,18 @@ public class DiaryService {
                 if (todayPhotos.isEmpty()) {
                     throw new IllegalArgumentException("이 모임방에 등록된 사진이 없어 일기를 생성할 수 없습니다.");
                 }
+
+        // 당일 transactions sync (최신 결제 데이터 반영)
+        try {
+            HttpHeaders syncHeaders = new HttpHeaders();
+            syncHeaders.setContentType(MediaType.APPLICATION_JSON);
+            syncHeaders.set("X-Internal-Secret", internalSecret);
+            Map<String, Object> syncBody = Map.of("user_id", userId, "days", 1);
+            restTemplate.exchange(fastapiSyncUrl, HttpMethod.POST,
+                    new HttpEntity<>(syncBody, syncHeaders), String.class);
+        } catch (Exception ignored) {
+            // sync 실패해도 일기 생성 계속 진행
+        }
 
         // 미매핑 사진 일괄 매핑 (결제 동기화 완료 시점 보장)
         for (Photo photo : todayPhotos) {
