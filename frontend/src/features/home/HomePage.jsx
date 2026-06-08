@@ -6,6 +6,7 @@ import SettingsDrawer from './SettingsDrawer'
 import { jwtDecode } from 'jwt-decode'
 import cameraHalo from '../../assets/camera_3d_halo.png'
 import receiptHalo from '../../assets/receipt_3d_halo.png'
+import beeImage from '../../assets/image 61.png'
 
 
 export default function Home() {
@@ -139,8 +140,8 @@ export default function Home() {
               </div>
             </>
           ) : (
-            <div className="w-full min-h-[240px] rounded-2xl bg-gray-100 flex flex-col items-center justify-center gap-2">
-              <span className="text-3xl">🐝</span>
+            <div className="w-full min-h-[240px] rounded-2xl bg-white flex flex-col items-center justify-center gap-2">
+              <img src={beeImage} alt="아바타" style={{ width: '60%', maxWidth: 200, objectFit: 'contain' }} />
               <p className="text-sm font-medium text-gray-400">아직 아바타가 생성되지 않았습니다</p>
               <p className="text-xs text-gray-300">소비 사진을 찍으면 분석을 시작해요!</p>
             </div>
