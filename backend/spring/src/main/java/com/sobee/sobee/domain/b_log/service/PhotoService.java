@@ -259,12 +259,7 @@ public class PhotoService {
                 .findOutgoingByUserIdAndDate(userId, takenDateStr);
         if (candidates.isEmpty()) return;
     
-        Set<String> mappedIds = Set.copyOf(
-                personaTransactionRepository.findPaymentIdsByUserId(userId));
-        List<Transaction> available = candidates.stream()
-                .filter(t -> !mappedIds.contains(String.valueOf(t.getId().getPaymentId())))
-                .collect(Collectors.toList());
-        if (available.isEmpty()) return;
+        // 삭제: mappedIds 필터링 제거 — 날짜 기준 후보는 모두 포함
     
         // groups 파싱 — 없으면 vlm 정보로 group 1개 생성
         List<LlmMatchingClient.VlmGroupItem> groups = parseVlmGroups(vlm.getVlmGroups());
@@ -287,7 +282,7 @@ public class PhotoService {
                 .taken_at(takenAtStr)
                 .location(location)
                 .groups(groups)
-                .candidates(available.stream()
+                .candidates(candidates.stream()  // 수정: available → candidates
                         .map(t -> LlmMatchingClient.TransactionCandidate.builder()
                                 .payment_id(t.getId().getPaymentId())
                                 .payment_out(t.getPaymentOut())
@@ -303,6 +298,9 @@ public class PhotoService {
     
         for (LlmMatchingClient.MatchResponse result : results) {
             if (result.getPayment_id() == null) continue;
+    
+            // 중복 저장 방지: 동일 photo+group 이미 매핑됐으면 skip
+            if (personaTransactionRepository.existsByPhotoIdAndGroupId(photoId, result.getGroup_id())) continue;
     
             LlmMatchingClient.VlmGroupItem matchedGroup = groups.stream()
                     .filter(g -> g.getGroup_id() != null
