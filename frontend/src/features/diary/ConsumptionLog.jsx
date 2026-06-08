@@ -166,8 +166,9 @@ export default function ConsumptionLog() {
       )}
 
       <div className="flex-1 overflow-y-auto px-5 pb-[140px] relative">
+        {/* 수정: 타임라인 세로선 left 위치 조정 */}
         <span
-          className="absolute left-[75px] top-2 bottom-4 w-[1.5px] bg-gray-200 rounded-full"
+          className="absolute left-[82px] top-2 bottom-4 w-[1.5px] bg-gray-200 rounded-full"
           aria-hidden
         />
 
@@ -183,14 +184,24 @@ export default function ConsumptionLog() {
               const tags = getGroupHashtags(photo.group)
               return (
                 <li key={photo.id} className="flex gap-0 mb-6 relative items-start">
-                  <div className="w-[58px] shrink-0 text-left pt-1">
+                  {/* 수정: w-[68px]으로 넓힘 */}
+                  <div className="w-[68px] shrink-0 text-left pt-1">
                     <span className="block text-[12px] font-semibold text-gray-900 leading-tight">
                       {toKoreanTime(photo.time)}
                     </span>
                     <span className="block text-[18px] mt-1">{photo.emoji}</span>
-                    <span className="block text-[10px] text-[#185FA5] mt-1 leading-relaxed break-keep">
-                      {tags.join(' ')}
-                    </span>
+                    {/* 수정: 버블 고정 너비 + 가운데 정렬 */}
+                    <div className="flex flex-col gap-1 mt-1">
+                      {tags.map((tag, i) => (
+                        <span
+                        key={i}
+                        className="text-[10px] font-semibold text-[#185FA5] bg-[#EBF5FF] rounded-full text-center block"
+                        style={{ width: '52px', padding: '1px 0' }}
+                      >
+                        {tag}
+                      </span>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="w-[18px] shrink-0 flex justify-center pt-[5px]">
@@ -214,8 +225,9 @@ export default function ConsumptionLog() {
                         </span>
                       )}
                     </figure>
+                    {/* 수정: 텍스트 굵기 강화 */}
                     {photo.text && (
-                      <p className="text-[11px] text-gray-500 mt-1.5 mb-0 leading-relaxed line-clamp-2 whitespace-pre-wrap break-words break-keep">
+                      <p className="text-[12px] font-medium text-gray-600 mt-1.5 mb-0 leading-relaxed line-clamp-2 whitespace-pre-wrap break-words break-keep">
                         {photo.text}
                       </p>
                     )}
@@ -228,13 +240,13 @@ export default function ConsumptionLog() {
       </div>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 py-3 bg-white border-t border-gray-100 z-10">
-        {/* TODO: 테스트 완료 후 아래 주석 해제
+      
         {!isToday && (
           <p className="text-center text-[11px] text-gray-400 mb-2">
             과거 날짜의 일기는 생성할 수 없어요
           </p>
         )}
-        */}
+        
         <button
           type="button"
           onClick={handleGenerate}
