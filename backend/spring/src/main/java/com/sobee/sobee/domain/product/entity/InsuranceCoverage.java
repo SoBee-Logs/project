@@ -17,7 +17,7 @@ public class InsuranceCoverage {
     private Long coverageId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
+    @JoinColumn(name = "product_id", nullable = false, columnDefinition = "VARCHAR(50)")
     private InsuranceProduct insuranceProduct;
 
     @Column(name = "item_name", nullable = false, length = 100)
