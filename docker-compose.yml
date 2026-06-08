@@ -101,6 +101,7 @@ services:
     environment:
       - DB_HOST=ssh-tunnel
       - DB_PORT=3306
+      - ENV=dev
     restart: on-failure
     depends_on:
       ssh-tunnel:
