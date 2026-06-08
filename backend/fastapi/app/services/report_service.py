@@ -1,4 +1,5 @@
 from app.services.lifecycle_service import engine
+from app.core.constants import MOOD_NAME_TO_EMOJI
 from sqlalchemy import text
 import pandas as pd
 from datetime import datetime, timedelta
@@ -238,13 +239,7 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
     except Exception:
         pass
 
-    MOOD_EMOJI = {
-        'HAPPY':     '☺️',
-        'SAD':       '😭',
-        'SURPRISED': '😮',
-        'LOVE':      '😍',
-        'ANGRY':     '😡',
-    }
+    MOOD_EMOJI = MOOD_NAME_TO_EMOJI
 
     # 주차별 소비 감정(emoji) top1 집계
     weekly_top_emotion = {}
