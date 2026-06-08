@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getUserId } from "../../common/hooks/useAuth";
+import beeImage from "../../assets/image 61.png";
 
 const WOORI_NAVY = "#042C53";
 const WOORI_GREEN = "#1D9E75";
@@ -108,8 +109,8 @@ function CompanyLogo({ src, company, fallbackEmoji, size, bg }) {
 
     if (srcs.length === 0 || stage >= srcs.length) {
         return (
-            <div style={{ width: size, height: size, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.floor(size * 0.38) }}>
-                {fallbackEmoji}
+            <div style={{ width: size, height: size, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: Math.floor(size * 0.1) }}>
+                <img src={beeImage} alt="company" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             </div>
         );
     }
@@ -129,12 +130,21 @@ const TYPE_ICON = {
 
 function CardImage({ src, alt, containerW, containerH }) {
     const [landscape, setLandscape] = useState(false);
+    const [error, setError] = useState(false);
 
     useEffect(() => {
         const img = new Image();
         img.onload = () => setLandscape(img.naturalWidth > img.naturalHeight);
         img.src = src;
     }, [src]);
+
+    if (error) {
+        return (
+            <div style={{ width: containerW, height: containerH, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <img src={beeImage} alt="상품 이미지" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            </div>
+        );
+    }
 
     return landscape ? (
         // 가로 이미지: layout은 portrait(containerW×containerH)로 잡고,
@@ -152,7 +162,7 @@ function CardImage({ src, alt, containerW, containerH }) {
                 <img
                     src={src} alt={alt}
                     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                    onError={() => setError(true)}
                 />
             </div>
         </div>
@@ -161,7 +171,7 @@ function CardImage({ src, alt, containerW, containerH }) {
             <img
                 src={src} alt={alt}
                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                onError={(e) => { e.currentTarget.style.display = "none"; }}
+                onError={() => setError(true)}
             />
         </div>
     );

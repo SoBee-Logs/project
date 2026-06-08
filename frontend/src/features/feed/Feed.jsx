@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import RoomTabs from '../../common/components/RoomTabs'
 import StatusBar from '../../common/components/StatusBar'
+import beeImage from '../../assets/image 61.png'
 
 const mapDiaryToPost = (item) => ({
   id: item.diaryId,
@@ -31,9 +32,9 @@ function FeedPost({ post, onToggleLike, personaImage }) {
     <article className="bg-white mb-3 rounded-2xl overflow-hidden shadow-sm mx-4">
       <header className="flex items-center gap-3 px-4 py-3">
         <img
-          src={personaImage ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&q=80'}
+          src={personaImage ?? beeImage}
           alt={post.authorNickname}
-          className="w-9 h-9 rounded-full object-cover"
+          className="w-9 h-9 rounded-full object-contain bg-white"
         />
         <span className="flex-1 min-w-0 text-left">
           <span className="block text-sm font-bold text-gray-900">{post.authorNickname}</span>
