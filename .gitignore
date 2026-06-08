@@ -30,3 +30,5 @@ tmp/
 __pycache__/
 *.pyc
 *.pyo
+
+prompts.json

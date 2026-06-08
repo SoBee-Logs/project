@@ -43,6 +43,16 @@ services:
       retries: 20
       start_period: 30s
 
+  dashboard:
+    build:
+      context: ./dashboard
+    ports:
+      - "5174:80"
+    depends_on:
+      - fastapi
+    networks:
+      - sobee-net
+
   frontend:
     build:
       context: ./frontend
