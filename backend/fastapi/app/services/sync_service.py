@@ -533,17 +533,16 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
         await conn.begin()
         try:
             async with conn.cursor() as cur:
-                await cur.execute(
-                    "DELETE FROM transactions WHERE user_id=%s AND payment_date BETWEEN %s AND %s",
-                    (user_id, sd, ed),
-                )
                 if records:
                     await cur.executemany("""
                         INSERT INTO transactions
                             (user_id, payment_date, payment_time,
-                             payment_out, payment_in,
-                             payment_place, payment_category, payment_address)
+                            payment_out, payment_in,
+                            payment_place, payment_category, payment_address)
                         VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                        ON DUPLICATE KEY UPDATE
+                            payment_category = VALUES(payment_category),
+                            payment_address = VALUES(payment_address)
                     """, records)
             await conn.commit()
         except Exception:
