@@ -16,4 +16,6 @@ public interface PersonaTransactionRepository extends JpaRepository<PersonaTrans
 
     // ← 추가: photoId로 매핑 결과 전체 조회
     List<PersonaTransaction> findByPhotoId(Long photoId);
+
+    boolean existsByPhotoIdAndGroupId(Long photoId, Integer groupId);
 }

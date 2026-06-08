@@ -28,6 +28,7 @@ export default function Home() {
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [persona, setPersona] = useState(null)
+  const [userName, setUserName] = useState(null)
   const [feedPreviews, setFeedPreviews] = useState([])
   const [currentTime, setCurrentTime] = useState('')
   const [userName, setUserName] = useState('')
@@ -57,7 +58,12 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (!userId) return
     fetchPersona()
+    fetch(`/api/users/${userId}/name`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.name) setUserName(data.name) })
+      .catch(() => {})
   }, [userId])
 
   useEffect(() => {
