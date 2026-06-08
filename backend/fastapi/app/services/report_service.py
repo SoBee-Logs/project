@@ -1,4 +1,5 @@
 from app.services.lifecycle_service import engine
+from app.core.constants import MOOD_NAME_TO_EMOJI
 from sqlalchemy import text
 import pandas as pd
 from datetime import datetime, timedelta
@@ -257,13 +258,38 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
     except Exception as e:
         print(f"[PERSONA VLM SCENE ERROR] {e}")
 
-    MOOD_EMOJI = {
-        'HAPPY':     '☺️',
-        'SAD':       '😭',
-        'SURPRISED': '😮',
-        'LOVE':      '😍',
-        'ANGRY':     '😡',
-    }
+    # avatar_change_reason — avatar 테이블 최신 레코드에서 조회
+    # weekly_avatar — 해당 월 각 주차에 생성된 아바타 이미지
+    avatar_change_reason = None
+    avatar_change_reason_month = None
+    weekly_avatar = {}
+    try:
+        cr_df = pd.read_sql(text("""
+            SELECT avatar_name, avatar_img_url, avatar_change_reason, avatar_explain, avatar_created_at
+            FROM avatar
+            WHERE user_id = :user_id
+              AND YEAR(avatar_created_at) = :year
+              AND MONTH(avatar_created_at) = :month
+            ORDER BY avatar_created_at ASC
+        """), engine, params={"user_id": user_id, "year": year, "month": month})
+        if not cr_df.empty:
+            avatar_change_reason = cr_df.iloc[-1]['avatar_change_reason']
+            last_created_at = cr_df.iloc[-1]['avatar_created_at']
+            avatar_change_reason_month = pd.to_datetime(last_created_at).month if pd.notna(last_created_at) else None
+            for _, row in cr_df.iterrows():
+                created_at = row['avatar_created_at']
+                if pd.notna(created_at):
+                    week_label = classify_week(created_at)
+                    weekly_avatar[week_label] = {
+                        "avatar_img_url":       row['avatar_img_url'],
+                        "avatar_name":          row['avatar_name'],
+                        "avatar_change_reason": row['avatar_change_reason'],
+                        "avatar_explain":       row['avatar_explain'],
+                    }
+    except Exception:
+        pass
+
+    MOOD_EMOJI = MOOD_NAME_TO_EMOJI
 
     # 주차별 소비 감정(emoji) top1 집계
     weekly_top_emotion = {}
