@@ -347,25 +347,40 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         weekly_category_price[week] = week_df.groupby('payment_category')['payment_out'].sum().astype(int).to_dict() if not week_df.empty else {}
         weekly_timepattern_price[week] = week_df.groupby('time_label')['payment_out'].sum().astype(int).to_dict() if not week_df.empty else {}
 
-    persona_week_df = df[
-        (df['payment_date'].astype(str) >= str(prev_monday)) &
-        (df['payment_date'].astype(str) <= str(prev_sunday))
-    ]
     persona_top_category = None
     persona_top_category_amount = 0
     persona_top_category_pct = 0
     persona_peak_time = None
     persona_vlm_count = 0
-    if not persona_week_df.empty:
-        cat_sum = persona_week_df.groupby('payment_category')['payment_out'].sum()
-        if not cat_sum.empty:
-            persona_top_category = cat_sum.idxmax()
-            persona_top_category_amount = int(cat_sum.max())
-            total_week = int(cat_sum.sum())
-            persona_top_category_pct = round(persona_top_category_amount / total_week * 100) if total_week > 0 else 0
-        time_sum = persona_week_df.groupby('time_label')['payment_out'].sum()
-        if not time_sum.empty:
-            persona_peak_time = time_sum.idxmax()
+    try:
+        persona_week_df = pd.read_sql(text("""
+            SELECT
+                COALESCE(cm.category_name, '기타') AS payment_category,
+                t.payment_time,
+                t.payment_out
+            FROM transactions t
+            LEFT JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+            WHERE t.user_id = :user_id
+              AND t.payment_date BETWEEN :start AND :end
+              AND t.payment_out > 0
+        """), engine, params={
+            "user_id": user_id,
+            "start": str(prev_monday),
+            "end":   str(prev_sunday),
+        })
+        if not persona_week_df.empty:
+            cat_sum = persona_week_df.groupby('payment_category')['payment_out'].sum()
+            if not cat_sum.empty:
+                persona_top_category = cat_sum.idxmax()
+                persona_top_category_amount = int(cat_sum.max())
+                total_week = int(cat_sum.sum())
+                persona_top_category_pct = round(persona_top_category_amount / total_week * 100) if total_week > 0 else 0
+            persona_week_df['time_label'] = persona_week_df['payment_time'].apply(classify_time)
+            time_sum = persona_week_df.groupby('time_label')['payment_out'].sum()
+            if not time_sum.empty:
+                persona_peak_time = time_sum.idxmax()
+    except Exception as e:
+        print(f"[PERSONA WEEK ERROR] {e}")
 
     try:
         vlm_count_df = pd.read_sql(text("""

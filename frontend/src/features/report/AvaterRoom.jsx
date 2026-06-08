@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { getUserId } from '../../common/hooks/useAuth'
 import defaultAvatar from '../../assets/image 61.png'
 
@@ -81,13 +81,14 @@ function EmptyMonthModal({ year, month, onClose }) {
 
 export default function AvaterRoom() {
   const navigate = useNavigate()
+  const location = useLocation()
   const USER_ID = getUserId() ?? 1
   const today = new Date()
 
   const [isExpanded, setIsExpanded] = useState(true)
 
-  const [selectedYear, setSelectedYear] = useState(today.getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(location.state?.year ?? today.getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(location.state?.month ?? today.getMonth() + 1)
   const [selectedWeek, setSelectedWeek] = useState('1주')
 
   const [persona, setPersona] = useState(null)
@@ -545,7 +546,7 @@ export default function AvaterRoom() {
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  navigate('/report/monthly')
+                  navigate('/report/monthly', { state: { year: selectedYear, month: selectedMonth } })
                 }}
                 className="w-full py-3.5 rounded-2xl bg-white/95 text-[#1e73be] font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl active:scale-[0.98] transition-transform"
               >
