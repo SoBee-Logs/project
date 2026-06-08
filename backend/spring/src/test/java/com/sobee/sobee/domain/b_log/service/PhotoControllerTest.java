@@ -1,4 +1,4 @@
-package com.sobee.sobee.domain.b_log;
+package com.sobee.sobee.domain.b_log.service;
 
 import com.sobee.sobee.domain.b_log.controller.PhotoController;
 import com.sobee.sobee.domain.b_log.dto.PhotoListResponse;
