@@ -44,6 +44,10 @@ public class UserService {
         return jwtUtil.generateToken(user.getUserId(), user.getEmail());
     }
 
+    public int getTotalLikes(Long userId) {
+    return diaryRepository.sumLikesByUserId(userId);
+    }   
+
     public UserPersonaDto getPersona(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("유저를 찾을 수 없습니다."));
