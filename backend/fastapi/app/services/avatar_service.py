@@ -11,7 +11,11 @@ from openai import OpenAI
 from PIL import Image
 from fastapi import HTTPException
 
+from langsmith import traceable
+from langsmith.wrappers import wrap_openai
+
 from app.core.config import settings
+from app.core.constants import MOOD_EXPRESSION_EN
 from app.core.prompt_store import register, get_prompt
 from app.db.transaction_repository import get_transactions_by_date_range, get_mapped_transactions_with_vlm
 from app.db.user_repository import update_user_avatar, get_user_life_stage
@@ -131,7 +135,7 @@ _ANALYSIS_PROMPT = """
 
 이 소비 데이터를 분석하여 아래 JSON 형식으로만 응답하세요 (다른 설명 없이):
 {{
-    "title": "아바타 타이틀 — 2~4어절의 한국어. 실제 소비 아이템({top_items}), 소비 카테고리({top_category}), 활동 시간대({dominant_slot})를 바탕으로 이 사람을 가장 잘 표현하는 별명 또는 정체성을 작성할 것. 단순히 소비한 물건을 나열하지 말고, 소비 패턴에서 드러나는 관심사·취향·행동 특성을 한마디로 정의할 것. 친구가 '이 사람은 딱 ○○ 같은 사람이야'라고 설명하는 느낌으로 작성할 것. 예시: '디저트 탐험가', '취향 수집가', '신메뉴 개척자', '야식 연구원', '커피 애호가', '주말 여행가', '감성 기록가'. 감성적이거나 시적인 표현보다는 실제 소비 습관을 반영한 개성 있는 별명을 우선할 것. 생애주기 단어를 직접적으로 사용하지 말고 생애주기 감성({life_stage_vibe})은 분위기 참고용으로만 활용."
+    "title": "아바타 타이틀 — 3어절 또는 4어절의 한국어. 실제 소비 아이템({top_items}), 소비 카테고리({top_category}), 활동 시간대({dominant_slot})를 바탕으로 이 사람을 가장 잘 표현하는 별명 또는 정체성을 작성할 것. 단순히 소비한 물건을 나열하지 말고, 소비 패턴에서 드러나는 관심사·취향·행동 특성을 한마디로 정의할 것. 감성적이거나 시적인 표현보다는 실제 소비 습관을 반영한 개성 있는 별명을 우선할 것. 생애주기 단어를 직접적으로 사용하지 말고 생애주기 감성({life_stage_vibe})은 분위기 참고용으로만 활용."
     "description": "이 페르소나를 한 문장으로 소개하는 설명. 캐릭터의 성격과 라이프스타일 중심으로.",
     "change_reason": {{
         "emoji": {{
@@ -326,8 +330,9 @@ def _extract_hour(payment_time) -> int | None:
 _REFERENCE_IMAGE_PATH = Path(__file__).parent.parent / "resource" / "wibee.png"
 
 
+@traceable(name="아바타 이미지 생성")
 def _generate_image_sync(prompt: str) -> bytes:
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    client = wrap_openai(OpenAI(api_key=settings.OPENAI_API_KEY))
 
     with open(_REFERENCE_IMAGE_PATH, "rb") as ref:
         response = client.images.edit(
@@ -373,6 +378,7 @@ def _get_last_week_range() -> tuple[str, str]:
     return str(last_monday), str(last_sunday)
 
 
+@traceable(name="아바타 페르소나 분석")
 def _analyze_persona_sync(
     summary: str,
     emoji_input: str,
@@ -383,7 +389,7 @@ def _analyze_persona_sync(
     life_stage_code: str,
     has_vlm: bool = True,
 ) -> dict:
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    client = wrap_openai(OpenAI(api_key=settings.OPENAI_API_KEY))
     if has_vlm:
         prompt = get_prompt("avatar_analysis").format(
             summary=summary,
@@ -430,6 +436,7 @@ async def _analyze_persona(
     )
 
 
+@traceable(name="아바타 생성", project_name="sobee-avatar")
 async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str) -> AvatarResponse:
     # 1. transactions 조회
     transactions = await get_transactions_by_date_range(user_id, start_date, end_date)
@@ -443,7 +450,11 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
     mapped = await get_mapped_transactions_with_vlm(user_id, start_date, end_date)
     vlm_items = list(dict.fromkeys(r["vlm_item_name"] for r in mapped if r.get("vlm_item_name")))
     vlm_descriptions = [r["vlm_description"] for r in mapped if r.get("vlm_description")]
-    emoji = next((r["emoji"] for r in mapped if r.get("emoji")), None)
+    emoji_counts: dict[str, int] = defaultdict(int)
+    for r in mapped:
+        if r.get("emoji"):
+            emoji_counts[r["emoji"]] += 1
+    emoji = max(emoji_counts, key=emoji_counts.get) if emoji_counts else None
     has_vlm = bool(vlm_items or emoji)
 
     # 3. 페르소나 핵심 요소 추출
@@ -471,7 +482,7 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
     )
 
     # 5. 이미지 프롬프트 조립 — 사진 없으면 무표정
-    face_expression = emoji if emoji else "calm neutral expressionless face"
+    face_expression = MOOD_EXPRESSION_EN.get(emoji, f"{emoji} expression") if emoji else "calm neutral expressionless face"
     time_pattern = f"{slot_en} — {analysis['time_pattern']}"
     prompt = get_prompt("avatar_image").format(
         lifestyle=analysis["lifestyle"],
