@@ -30,6 +30,13 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{userId}/name")
+    public ResponseEntity<Map<String, String>> getUserName(@PathVariable Long userId) {
+        Map<String, String> result = new HashMap<>();
+        result.put("name", userService.getUserName(userId));
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/{userId}/persona")
     public ResponseEntity<UserPersonaDto> getPersona(@PathVariable Long userId) {
         return ResponseEntity.ok(userService.getPersona(userId));

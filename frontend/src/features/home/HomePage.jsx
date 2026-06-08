@@ -27,6 +27,7 @@ export default function Home() {
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [persona, setPersona] = useState(null)
+  const [userName, setUserName] = useState(null)
   const [feedPreviews, setFeedPreviews] = useState([])
   const [currentTime, setCurrentTime] = useState('')
 
@@ -53,7 +54,12 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (!userId) return
     fetchPersona()
+    fetch(`/api/users/${userId}/name`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.name) setUserName(data.name) })
+      .catch(() => {})
   }, [userId])
 
   useEffect(() => {
@@ -134,7 +140,7 @@ export default function Home() {
                 className="w-full h-auto block rounded-2xl"
               />
               <div className="absolute bottom-4 left-5 right-5 pb-1 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
-                <span className="block text-[10px] font-extrabold opacity-90">
+                <span className="block text-[10px] font-extrabold opacity-90">{userName ? `${userName}님의 소비 페르소나` : '나의 소비 페르소나'}</span>
                 <span className="block text-[16px] font-extrabold leading-snug">{persona.avatarName}</span>
               </div>
             </>
