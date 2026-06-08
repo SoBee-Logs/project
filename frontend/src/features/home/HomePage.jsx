@@ -125,7 +125,7 @@ export default function Home() {
         </header>
 
         {/* 페르소나 이미지 */}
-        <figure className="relative w-full mt-1 mb-0 m-0 px-3">
+        <figure className="relative w-full mt-1 mb-0 m-0 px-3 min-h-[240px]">
           {persona?.avatarImgUrl ? (
             <>
               <img
@@ -133,19 +133,9 @@ export default function Home() {
                 alt="페르소나 꿀벌 아바타"
                 className="w-full h-auto block rounded-2xl"
               />
-              <div className="absolute bottom-0 left-3 right-3 h-20 bg-gradient-to-t from-black/65 to-transparent rounded-b-2xl" />
-              <div
-                className="absolute bottom-3 left-6 text-white"
-                style={{
-                  background: 'rgba(0,0,0,0.45)',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  backdropFilter: 'blur(2px)',
-                  lineHeight: 1,
-                }}
-              >
-                <span className="block text-[10px] font-extrabold opacity-80" style={{ lineHeight: 1, marginBottom: '4px' }}>나의 소비 페르소나</span>
-                <span className="block text-[16px] font-extrabold" style={{ lineHeight: 1 }}>{persona.avatarName}</span>
+              <div className="absolute bottom-4 left-5 right-5 pb-1 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
+                <span className="block text-[10px] font-extrabold opacity-90">
+                <span className="block text-[16px] font-extrabold leading-snug">{persona.avatarName}</span>
               </div>
             </>
           ) : (
@@ -161,7 +151,7 @@ export default function Home() {
         <div className="px-3">
           <button
             type="button"
-            onClick={() => navigate('/report/monthly', { state: { scrollTo: 'aiRecommend' } })}
+            onClick={() => navigate('/report', { state: { scrollTo: 'aiRecommend' } })}
             style={{
               width: '100%',
               height: '48px',
