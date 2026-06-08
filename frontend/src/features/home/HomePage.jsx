@@ -161,7 +161,7 @@ export default function Home() {
         <div className="px-3">
           <button
             type="button"
-            onClick={() => navigate('/report', { state: { scrollTo: 'aiRecommend' } })}
+            onClick={() => navigate('/report/monthly', { state: { scrollTo: 'aiRecommend' } })}
             style={{
               width: '100%',
               height: '48px',
