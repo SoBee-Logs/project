@@ -12,6 +12,7 @@ from google.genai import types
 from fastapi import APIRouter, HTTPException, UploadFile, File
 
 from app.core.config import settings
+from app.core.prompt_store import register, get_prompt
 
 router = APIRouter()
 
@@ -106,6 +107,8 @@ groups 규칙:
 - 가격 추정 시 보수적으로 추정해줘. 불확실하면 정말 평균적인 가격으로.
 - 사진 불명확해도 최대한 추정. null/빈값 금지
 - JSON만 출력"""
+
+register("vlm_extraction", EXTRACTION_PROMPT)
 
 
 def _get_client():
@@ -210,7 +213,7 @@ async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str) -> di
     start = time.time() 
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=[image_part, EXTRACTION_PROMPT],
+        contents=[image_part, get_prompt("vlm_extraction")],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             temperature=0.1,

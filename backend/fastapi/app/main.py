@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
-from app.api import avatar, recommend, lifecycle, report, internal, category_mapping, vlm, diary_generate
+from app.api import avatar, recommend, lifecycle, report, internal, category_mapping, vlm, diary_generate, admin
 from app.db.connection import close_pool
 from app.core.config import settings
 from app.api import mapping
@@ -63,6 +63,7 @@ app.include_router(category_mapping.router, prefix="/api/category", tags=["categ
 app.include_router(vlm.router, prefix="/api/vlm", tags=["vlm"])
 app.include_router(diary_generate.router, prefix="/api/diary", tags=["diary-generate"])
 app.include_router(mapping.router, prefix="/api/mapping")
+app.include_router(admin.router)
 
 
 @app.get("/health")

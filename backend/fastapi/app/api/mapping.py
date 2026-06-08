@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from app.core.config import settings
+from app.core.prompt_store import register, get_prompt
 from langsmith import traceable, get_current_run_tree
 from datetime import datetime, timedelta
 from langsmith.wrappers import wrap_openai
@@ -38,6 +39,8 @@ class MappingResponse(BaseModel):
     group_id: Optional[int] = None
     payment_id: Optional[int] = None
     reason: Optional[str] = None
+
+from app.core.prompt_store import register, get_prompt
 
 GROUP_MAPPING_PROMPT = """너는 소비 사진의 특정 그룹과 결제 내역을 매핑하는 AI야.
 
@@ -116,6 +119,9 @@ GROUP_MAPPING_PROMPT = """너는 소비 사진의 특정 그룹과 결제 내역
   "reason": "선택 이유 한 줄"
 }}"""
 
+register("group_mapping", GROUP_MAPPING_PROMPT)
+
+
 def _get_client():
     if not settings.OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY가 설정되지 않았습니다.")
@@ -175,7 +181,7 @@ def match_photo_to_transaction(req: MappingRequest):
             for c in available
         ])
 
-        prompt = GROUP_MAPPING_PROMPT.format(
+        prompt = get_prompt("group_mapping").format(
             group_id=group.group_id,
             store=group.store or "알 수 없음",
             category=group.category or "알 수 없음",
