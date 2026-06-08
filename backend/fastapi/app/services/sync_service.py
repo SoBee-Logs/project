@@ -656,7 +656,7 @@ async def sync_transactions_env(
     ENV 기반 sync (팀원 로컬 테스트용).
 
     ENV 형식:
-      CODEF_CARD_ACCOUNTS=[{"organization":"0301","loginId":"myid","loginPw":"mypw","cardName":"신한카드"}]
+      CODEF_CARD_ACCOUNTS=[{"organization":"0306","loginId":"myid","loginPw":"mypw","cardName":"신한카드"}]
       CODEF_BANK_ACCOUNTS=[{"organization":"0020","loginId":"myid","loginPw":"mypw","account":"1234567890","bankName":"우리은행"}]
 
     흐름:
