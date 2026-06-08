@@ -162,7 +162,6 @@ public class DiaryService {
         } catch (Exception e) {
             return DiaryGenerateResponse.builder()
                     .title("오늘의 소비 기록")
-                    .subtitle("AI 일기 생성에 실패했어요")
                     .diaryLines(Arrays.asList("잠시 서버가 바빠요", "나중에 다시 시도해보세요", "오늘의 소비는 기억 속에 남겨두기로", "잠깐의 쉼도 좋은 법이야"))
                     .tags(Collections.singletonList("#" + group.getGroupName()))
                     .roomId(req.getGroupId())
