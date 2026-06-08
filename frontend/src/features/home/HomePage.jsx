@@ -133,10 +133,9 @@ export default function Home() {
                 alt="페르소나 꿀벌 아바타"
                 className="w-full h-auto block rounded-2xl"
               />
-              <div className="absolute bottom-0 left-3 right-3 h-20 bg-gradient-to-t from-black/40 to-transparent rounded-b-2xl" />
-              <div className="absolute bottom-3 left-6 text-white">
-                <span className="block text-[10px] font-extrabold opacity-80">{persona?.name ? `${persona.name} 님의 소비 페르소나` : '나의 소비 페르소나'}</span>
-                <span className="block text-[16px] font-extrabold leading-tight">{persona.avatarName}</span>
+              <div className="absolute bottom-4 left-5 right-5 pb-1 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
+                <span className="block text-[10px] font-extrabold opacity-90">
+                <span className="block text-[16px] font-extrabold leading-snug">{persona.avatarName}</span>
               </div>
             </>
           ) : (

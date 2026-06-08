@@ -12,6 +12,7 @@ from PIL import Image
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.prompt_store import register, get_prompt
 from app.db.transaction_repository import get_transactions_by_date_range, get_mapped_transactions_with_vlm
 from app.db.user_repository import update_user_avatar, get_user_life_stage
 from app.services.ai_insight_service import LIFE_STAGE_KO
@@ -199,6 +200,10 @@ _ANALYSIS_PROMPT_NO_VLM = """
 }}
 """
 
+register("avatar_image", _AVATAR_PROMPT)
+register("avatar_analysis", _ANALYSIS_PROMPT)
+register("avatar_analysis_no_vlm", _ANALYSIS_PROMPT_NO_VLM)
+
 TIME_SLOTS = {
     "새벽": {"range": (0, 4),   "emoji": "🌅", "en": "dawn (0-5h)"},
     "아침": {"range": (5, 9),   "emoji": "☀️", "en": "morning (5-10h)"},
@@ -380,7 +385,7 @@ def _analyze_persona_sync(
 ) -> dict:
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
     if has_vlm:
-        prompt = _ANALYSIS_PROMPT.format(
+        prompt = get_prompt("avatar_analysis").format(
             summary=summary,
             emoji_input=emoji_input,
             top_category=top_category,
@@ -390,7 +395,7 @@ def _analyze_persona_sync(
             life_stage_vibe=_LIFE_STAGE_VIBE.get(life_stage_code, "활기찬 일상을 살아가는 에너지"),
         )
     else:
-        prompt = _ANALYSIS_PROMPT_NO_VLM.format(
+        prompt = get_prompt("avatar_analysis_no_vlm").format(
             summary=summary,
             top_category=top_category,
             dominant_slot=dominant_slot,
@@ -468,7 +473,7 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
     # 5. 이미지 프롬프트 조립 — 사진 없으면 무표정
     face_expression = emoji if emoji else "calm neutral expressionless face"
     time_pattern = f"{slot_en} — {analysis['time_pattern']}"
-    prompt = _AVATAR_PROMPT.format(
+    prompt = get_prompt("avatar_image").format(
         lifestyle=analysis["lifestyle"],
         consumption_habit=analysis["consumption_habit"],
         time_pattern=time_pattern,
