@@ -515,8 +515,17 @@ export default function AvaterRoom() {
               }}
             >
               {!isEmptyMonth && hasWeekAvatar && (
-                <h2 className="text-white text-[26px] font-extrabold mb-4 drop-shadow-lg leading-tight break-keep">
-                  {avatarName}
+                <h2 className="text-white text-[26px] font-extrabold mb-4 leading-tight break-keep">
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      background: 'rgba(0,0,0,0.45)',
+                      borderRadius: '8px',
+                      padding: '6px 10px',
+                      backdropFilter: 'blur(2px)',
+                      lineHeight: 1,
+                    }}
+                  >{avatarName}</span>
                 </h2>
               )}
 
