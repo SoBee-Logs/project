@@ -162,56 +162,12 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
     except Exception as e:
         print(f"[VLM ERROR] {e}")
 
-    # 페르소나 기준 주: 직전 월~일 구간 (오늘 기준)
-    today_obj = datetime.now().date()
-    days_since_sunday = (today_obj.weekday() + 1) % 7
-    prev_sunday = today_obj - timedelta(days=days_since_sunday if days_since_sunday > 0 else 7)
-    prev_monday = prev_sunday - timedelta(days=6)
-
-    # VLM 장면 — 페르소나 기준 주간 (직전 월~일)
-    persona_vlm_scene = {}
-    try:
-        scene_df = pd.read_sql(text("""
-            SELECT
-                pvr.vlm_item_name  AS item_name,
-                COALESCE(cm.category_name, '기타') AS category,
-                pvr.vlm_store_name AS store_name,
-                pvr.vlm_store_type AS store_type
-            FROM persona_transaction pt
-            JOIN transactions t        ON pt.payment_id = t.payment_id
-            JOIN photo_vlm_results pvr ON pt.vlm_id = pvr.vlm_id
-            LEFT JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
-            WHERE pt.user_id = :user_id
-              AND t.payment_date BETWEEN :start AND :end
-        """), engine, params={
-            "user_id": user_id,
-            "start": str(prev_monday),
-            "end":   str(prev_sunday),
-        })
-        if not scene_df.empty:
-            store_type_counts = scene_df['store_type'].dropna().value_counts().to_dict()
-            top_items = scene_df['item_name'].dropna().unique().tolist()[:5]
-            cat_items = {}
-            for _, row in scene_df.dropna(subset=['category', 'item_name']).iterrows():
-                cat_items.setdefault(row['category'], [])
-                if row['item_name'] not in cat_items[row['category']]:
-                    cat_items[row['category']].append(row['item_name'])
-            category_counts = scene_df['category'].value_counts().to_dict()
-            persona_vlm_scene = {
-                "total_count":    len(scene_df),
-                "store_type_counts": store_type_counts,
-                "top_items":      top_items,
-                "category_items": {k: v[:2] for k, v in cat_items.items()},
-                "category_counts": category_counts,
-            }
-    except Exception as e:
-        print(f"[PERSONA VLM SCENE ERROR] {e}")
-
-    # avatar_change_reason — avatar 테이블 최신 레코드에서 조회
+    # avatar_change_reason — avatar 테이블 최신 레코드에서 조회 (persona_vlm_scene 주 범위 계산에 필요해 먼저 실행)
     # weekly_avatar — 해당 월 각 주차에 생성된 아바타 이미지
     avatar_change_reason = None
     avatar_change_reason_month = None
     weekly_avatar = {}
+    last_created_at = None
     try:
         cr_df = pd.read_sql(text("""
             SELECT avatar_name, avatar_img_url, avatar_change_reason, avatar_explain, avatar_created_at
@@ -238,6 +194,69 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
     except Exception:
         pass
 
+    # 페르소나 기준 주: 아바타 생성일의 직전 주 (classify_week 기준)
+    # 아바타는 직전 주 데이터를 기반으로 생성되므로 week_num - 1 사용
+    if last_created_at is not None and pd.notna(last_created_at):
+        avatar_date = pd.to_datetime(last_created_at).date()
+        avatar_week_num = (avatar_date.day + adjusted_first - 1) // 7 + 1
+        week_num = avatar_week_num - 1
+    else:
+        today_obj = datetime.now().date()
+        week_num = (today_obj.day + adjusted_first - 1) // 7 + 1 - 1
+
+    if week_num < 1:
+        # 전 주가 이전 달에 걸치는 경우 — 이전 달 마지막 주 사용
+        prev_month = target_month - 1 if target_month > 1 else 12
+        prev_year  = target_year if target_month > 1 else target_year - 1
+        prev_last_day = calendar.monthrange(prev_year, prev_month)[1]
+        prev_monday = datetime(prev_year, prev_month, 1).date()
+        prev_sunday = datetime(prev_year, prev_month, prev_last_day).date()
+    else:
+        week_start_day = max(1, (week_num - 1) * 7 - adjusted_first + 1)
+        week_end_day   = min(last_day_num, week_num * 7 - adjusted_first)
+        prev_monday = datetime(target_year, target_month, week_start_day).date()
+        prev_sunday = datetime(target_year, target_month, week_end_day).date()
+
+    # VLM 장면 — 아바타 생성 주간, photo_metadata.taken_at 기준으로 필터
+    persona_vlm_scene = {}
+    try:
+        scene_df = pd.read_sql(text("""
+            SELECT
+                pvr.vlm_item_name  AS item_name,
+                COALESCE(cm.category_name, '기타') AS category,
+                pvr.vlm_store_name AS store_name,
+                pvr.vlm_store_type AS store_type
+            FROM persona_transaction pt
+            JOIN photo_metadata pm     ON pt.photo_id = pm.photo_id
+            JOIN photo_vlm_results pvr ON pt.vlm_id = pvr.vlm_id
+            LEFT JOIN transactions t   ON pt.payment_id = t.payment_id
+            LEFT JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+            WHERE pt.user_id = :user_id
+              AND DATE(pm.taken_at) BETWEEN :start AND :end
+        """), engine, params={
+            "user_id": user_id,
+            "start": str(prev_monday),
+            "end":   str(prev_sunday),
+        })
+        if not scene_df.empty:
+            store_type_counts = scene_df['store_type'].dropna().value_counts().to_dict()
+            top_items = scene_df['item_name'].dropna().unique().tolist()[:5]
+            cat_items = {}
+            for _, row in scene_df.dropna(subset=['category', 'item_name']).iterrows():
+                cat_items.setdefault(row['category'], [])
+                if row['item_name'] not in cat_items[row['category']]:
+                    cat_items[row['category']].append(row['item_name'])
+            category_counts = scene_df['category'].value_counts().to_dict()
+            persona_vlm_scene = {
+                "total_count":     len(scene_df),
+                "store_type_counts": store_type_counts,
+                "top_items":       top_items,
+                "category_items":  {k: v[:2] for k, v in cat_items.items()},
+                "category_counts": category_counts,
+            }
+    except Exception as e:
+        print(f"[PERSONA VLM SCENE ERROR] {e}")
+
     MOOD_EMOJI = {
         'HAPPY':     '☺️',
         'SAD':       '😭',
@@ -249,30 +268,47 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
     # 주차별 소비 감정(emoji) top1 집계
     weekly_top_emotion = {}
     try:
-        emotion_df = pd.read_sql(text("""
-            SELECT t.payment_date, et.emoji
+        # 그 주 매핑된 전체 사진 수 (taken_at 기준)
+        all_mapped_df = pd.read_sql(text("""
+            SELECT DISTINCT pt.photo_id, DATE(pm.taken_at) AS taken_date
             FROM persona_transaction pt
-            JOIN transactions t ON pt.payment_id = t.payment_id
-            JOIN emotions_text et ON pt.photo_id = et.photo_id
+            JOIN photo_metadata pm ON pt.photo_id = pm.photo_id
             WHERE pt.user_id = :user_id
-              AND t.payment_date BETWEEN :start AND :end
+              AND DATE(pm.taken_at) BETWEEN :start AND :end
+        """), engine, params={
+            "user_id": user_id,
+            "start": first_day_obj.strftime("%Y-%m-%d"),
+            "end":   last_day_obj.strftime("%Y-%m-%d"),
+        })
+        if not all_mapped_df.empty:
+            all_mapped_df['week_label'] = all_mapped_df['taken_date'].apply(classify_week)
+
+        # 감정별 집계 (taken_at 기준)
+        emotion_df = pd.read_sql(text("""
+            SELECT DATE(pm.taken_at) AS taken_date, et.emoji
+            FROM (SELECT DISTINCT photo_id FROM persona_transaction WHERE user_id = :user_id) pt
+            JOIN photo_metadata pm ON pt.photo_id = pm.photo_id
+            JOIN emotions_text et ON pt.photo_id = et.photo_id
+            WHERE DATE(pm.taken_at) BETWEEN :start AND :end
               AND et.emoji IS NOT NULL AND et.emoji != ''
+            GROUP BY pt.photo_id, et.emoji, DATE(pm.taken_at)
         """), engine, params={
             "user_id": user_id,
             "start": first_day_obj.strftime("%Y-%m-%d"),
             "end":   last_day_obj.strftime("%Y-%m-%d"),
         })
         if not emotion_df.empty:
-            emotion_df['week_label'] = emotion_df['payment_date'].apply(classify_week)
+            emotion_df['week_label'] = emotion_df['taken_date'].apply(classify_week)
             for week in week_order:
                 week_em = emotion_df[emotion_df['week_label'] == week]
                 if not week_em.empty:
                     counts = week_em['emoji'].value_counts()
                     top_mood = counts.idxmax()
+                    total = len(all_mapped_df[all_mapped_df['week_label'] == week]) if not all_mapped_df.empty else len(week_em)
                     weekly_top_emotion[week] = {
                         "emoji": MOOD_EMOJI.get(top_mood, top_mood),
                         "top_count": int(counts.max()),
-                        "total_count": int(len(week_em)),
+                        "total_count": int(total),
                     }
     except Exception as e:
         print(f"[EMOTION ERROR] {e}")
@@ -309,9 +345,9 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         vlm_count_df = pd.read_sql(text("""
             SELECT COUNT(*) AS cnt
             FROM persona_transaction pt
-            JOIN transactions t ON pt.payment_id = t.payment_id
+            JOIN photo_metadata pm ON pt.photo_id = pm.photo_id
             WHERE pt.user_id = :user_id
-              AND t.payment_date BETWEEN :start AND :end
+              AND DATE(pm.taken_at) BETWEEN :start AND :end
         """), engine, params={
             "user_id": user_id,
             "start": str(prev_monday),

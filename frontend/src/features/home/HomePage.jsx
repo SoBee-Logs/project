@@ -135,7 +135,7 @@ export default function Home() {
               />
               <div className="absolute bottom-0 left-3 right-3 h-20 bg-gradient-to-t from-black/40 to-transparent rounded-b-2xl" />
               <div className="absolute bottom-3 left-6 text-white">
-                <span className="block text-[10px] font-extrabold opacity-80">나의 소비 페르소나</span>
+                <span className="block text-[10px] font-extrabold opacity-80">{persona?.name ? `${persona.name} 님의 소비 페르소나` : '나의 소비 페르소나'}</span>
                 <span className="block text-[16px] font-extrabold leading-tight">{persona.avatarName}</span>
               </div>
             </>

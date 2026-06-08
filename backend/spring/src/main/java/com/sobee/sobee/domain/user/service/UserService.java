@@ -53,8 +53,8 @@ public class UserService {
                 : null;
         Avatar avatar = avatarRepository.findTopByUserIdOrderByAvatarCreatedAtDesc(userId)
                 .orElse(null);
-        if (avatar == null) return new UserPersonaDto(null, null, null, null, createdAt);
-        return new UserPersonaDto(avatar.getAvatarName(), avatar.getAvatarExplain(), avatar.getAvatarImgUrl(), avatar.getAvatarChangeReason(), createdAt);
+        if (avatar == null) return new UserPersonaDto(user.getName(), null, null, null, null, createdAt);
+        return new UserPersonaDto(user.getName(), avatar.getAvatarName(), avatar.getAvatarExplain(), avatar.getAvatarImgUrl(), avatar.getAvatarChangeReason(), createdAt);
     }
 
     // 회원 탈퇴 — Soft Delete (is_active = false)
