@@ -3,18 +3,11 @@ from openai import AsyncOpenAI
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import settings
+from app.core.constants import MOOD_LABEL
 from app.models.schemas import DiaryRequest, DiaryResponse
 from app.core.prompt_store import register, get_prompt
 
 router = APIRouter()
-
-MOOD_LABEL = {
-    "☺️": "satisfied",
-    "😭": "sad",
-    "😮": "surprised",
-    "😍": "happy",
-    "😡": "regretful",
-}
 
 # 모임방 카테고리별 일기 작성 테마 지침
 # room_category 값이 없거나 알 수 없는 경우 DEFAULT 사용
