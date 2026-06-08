@@ -543,8 +543,8 @@ export default function AvaterRoom() {
             pointerEvents: (isExpanded || !hasWeekAvatar) ? 'none' : 'auto',
           }}
         >
-          <div className="h-full flex flex-col pt-1 pb-2">
-            <div className="text-center mb-1">
+          <div className="h-full flex flex-col pt-4 pb-2">
+            <div className="text-center mb-4">
               {!isEmptyMonth && hasWeekAvatar && (
                 <h2 className="text-[18px] font-extrabold text-gray-900 leading-tight break-keep line-clamp-1">
                   {avatarName}
