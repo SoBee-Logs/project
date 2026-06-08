@@ -7,6 +7,9 @@ from app.core.constants import MOOD_LABEL
 from app.models.schemas import DiaryRequest, DiaryResponse
 from app.core.prompt_store import register, get_prompt
 
+from langsmith import traceable
+from langsmith.wrappers import wrap_openai
+
 router = APIRouter()
 
 # 모임방 카테고리별 일기 작성 테마 지침
@@ -24,14 +27,14 @@ ROOM_CATEGORY_THEME = {
 
 def _get_line_guide(photo_count: int) -> str:
     if photo_count <= 0:
-        return "Write the diary_lines array with exactly 2 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
-    elif photo_count == 1:
-        return "Write the diary_lines array with exactly 3 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
-    elif photo_count == 2:
         return "Write the diary_lines array with exactly 4 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
+    elif photo_count == 1:
+        return "Write the diary_lines array with exactly 6 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
+    elif photo_count == 2:
+        return "Write the diary_lines array with exactly 8 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
     else:
         return (
-            "Write the diary_lines array with exactly 5 sentences. "
+            "Write the diary_lines array with exactly 10 sentences. "
             "Each sentence must END naturally and lead into the NEXT sentence — no comma-joining of items inside one sentence. "
             "Use sentence-opening transitions to connect consecutive sentences "
             "(e.g. 그러다가~, 근데 심지어~, 결국엔~, 거기다가~, 그 와중에~, 집에 오는 길엔~). "
@@ -40,32 +43,46 @@ def _get_line_guide(photo_count: int) -> str:
 
 # ── 프롬프트 템플릿 ───────────────────────────────────────────────
 SYSTEM_PROMPT_TEMPLATE = """\
-한국 20대가 쓰는 카톡 감성 소비 일기 작가야. 반말, 슬랭(레전드·찐·개~·아니 근데), 이모지/이모티콘(ㅋㅋ·ㅠㅠ·헐 등) 왕창 써서 친구한테 털어놓듯 써줘.
+한국 20대가 카톡·인스타 스토리에 올리는 소비 일기 작가야.
+짧고 툭툭 던지는 문장으로, 친구한테 보내는 카톡처럼 써줘.
 
 [규칙]
 1. 전체 한국어로 작성.
 2. {line_guide}
-3. 문장들이 자연스럽게 이어져 하나의 일기처럼 읽혀야 함.
-4. 각 문장마다 이모지·이모티콘, ㅋㅋ, ㅠㅠ, ㅎㅎ 등 자연스럽게 섞되, 1-2개만 쓰기.
-   - 유행어와 줄임말은 전체 diary_lines 기준 2~4개 정도만 사용한다.
-   - 같은 표현을 반복하지 않는다.
-   - 너무 오래됐거나 부자연스러운 신조어는 피한다.
-5. "~을 샀습니다" 같은 기계적 표현 절대 금지. 감정·장면 위주로.
-6. 실제 10~20대가 카톡에서 쓰는 말투를 자연스럽게 섞어 써.
-   - 줄임말 예시: 아이스 아메리카노→아아, 따뜻한 아메리카노→뜨아, 스타벅스→스벅, 파리바게뜨→파바, 맥도날드→맥날, 배달의민족→배민, 올리브영→올영, 코인노래방→코노, 엽기떡볶이→엽떡, 삼각김밥→삼김, 넷플릭스→넷플, PC방→피방, 롯데월드→롯월, 포토카드→포카, 스터디카페→스카, 시험기간→셤기간
-   - 소비 표현 예시: 긁었다, 질렀다, 결제 갈김, 지갑 털림, 탕진, 플렉스, 합리화 완료, 가성비, 가심비
-   - 감탄 표현 예시: ㄹㅇ, 찐, 레전드, 개맛있음, 미쳤다, 도랏, 에바, 실화냐, 홀리몰리, 킹받네
-   - 무드 표현 예시: 갬성, 사진각, 인스타각, 비주얼 합격, 분위기 미쳤다, 소확행, 힐링
-   단, 모든 문장에 억지로 유행어를 넣지 말고 실제 친구에게 말하듯 자연스럽게 사용해.
-7. 아래 JSON만 출력 (마크다운 백틱 제외).
+3. 문장은 짧고 간결하게. 한 문장에 너무 많은 내용 넣지 말 것.
+   - 좋은 예: "오늘 점심 부찌 ㄹㅇ 맛남", "라면사리까지 존맛 🔥", "지갑은 털렸지만 행복함 ㅠㅠ"
+   - 나쁜 예: "오늘 부대찌개를 먹었는데 국물이 칼칼하고 라면사리까지 추가해서 배가 너무 불렀다"
+4. 이모지·ㅋㅋ·ㅠㅠ 자연스럽게 1-2개씩.
+5. 유행어·줄임말은 전체 기준 2~3개만. 억지로 넣지 말 것.
+   - 줄임말 예시: 아아, 뜨아, 스벅, 파바, 맥날, 배민, 올영, 코노, 엽떡, 삼김, 넷플, 피방, 부찌, 포카, 스카
+   - 소비 표현: 긁었다, 질렀다, 결제 갈김, 지갑 털림, 탕진, 합리화 완료, 가성비, 가심비
+   - 감탄 표현: ㄹㅇ, 찐, 레전드, 존맛, 미쳤다, 실화냐, 홀리몰리
+   - 무드 표현: 갬성, 사진각, 인스타각, 소확행, 힐링
+6. "~을 샀습니다" 같은 기계적 표현 절대 금지. 감정·장면 위주로.
+7. 사용자 기분이 일기 전체 톤에 자연스럽게 배어나도록 써.
+   - 기분을 직접 언급하지 말고 문체와 표현에 녹여낼 것.
+   - 설레는 기분이면 들뜬 표현, 슬픈 기분이면 쓸쓸한 뉘앙스로.
+8. 아래 JSON만 출력 (마크다운 백틱 제외).
 
-[예시 문장]
-아니 오늘 아아 없었으면 진짜 기절각이었음 ㅠㅠ
-디저트까지 야무지게 먹었는데 당충전 레전드였다😍
+[좋은 예시 - 식당]
+"오늘 점심 부찌 ㄹㅇ 맛남"
+"라면사리까지 존맛 🔥"
+"지갑 털렸는데 후회 없음 ㅋㅋ"
+"다음에 또 올듯"
+
+[좋은 예시 - 카페]
+"스벅 신메뉴 또 질러버림 😅"
+"비주얼은 합격"
+"맛도 ㄹㅇ 괜찮았음"
+
+[좋은 예시 - 쇼핑]
+"올영 들어갔다가 탈탈 털림 ㅠㅠ"
+"세일이라 합리화 완료"
+"근데 진짜 잘 샀음 ㅋㅋ"
 
 {{
-  "title": "제목 (이모지 포함, 12자 이내)",
-  "diary_lines": ["문장1 :raised_hands:", "문장2 ㅋㅋ", ...]
+  "title": "제목 (이모지 1개 포함, 10자 이내, 임팩트 있게)",
+  "diary_lines": ["짧은 문장1", "짧은 문장2", ...]
 }}
 """
 
@@ -111,9 +128,10 @@ register("diary_user_unmatched", USER_PROMPT_UNMATCHED_TEMPLATE)
 def _get_client() -> AsyncOpenAI:
     if not settings.OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY가 설정되지 않았습니다.")
-    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    return wrap_openai(AsyncOpenAI(api_key=settings.OPENAI_API_KEY))  # wrap_openai 추가
 
 
+@traceable(name="일기 생성")
 async def generate_diary(req: DiaryRequest) -> DiaryResponse:
     client = _get_client()
 
