@@ -223,6 +223,7 @@ public class PhotoService {
                 .vlmConfidence(request.getConfidence() != null ? request.getConfidence() : "low")
                 .vlmAddress(request.getAddress())
                 .vlmGroups(groupsJson)
+                .isValid(request.getIs_valid() != null ? request.getIs_valid() : true)  // 추가
                 .build();
         photoVlmResultRepository.save(vlmResult);
 
@@ -246,6 +247,12 @@ public class PhotoService {
         PhotoVlmResult vlm = photoVlmResultRepository
                 .findFirstByPhotoIdOrderByVlmIdDesc(photoId).orElse(null);
         if (vlm == null) return;
+
+        // 추가: 소비 아닌 사진 매핑 스킵
+        if (Boolean.FALSE.equals(vlm.getIsValid())) {
+                log.info("[매핑 스킵] 소비 아님 photoId={}", photoId);
+                return;
+        }
     
         PhotoMetadata metadata = photoMetadataRepository
                 .findByPhotoPhotoId(photoId).orElse(null);
