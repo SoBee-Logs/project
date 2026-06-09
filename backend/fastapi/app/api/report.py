@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Query
 from app.services.report_service import get_transaction_report
 from app.services.ai_insight_service import get_ai_insight
@@ -27,11 +28,14 @@ async def ai_insight(
     return await get_ai_insight(user_id, tx_data.get("category_price", {}))
 
 
-@router.get("/recommend-questions")  
+@router.get("/recommend-questions")
 async def recommend_questions(user_id: int = Query(...)):
-    tx_data = get_transaction_report(user_id)
+    loop = asyncio.get_event_loop()
+    tx_data, lifecycle_resp = await asyncio.gather(
+        loop.run_in_executor(None, get_transaction_report, user_id),
+        get_lifecycle(user_id),
+    )
     category_price = tx_data.get("category_price", {})
-    lifecycle_resp = await get_lifecycle(user_id)
     lifecycle_label = lifecycle_resp.life_stage_code
     questions = await generate_recommend_questions(category_price, lifecycle_label)
     return {"questions": questions}

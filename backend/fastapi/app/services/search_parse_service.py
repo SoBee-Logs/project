@@ -1,45 +1,31 @@
 import json
 import logging
-from openai import AsyncOpenAI
+from google import genai
+from google.genai import types
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
-# 고유명사 → 카테고리 정적 매핑 (GPT 결과보다 우선 적용)
 _PROPER_NOUN_CATEGORIES: dict[str, str] = {
-    # 테마파크 / 놀이공원
     "롯데월드": "영화", "에버랜드": "영화", "캐리비안베이": "영화", "워터파크": "영화",
     "유니버설": "영화", "놀이공원": "영화", "테마파크": "영화",
-    # 카페 브랜드
     "스타벅스": "카페", "이디야": "카페", "투썸플레이스": "카페", "투썸": "카페",
     "커피빈": "카페", "할리스": "카페", "폴바셋": "카페", "메가커피": "카페",
     "컴포즈커피": "카페", "빽다방": "카페",
-    # 패스트푸드 / 음식
     "맥도날드": "음식점", "버거킹": "음식점", "롯데리아": "음식점", "KFC": "음식점",
     "맘스터치": "음식점", "서브웨이": "음식점",
-    # 배달앱
     "배달의민족": "음식점", "배민": "음식점", "쿠팡이츠": "음식점", "요기요": "음식점",
-    # 대형마트
     "이마트": "마트", "홈플러스": "마트", "코스트코": "마트", "롯데마트": "마트",
-    # 편의점
     "CU": "편의점", "GS25": "편의점", "세븐일레븐": "편의점", "미니스톱": "편의점",
     "emart24": "편의점",
-    # OTT / 영화관
     "넷플릭스": "영화", "왓챠": "영화", "웨이브": "영화", "티빙": "영화",
     "시즌": "영화", "CGV": "영화", "메가박스": "영화", "롯데시네마": "영화",
-    # 여행 / 숙박
     "야놀자": "여행", "여기어때": "여행", "에어비앤비": "여행",
-    # 통신사
     "SKT": "통신", "KT": "통신", "LG유플러스": "통신", "LGU+": "통신",
-    # 간편결제 / 온라인쇼핑
     "카카오페이": "온라인", "네이버페이": "온라인", "쿠팡": "온라인",
     "11번가": "온라인", "지마켓": "온라인", "옥션": "온라인",
-    # 주유
     "SK에너지": "주유", "GS칼텍스": "주유", "현대오일뱅크": "주유", "S오일": "주유",
-    # 헬스 / 스포츠
     "헬스장": "스포츠", "피트니스": "스포츠", "골프": "스포츠",
-    # 병원 / 약국
     "올리브영": "의료",
 }
 
@@ -79,6 +65,8 @@ _SYSTEM_PROMPT = """당신은 한국 금융상품 검색 어시스턴트입니�
   중요: 각 문장은 반드시 20자 이내로 간결하게 작성하고, 문장마다 줄바꿈 없이 이어서 작성.
   예) "카페 할인 카드를 찾고 계시는군요! 카페 혜택이 강한 카드들을 모아봤어요. 자주 갈수록 절약 효과가 커요. 연회비와 비교해 골라보세요." """
 
+_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
 
 def _detect_proper_noun_category(query: str) -> str | None:
     for noun, category in _PROPER_NOUN_CATEGORIES.items():
@@ -89,17 +77,16 @@ def _detect_proper_noun_category(query: str) -> str | None:
 
 async def parse_search_query(query: str) -> dict:
     try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": f"검색어: {query}"},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.3,
-            max_tokens=500,
+        response = await _client.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=f"{_SYSTEM_PROMPT}\n\n검색어: {query}",
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.3,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
         )
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(response.text)
 
         if not result.get("product_types"):
             result["product_types"] = ["card", "savings", "insurance"]
@@ -110,14 +97,13 @@ async def parse_search_query(query: str) -> dict:
         result.setdefault("company", None)
         result.setdefault("category", None)
 
-        # 고유명사 매핑이 있으면 GPT 카테고리보다 우선 적용
         proper_category = _detect_proper_noun_category(query)
         if proper_category:
             result["category"] = proper_category
 
         return result
     except Exception as e:
-        logger.error("GPT 파싱 실패: %s", e)
+        logger.error("Gemini 파싱 실패: %s", e)
         proper_category = _detect_proper_noun_category(query)
         return {
             "product_types": ["card", "savings", "insurance"],
