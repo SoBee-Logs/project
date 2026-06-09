@@ -1,11 +1,17 @@
 """
 category_mapping_repository.py
 """
+import re
 import aiomysql
 from typing import Optional
 from app.db.connection import get_pool
 
 ETC_PAYMENT_CATEGORY_ID = 16
+
+
+def normalize_place(name: str) -> str:
+    """payment_place 정규화: 공백, +, 괄호 등 특수문자 제거."""
+    return re.sub(r'[\s\+\(\)\{\}]', '', name)
 
 
 async def find_mapping(
@@ -16,24 +22,21 @@ async def find_mapping(
 
     우선순위:
       tier2      : payment_category + payment_place 둘 다 일치
-      tier1      : payment_category 일치 + payment_place IS NULL (범용 룰)
-      tier_place : payment_place만 일치 (다른 payment_category로 이미 분류된 적 있음)
+      tier_place : payment_place 정규화 후 일치 (같은 가맹점 재사용)
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
-            # tier2 / tier1: 기존 로직
             await cur.execute(
                 """
                 SELECT
                     m.payment_category_id,
                     c.category_name,
-                    CASE WHEN m.payment_place IS NULL THEN 'tier1' ELSE 'tier2' END AS matched_by
+                    'tier2' AS matched_by
                 FROM category_mapping m
                 JOIN category_master c ON c.payment_category_id = m.payment_category_id
                 WHERE m.payment_category = %s
-                  AND (m.payment_place = %s OR m.payment_place IS NULL)
-                ORDER BY m.payment_place IS NULL ASC
+                  AND m.payment_place = %s
                 LIMIT 1
                 """,
                 (payment_category, payment_place),
@@ -45,7 +48,8 @@ async def find_mapping(
             if not payment_place:
                 return None
 
-            # tier_place: payment_place만으로 재사용 (LLM 중복 호출 방지)
+            # tier_place: 정규화된 payment_place로 재사용
+            normalized = normalize_place(payment_place)
             await cur.execute(
                 """
                 SELECT
@@ -54,11 +58,11 @@ async def find_mapping(
                     'tier_place' AS matched_by
                 FROM category_mapping m
                 JOIN category_master c ON c.payment_category_id = m.payment_category_id
-                WHERE m.payment_place = %s
+                WHERE REGEXP_REPLACE(m.payment_place, '[[:space:]\\+\\(\\)\\{\\}]', '') = %s
                   AND m.payment_category_id != %s
                 LIMIT 1
                 """,
-                (payment_place, ETC_PAYMENT_CATEGORY_ID),
+                (normalized, ETC_PAYMENT_CATEGORY_ID),
             )
             row = await cur.fetchone()
     return dict(row) if row else None
