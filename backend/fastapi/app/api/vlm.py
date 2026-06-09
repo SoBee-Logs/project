@@ -258,13 +258,24 @@ async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str, max_r
 async def analyze_image(filename: str, image_bytes: bytes, exif: dict = None) -> dict:
     client = _get_client()
 
-    # exif가 없으면 직접 추출 (일반 JPEG/PNG 케이스)
+    # exif가 없으면 직접 추출
     if exif is None:
         exif = extract_exif(image_bytes)
 
     address = None
     if exif["gps"]:
         address = reverse_geocode(exif["gps"]["latitude"], exif["gps"]["longitude"])
+
+    # 추가: 이미지 리사이즈 (전송 크기 줄여서 속도 개선)
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        img.thumbnail((768 , 768))
+        buf = io.BytesIO()
+        img.convert("RGB").save(buf, format="JPEG", quality=85)
+        image_bytes = buf.getvalue()
+        filename = "resized.jpg"
+    except Exception:
+        pass  # 리사이즈 실패 시 원본 사용
 
     mime_type = _get_mime_type(filename)
     vlm_result = await _analyze_with_gemini(client, image_bytes, mime_type)
