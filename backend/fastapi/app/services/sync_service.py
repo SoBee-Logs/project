@@ -474,8 +474,8 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
     bank_valid = [bt for bt in bank_raw if bt["id"] not in self_transfer_ids]
 
     # ── 체크카드 매칭: 날짜 + 금액 일치 + 시간 차이 1분 이내 ────
-    def _to_minutes(date_val, time_val) -> int | None:
-        """날짜+시간을 분 단위 정수로 변환. 파싱 실패 시 None."""
+    def _to_seconds(date_val, time_val) -> int | None:
+        """날짜+시간을 초 단위 정수로 변환. 파싱 실패 시 None."""
         import datetime as _dt
         try:
             if isinstance(date_val, _dt.date):
@@ -483,12 +483,11 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
             else:
                 d = int(str(date_val).replace("-", ""))
             if isinstance(time_val, _dt.timedelta):
-                total = int(time_val.total_seconds())
-                h, m = total // 3600, (total % 3600) // 60
+                t = int(time_val.total_seconds())
             else:
-                t = str(time_val).replace(":", "")
-                h, m = int(t[:2]), int(t[2:4])
-            return d * 1440 + h * 60 + m
+                s = str(time_val).replace(":", "")
+                t = int(s[:2]) * 3600 + int(s[2:4]) * 60 + int(s[4:6])
+            return d * 86400 + t
         except Exception:
             return None
 
@@ -506,13 +505,13 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
     for ct in card_valid:
         key = (ct["used_date"], ct["used_amount"])
         candidates = bank_out_index.get(key, [])
-        ct_min = _to_minutes(ct["used_date"], ct.get("used_time") or "000000")
+        ct_sec = _to_seconds(ct["used_date"], ct.get("used_time") or "000000")
         match = None
         for bt in candidates:
             if bt["id"] in matched_bank_ids:
                 continue
-            bt_min = _to_minutes(bt["tr_date"], bt.get("tr_time") or "000000")
-            if ct_min is not None and bt_min is not None and abs(ct_min - bt_min) <= 1:
+            bt_sec = _to_seconds(bt["tr_date"], bt.get("tr_time") or "000000")
+            if ct_sec is not None and bt_sec is not None and abs(ct_sec - bt_sec) <= 60:
                 match = bt
                 break
         if match:
