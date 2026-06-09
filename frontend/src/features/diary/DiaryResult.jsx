@@ -275,16 +275,6 @@ export default function DiaryResult() {
               >
                 ›
               </button>
-              <span className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-                {slides.map((_, i) => (
-                  <span
-                    key={i}
-                    className={`w-2 h-2 rounded-full ${
-                      i === imageSlide ? 'bg-gray-900' : 'bg-gray-300'
-                    }`}
-                  />
-                ))}
-              </span>
             </>
           ) : (
             <div className="w-full aspect-[4/3] flex flex-col items-center justify-center bg-gray-50 gap-3">
@@ -293,6 +283,17 @@ export default function DiaryResult() {
             </div>
           )}
         </figure>
+
+        {slides.length > 1 && (
+          <div className="flex justify-center gap-1.5 py-2">
+            {slides.map((_, i) => (
+              <span
+                key={i}
+                className={`rounded-full transition-all ${i === imageSlide ? 'w-4 h-1.5 bg-gray-700' : 'w-1.5 h-1.5 bg-gray-300'}`}
+              />
+            ))}
+          </div>
+        )}
 
         <article className="bg-white rounded-2xl p-5 shadow-md text-left">
           <header className="flex items-start justify-between gap-2 mb-3">
