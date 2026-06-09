@@ -127,7 +127,7 @@ async def get_lifecycle(user_id: int) -> LifecycleResponse:
 
     life_stage_code = row[0]
 
-    # life_stage_code 없음 → 최초 예측 트리거 (ML + Gemini 호출)
+    # life_stage_code 없음 → 최초 예측 트리거 (ML 모델 호출)
     if not life_stage_code:
         try:
             predicted = await predict_lifecycle(LifecycleRequest(user_id=user_id))
