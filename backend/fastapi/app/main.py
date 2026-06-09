@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Sobee FastAPI - B조",
+    title="Sobee FastAPI",
     version="0.1.0",
     lifespan=lifespan,
     swagger_ui_parameters={"persistAuthorization": True},

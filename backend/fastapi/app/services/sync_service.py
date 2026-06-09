@@ -408,8 +408,6 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
       3. desc3에 '캐시백', '이자' 포함된 입금 제거
       4. 나머지 계좌 내역 → transactions INSERT
 
-    멱등성: 동기화 기간을 DELETE 후 INSERT (같은 기간으로 재실행해도 결과 동일).
-    DELETE/INSERT는 단일 트랜잭션으로 묶어 원자성 보장.
     """
     sd = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]}"
     ed = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}"
@@ -475,32 +473,64 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
 
     bank_valid = [bt for bt in bank_raw if bt["id"] not in self_transfer_ids]
 
-    # ── 체크카드 매칭: 카드·계좌 날짜·시간·금액 일치 ────────────
-    bank_out_index: dict[tuple, dict] = {}
+    # ── 체크카드 매칭: 날짜 + 금액 일치 + 시간 차이 1분 이내 ────
+    def _to_minutes(date_val, time_val) -> int | None:
+        """날짜+시간을 분 단위 정수로 변환. 파싱 실패 시 None."""
+        import datetime as _dt
+        try:
+            if isinstance(date_val, _dt.date):
+                d = date_val.year * 10000 + date_val.month * 100 + date_val.day
+            else:
+                d = int(str(date_val).replace("-", ""))
+            if isinstance(time_val, _dt.timedelta):
+                total = int(time_val.total_seconds())
+                h, m = total // 3600, (total % 3600) // 60
+            else:
+                t = str(time_val).replace(":", "")
+                h, m = int(t[:2]), int(t[2:4])
+            return d * 1440 + h * 60 + m
+        except Exception:
+            return None
+
+    # 날짜+금액 기준으로 후보 은행 거래 묶기
+    bank_out_index: dict[tuple, list[dict]] = {}
     for bt in bank_valid:
         if bt["amount_out"] > 0:
-            key = (bt["tr_date"], bt["tr_time"], bt["amount_out"])
-            bank_out_index.setdefault(key, bt)
+            key = (bt["tr_date"], bt["amount_out"])
+            bank_out_index.setdefault(key, []).append(bt)
 
     debit_card: list[dict] = []
     credit_card: list[dict] = []
     matched_bank_ids: set[int] = set()
 
     for ct in card_valid:
-        key = (ct["used_date"], ct["used_time"], ct["used_amount"])
-        match = bank_out_index.get(key)
-        if match and match["id"] not in matched_bank_ids:
+        key = (ct["used_date"], ct["used_amount"])
+        candidates = bank_out_index.get(key, [])
+        ct_min = _to_minutes(ct["used_date"], ct.get("used_time") or "000000")
+        match = None
+        for bt in candidates:
+            if bt["id"] in matched_bank_ids:
+                continue
+            bt_min = _to_minutes(bt["tr_date"], bt.get("tr_time") or "000000")
+            if ct_min is not None and bt_min is not None and abs(ct_min - bt_min) <= 1:
+                match = bt
+                break
+        if match:
             debit_card.append(ct)
             matched_bank_ids.add(match["id"])
         else:
             credit_card.append(ct)
 
-    # ── 계좌: 체크카드 매칭분 + 캐시백·이자 제거 ───────────────
-    _EXCLUDE = {"캐시백", "이자"}
+    # ── 계좌: 체크카드 매칭분 + 캐시백·이자·카드대금 제거 ──────
+    _EXCLUDE = {"캐시백", "이자", "신한카드", "우리카드", "국민카드", "KB카드", "하나카드",
+                "삼성카드", "현대카드", "롯데카드", "BC카드", "비씨카드", "NH카드", "농협카드", "씨티카드"}
     bank_final = [
         bt for bt in bank_valid
         if bt["id"] not in matched_bank_ids
-        and not any(kw in (bt.get("desc3") or "") for kw in _EXCLUDE)
+        and not any(
+            kw in " ".join(filter(None, [bt.get(f"desc{i}") for i in range(1, 5)]))
+            for kw in _EXCLUDE
+        )
     ]
 
     # ── transactions 레코드 구성 ──────────────────────────────
@@ -530,7 +560,6 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
             None,
         ))
 
-    # ── DELETE → INSERT (해당 기간만, 멱등 보장) ────────────
     async with pool.acquire() as conn:
         await conn.begin()
         try:
@@ -649,112 +678,24 @@ async def register_accounts_from_env(
                         return {"registered": registered, "missing": [], "rate_limited": True}
 
     return {"registered": registered, "missing": [], "rate_limited": False}
-
-
-async def sync_transactions_env(
-    user_id: int,
-    days: int = INITIAL_SYNC_DAYS,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    skip_avatar: bool = False,
-    force_register: bool = False,
-) -> dict:
-    """
-    ENV 기반 sync (팀원 로컬 테스트용).
-
-    ENV 형식:
-      CODEF_CARD_ACCOUNTS=[{"organization":"0306","loginId":"myid","loginPw":"mypw","cardName":"신한카드"}]
-      CODEF_BANK_ACCOUNTS=[{"organization":"0020","loginId":"myid","loginPw":"mypw","account":"1234567890","bankName":"우리은행"}]
-
-    흐름:
-      1. 이미 Secrets Manager에 등록된 (businessType, org)는 skip
-      2. 미등록 기관을 connected_id 발급/추가 → Secrets Manager 저장
-         - 같은 loginId끼리는 하나의 connected_id로 묶음 (CODEF 1:N 스펙)
-      3. sync_transactions(user_id) 호출 → 이후 Secrets Manager 기반 정상 sync
-
-    loginId/loginPw는 CODEF에만 전달, 어디에도 저장되지 않음.
-    """
-    card_accounts = settings.get_codef_card_accounts()
-    bank_accounts = settings.get_codef_bank_accounts()
-    if not card_accounts and not bank_accounts:
-        raise ValueError("ENV에 CODEF_CARD_ACCOUNTS / CODEF_BANK_ACCOUNTS 설정이 없습니다.")
-
-    # force_register=True면 기존 Secrets Manager 항목 초기화
-    if force_register:
-        _write_connected_ids(user_id, {})
-        log.info(f"Secrets Manager 초기화 (force_register): user={user_id}")
-        registered: set[tuple] = set()
-    else:
-        existing = _load_connected_ids(user_id)
-        registered: set[tuple] = {
-            (inst["businessType"], inst["organization"])
-            for insts in existing.values()
-            for inst in insts
-        }
-
-    # 미등록 계정만 추려서 businessType 붙여 통합 리스트 구성
-    to_register = [
-        {"businessType": "CD", **acc}
-        for acc in card_accounts
-        if ("CD", acc["organization"]) not in registered
-    ] + [
-        {"businessType": "BK", **acc}
-        for acc in bank_accounts
-        if ("BK", acc["organization"]) not in registered
-    ]
-
-    if to_register:
-        client_id, client_secret, public_key = settings.get_codef_credentials(user_id)
-        async with new_session() as session:
-            token = await get_access_token(session, client_id, client_secret)
-
-            # 같은 loginId끼리 그룹핑 → 동일 자격증명이면 하나의 connected_id로 묶음
-            groups: dict[str, list] = {}
-            for acc in to_register:
-                groups.setdefault(acc["loginId"], []).append(acc)
-
-            for login_id, accs in groups.items():
-                cid: str | None = None
-                for acc in accs:
-                    btype = acc["businessType"]
-                    org   = acc["organization"]
-                    try:
-                        if cid is None:
-                            cid = await create_connected_id(
-                                session, token, btype, org, acc["loginId"], acc["loginPw"], public_key
-                            )
-                            if cid:
-                                _save_institution(user_id, cid, btype, org)
-                                log.info(f"connected_id 발급: user={user_id} cid={cid} {btype}/{org}")
-                        else:
-                            ok = await add_institution(
-                                session, token, cid, btype, org, acc["loginId"], acc["loginPw"], public_key
-                            )
-                            if ok:
-                                _save_institution(user_id, cid, btype, org)
-                    except CodefRateLimitError as e:
-                        log.error(f"CODEF 일일 한도 초과 — 등록 중단: {e}")
-                        raise
-
-    # 등록 완료 후 Secrets Manager 기반 일반 sync 실행
-    return await sync_transactions(user_id, days=days, skip_avatar=skip_avatar)
-
-
 def _sync_date_range(days: int) -> tuple[str, str]:
     end = datetime.now()
     start = end - timedelta(days=days)
     return start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
 
 
-async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS, skip_avatar: bool = False) -> dict:
+async def sync_transactions(
+    user_id: int,
+    days: int = DAILY_SYNC_DAYS,
+    skip_avatar: bool = False,
+    only_business_type: str | None = None,
+    skip_merge: bool = False,
+) -> dict:
     """
     Airflow DAG / 최초 가입 후 호출 (Secrets Manager 모드).
 
-    Secrets Manager 형태: {connected_id: [{"businessType":"BK","organization":"0020"}, ...]}
-    → 하나의 connected_id로 등록된 모든 기관을 병렬 조회.
-
-    days=DAILY_SYNC_DAYS (3) : Airflow 일별 동기화
-    days=INITIAL_SYNC_DAYS (30): 최초 가입 시 전체 fetch
+    only_business_type="BK"|"CD": 해당 타입만 sync (register 직후 단독 호출용)
+    skip_merge=True: transactions 병합 생략 (모든 계정 등록 완료 전 중간 호출용)
     """
     connected_id_map = _load_connected_ids(user_id)
     if not connected_id_map:
@@ -766,13 +707,13 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS, skip_avat
     log.info(
         f"동기화 시작: user={user_id} {start_date}~{end_date} "
         f"connected_ids={list(connected_id_map.keys())}"
+        + (f" only_business_type={only_business_type}" if only_business_type else "")
     )
 
     pool = await get_pool()
     bank_saved = card_saved = 0
 
-    # (connected_id, organization) 메타 정보 수집
-    bank_meta: list[tuple[str, str]] = []  # [(cid, org), ...]
+    bank_meta: list[tuple[str, str]] = []
     card_meta: list[tuple[str, str]] = []
 
     client_id, client_secret, _ = settings.get_codef_credentials(user_id)
@@ -786,12 +727,12 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS, skip_avat
             for inst in institutions:
                 btype = inst["businessType"]
                 org   = inst["organization"]
-                if btype == "BK":
+                if btype == "BK" and only_business_type in (None, "BK"):
                     bank_tasks.append(
                         fetch_bank_transactions(session, token, cid, org, start_date, end_date)
                     )
                     bank_meta.append((cid, org))
-                elif btype == "CD":
+                elif btype == "CD" and only_business_type in (None, "CD"):
                     card_tasks.append(
                         fetch_card_transactions(session, token, cid, org, start_date, end_date)
                     )
@@ -838,7 +779,19 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS, skip_avat
             if card_id:
                 card_saved += await _upsert_card_txs(pool, card_id, txs, start_date, end_date)
 
-    # transactions 병합 (해당 기간 DELETE → INSERT, 멱등)
+    # transactions 병합 — skip_merge=True면 생략
+    if skip_merge:
+        log.info(f"transactions 병합 생략 (skip_merge=True): user={user_id}")
+        return {
+            "user_id": user_id,
+            "period": f"{start_date}~{end_date}",
+            "bank_saved": bank_saved,
+            "card_saved": card_saved,
+            "transactions_merged": 0,
+            "mapping": {},
+            "lifecycle": {},
+        }
+
     merged = await _merge_to_transactions(pool, user_id, start_date, end_date)
 
     # 카테고리 매핑 — 룰베이스 → 기타 남은 건 LLM 자동 체이닝
