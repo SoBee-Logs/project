@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sobee.sobee.domain.b_log.dto.DiaryFeedItemResponse;
 import com.sobee.sobee.domain.b_log.dto.DiaryGenerateRequest;
 import com.sobee.sobee.domain.b_log.dto.DiaryGenerateResponse;
+import com.sobee.sobee.domain.b_log.dto.DiaryPreviewResponse;
 import com.sobee.sobee.domain.b_log.dto.DiarySaveRequest;
 import com.sobee.sobee.domain.b_log.entity.*;
 import com.sobee.sobee.domain.b_log.repository.*;
@@ -207,40 +208,54 @@ public class DiaryService {
 
     @Transactional(readOnly = true)
     public List<DiaryFeedItemResponse> getDiaryList(Long groupId) {
-
         List<Diary> diaries = diaryRepository.findByGroupIdOrderByCreatedAtDesc(groupId);
+        if (diaries.isEmpty()) return Collections.emptyList();
+
         Group group = groupRepository.findById(groupId).orElse(null);
 
+        // 1. 유저 배치 조회
+        Set<Long> userIds = diaries.stream().map(Diary::getUserId).collect(Collectors.toSet());
+        Map<Long, User> userMap = userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getUserId, u -> u));
+
+        // 2. diary_photos 배치 조회
+        List<Long> diaryIds = diaries.stream().map(Diary::getDiaryId).collect(Collectors.toList());
+        Map<Long, List<DiaryPhoto>> diaryPhotosMap = diaryPhotoRepository.findByIdDiaryIdIn(diaryIds)
+                .stream().collect(Collectors.groupingBy(dp -> dp.getId().getDiaryId()));
+
+        // 3. photos 배치 조회
+        Set<Long> allPhotoIds = diaryPhotosMap.values().stream()
+                .flatMap(List::stream)
+                .map(dp -> dp.getId().getPhotoId())
+                .collect(Collectors.toSet());
+        Map<Long, Photo> photoMap = photoRepository.findAllById(allPhotoIds).stream()
+                .collect(Collectors.toMap(Photo::getPhotoId, p -> p));
+
+        // 4. persona_transaction 배치 조회
+        Set<Long> matchedPhotoIds = allPhotoIds.isEmpty()
+                ? Collections.emptySet()
+                : personaTransactionRepository.findMatchedPhotoIds(allPhotoIds);
+
         return diaries.stream().map(diary -> {
+            String authorName = Optional.ofNullable(userMap.get(diary.getUserId()))
+                    .map(User::getName).orElse("익명");
 
-            User author = userRepository.findById(diary.getUserId()).orElse(null);
-            String authorName = author != null ? author.getName() : "익명";
-
-            List<DiaryPhoto> diaryPhotos = diaryPhotoRepository
-                    .findByIdDiaryId(diary.getDiaryId());
-
-            // 슬라이드 인덱스 순서 유지 — photoIds[i] ↔ imageUrls[i] 1:1 대응
-            List<Long> dpPhotoIds = diaryPhotos.stream()
-                    .map(dp -> dp.getId().getPhotoId())
-                    .collect(Collectors.toList());
+            List<Long> dpPhotoIds = diaryPhotosMap.getOrDefault(diary.getDiaryId(), Collections.emptyList())
+                    .stream().map(dp -> dp.getId().getPhotoId()).collect(Collectors.toList());
             List<String> imageUrls = dpPhotoIds.stream()
-                    .map(pid -> photoRepository.findById(pid)
-                            .map(Photo::getImageUrl)
-                            .orElse(null))
-                    .filter(Objects::nonNull)
+                    .map(photoMap::get).filter(Objects::nonNull)
+                    .map(Photo::getImageUrl).filter(Objects::nonNull)
                     .collect(Collectors.toList());
-            // persona_transaction 존재 여부로 매핑된 사진 ID 분류 (배지 표시용)
             List<Long> dpMatchedPhotoIds = dpPhotoIds.stream()
-                    .filter(pid -> personaTransactionRepository.existsByPhotoId(pid))
-                    .collect(Collectors.toList());
+                    .filter(matchedPhotoIds::contains).collect(Collectors.toList());
 
-            String title    = "";
+            String title = "";
             String subtitle = "";
             List<String> lines = Collections.emptyList();
             if (diary.getDiaryContent() != null) {
                 try {
                     JsonNode node = objectMapper.readTree(diary.getDiaryContent());
-                    title    = node.path("title").asText("");
+                    title = node.path("title").asText("");
                     subtitle = node.path("subtitle").asText("");
                     JsonNode linesNode = node.path("lines");
                     if (linesNode.isArray()) {
@@ -255,9 +270,8 @@ public class DiaryService {
                     .title(title)
                     .subtitle(subtitle)
                     .diaryLines(lines)
-                    .date(diary.getCreatedAt() != null
-                            ? diary.getCreatedAt().toLocalDate().toString() : "")
-                    .time(diary.getCreatedAt() != null                          // 여기 추가
+                    .date(diary.getCreatedAt() != null ? diary.getCreatedAt().toLocalDate().toString() : "")
+                    .time(diary.getCreatedAt() != null
                             ? diary.getCreatedAt()
                                 .atZone(java.time.ZoneOffset.UTC)
                                 .withZoneSameInstant(java.time.ZoneId.of("Asia/Seoul"))
@@ -273,8 +287,14 @@ public class DiaryService {
                     .photoIds(dpPhotoIds)
                     .matchedPhotoIds(dpMatchedPhotoIds)
                     .build();
-
         }).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public DiaryPreviewResponse getDiaryPreview(Long groupId) {
+        long count = diaryRepository.countByGroupId(groupId);
+        String imageUrl = diaryRepository.findFirstImageUrlByGroupId(groupId).orElse(null);
+        return new DiaryPreviewResponse(count, imageUrl);
     }
 
     @Transactional

@@ -3,6 +3,7 @@ package com.sobee.sobee.domain.b_log.controller;
 import com.sobee.sobee.domain.b_log.dto.DiaryFeedItemResponse;
 import com.sobee.sobee.domain.b_log.dto.DiaryGenerateRequest;
 import com.sobee.sobee.domain.b_log.dto.DiaryGenerateResponse;
+import com.sobee.sobee.domain.b_log.dto.DiaryPreviewResponse;
 import com.sobee.sobee.domain.b_log.dto.DiarySaveRequest;
 import com.sobee.sobee.domain.b_log.service.DiaryService;
 import com.sobee.sobee.global.jwt.JwtUtil;
@@ -50,6 +51,15 @@ public class DiaryController {
         Long userId = extractUserId(authHeader);
         diaryService.saveDiary(request, userId);
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @GetMapping("/preview")
+    public ResponseEntity<DiaryPreviewResponse> getDiaryPreview(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam Long groupId
+    ) {
+        extractUserId(authHeader);
+        return ResponseEntity.ok(diaryService.getDiaryPreview(groupId));
     }
 
     @GetMapping("/list")
