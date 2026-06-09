@@ -223,6 +223,7 @@ public class PhotoService {
                 .vlmConfidence(request.getConfidence() != null ? request.getConfidence() : "low")
                 .vlmAddress(request.getAddress())
                 .vlmGroups(groupsJson)
+                .isValid(request.getIs_valid() != null ? request.getIs_valid() : true)  // 추가
                 .build();
         photoVlmResultRepository.save(vlmResult);
 
