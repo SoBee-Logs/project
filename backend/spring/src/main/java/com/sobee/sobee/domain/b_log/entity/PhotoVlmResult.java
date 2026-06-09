@@ -57,4 +57,9 @@ public class PhotoVlmResult {
     // VLM groups 배열 JSON 저장
     @Column(name = "vlm_groups", columnDefinition = "JSON")
     private String vlmGroups;
+
+    // 실제 소비 사진 여부 (false면 매핑 스킵)
+    @Column(name = "is_valid", nullable = false)
+    @Builder.Default
+    private Boolean isValid = true;
 }
