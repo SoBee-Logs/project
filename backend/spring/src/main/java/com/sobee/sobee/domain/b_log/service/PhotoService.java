@@ -42,6 +42,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.Map;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PhotoService {
@@ -259,12 +262,7 @@ public class PhotoService {
                 .findOutgoingByUserIdAndDate(userId, takenDateStr);
         if (candidates.isEmpty()) return;
     
-        Set<String> mappedIds = Set.copyOf(
-                personaTransactionRepository.findPaymentIdsByUserId(userId));
-        List<Transaction> available = candidates.stream()
-                .filter(t -> !mappedIds.contains(String.valueOf(t.getId().getPaymentId())))
-                .collect(Collectors.toList());
-        if (available.isEmpty()) return;
+        // 삭제: mappedIds 필터링 제거 — 날짜 기준 후보는 모두 포함
     
         // groups 파싱 — 없으면 vlm 정보로 group 1개 생성
         List<LlmMatchingClient.VlmGroupItem> groups = parseVlmGroups(vlm.getVlmGroups());
@@ -287,7 +285,7 @@ public class PhotoService {
                 .taken_at(takenAtStr)
                 .location(location)
                 .groups(groups)
-                .candidates(available.stream()
+                .candidates(candidates.stream()
                         .map(t -> LlmMatchingClient.TransactionCandidate.builder()
                                 .payment_id(t.getId().getPaymentId())
                                 .payment_out(t.getPaymentOut())
@@ -302,13 +300,18 @@ public class PhotoService {
         List<LlmMatchingClient.MatchResponse> results = llmMatchingClient.match(req);
     
         for (LlmMatchingClient.MatchResponse result : results) {
-            if (result.getPayment_id() == null) continue;
-    
+            if (result.getPayment_id() == null) {
+                log.info("[매핑 실패] photoId={} groupId={} reason={}", photoId, result.getGroup_id(), result.getReason());
+                continue;
+            }
+
+            if (personaTransactionRepository.existsByPhotoIdAndGroupId(photoId, result.getGroup_id())) continue;
+
             LlmMatchingClient.VlmGroupItem matchedGroup = groups.stream()
                     .filter(g -> g.getGroup_id() != null
                             && g.getGroup_id().equals(result.getGroup_id()))
                     .findFirst().orElse(null);
-    
+
             PersonaTransaction mapping = PersonaTransaction.builder()
                     .vlmId(vlm.getVlmId())
                     .photoId(photoId)
@@ -320,9 +323,16 @@ public class PhotoService {
                     .paymentId(result.getPayment_id())
                     .userId(userId)
                     .build();
-            personaTransactionRepository.save(mapping);
+
+            log.info("[매핑 성공] photoId={} groupId={} paymentId={} reason={}", photoId, result.getGroup_id(), result.getPayment_id(), result.getReason());
+
+            try {
+                personaTransactionRepository.save(mapping);
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                log.warn("이미 매핑된 photo+group, skip: photoId={}, groupId={}", photoId, result.getGroup_id());
+            }
         }
-    }
+    }  // ← performMatchingForPhoto 닫는 중괄호 추가
     
     private List<LlmMatchingClient.VlmGroupItem> parseVlmGroups(String vlmGroupsJson) {
         if (vlmGroupsJson == null || vlmGroupsJson.isBlank()) return List.of();

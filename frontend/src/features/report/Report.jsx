@@ -228,6 +228,17 @@ function MonthNavigator({ year, month, isCurrentMonth, onPrev, onNext }) {
   )
 }
 
+function getPersonaWeekLabel(startStr, year, month, weekOrder) {
+  if (!startStr) return `${month}월`
+  const s = new Date(`${startStr}T00:00:00`)
+  const adjustedFirst = (new Date(year, month - 1, 1).getDay() + 6) % 7
+  const day = s.getMonth() + 1 === month ? s.getDate() : null
+  if (!day) return `${month}월`
+  const w = Math.floor((day + adjustedFirst - 1) / 7) + 1
+  const candidate = `${w}주`
+  return weekOrder?.includes(candidate) ? `${month}월 ${candidate}차` : `${month}월`
+}
+
 function formatPersonaWeek(startStr, endStr, year, month, weekOrder) {
   if (!startStr || !endStr) return ''
   const s = new Date(`${startStr}T00:00:00`)
@@ -432,8 +443,21 @@ export default function Report() {
 
   if (loading) return (
     <div className="flex flex-col h-full">
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4">
-        <MonthNavigator year={selectedYear} month={selectedMonth} isCurrentMonth={isCurrentMonth} onPrev={goPrev} onNext={goNext} />
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
+        <div className="flex items-center h-14 px-4">
+          <button
+            onClick={() => navigate('/report', { state: { year: selectedYear, month: selectedMonth } })}
+            className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span className="flex-1 text-center text-base font-semibold text-gray-800 -ml-8 pointer-events-none">리포트</span>
+        </div>
+        <div className="px-4">
+          <MonthNavigator year={selectedYear} month={selectedMonth} isCurrentMonth={isCurrentMonth} onPrev={goPrev} onNext={goNext} />
+        </div>
       </div>
       <div className="flex flex-col gap-4 pt-4 px-4 pb-24 animate-pulse overflow-y-auto">
         <div className="rounded-2xl bg-gray-200 p-4 flex items-center gap-3 h-20">
@@ -526,9 +550,22 @@ export default function Report() {
         />
       )}
 
-      {/* 월 네비게이터 */}
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4">
-        <MonthNavigator year={selectedYear} month={selectedMonth} isCurrentMonth={isCurrentMonth} onPrev={goPrev} onNext={goNext} />
+      {/* 헤더 */}
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
+        <div className="flex items-center h-14 px-4">
+          <button
+            onClick={() => navigate('/report', { state: { year: selectedYear, month: selectedMonth } })}
+            className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span className="flex-1 text-center text-base font-semibold text-gray-800 -ml-8 pointer-events-none">리포트</span>
+        </div>
+        <div className="px-4">
+          <MonthNavigator year={selectedYear} month={selectedMonth} isCurrentMonth={isCurrentMonth} onPrev={goPrev} onNext={goNext} />
+        </div>
       </div>
 
       <div className="overflow-y-auto flex-1 px-4 pb-8">
@@ -698,66 +735,77 @@ export default function Report() {
           )
         })()}
 
-        {/* 페르소나 기준 주간 TOP 1 카테고리 */}
+        {/* 페르소나 기준 주간 TOP 카테고리 */}
         {txData?.persona_top_category && (() => {
-          const name   = txData.persona_top_category
-          const amount = txData.persona_top_category_amount
-          const pct    = txData.persona_top_category_pct
-          const color  = categoryColorMap[name] ?? '#1e73be'
-          const scene = txData.persona_vlm_scene ?? {}
-          const sceneItems = scene.category_items?.[name] ?? []
-          const totalVlm = scene.total_count ?? 0
-          const catVlmCount = scene.category_counts?.[name] ?? 0
-          const vlmPct = totalVlm > 0 ? Math.round((catVlmCount / totalVlm) * 100) : 0
+          const spendName   = txData.persona_top_category
+          const spendAmount = txData.persona_top_category_amount
+          const spendColor  = categoryColorMap[spendName] ?? '#1e73be'
 
-          // avatar_change_reason JSON에서 item 컨텍스트 추출 (마지막 변경 월과 현재 선택 월이 같을 때만 표시)
-          let changeReasonItem = null
+          const scene = txData.persona_vlm_scene ?? {}
+          const totalVlm = scene.total_count ?? 0
+          const categoryCounts = scene.category_counts ?? {}
+          const topPhotoCat = Object.keys(categoryCounts).sort((a, b) => categoryCounts[b] - categoryCounts[a])[0] ?? null
+          const topPhotoCatCount = topPhotoCat ? categoryCounts[topPhotoCat] : 0
+          const topPhotoCatPct = totalVlm > 0 ? Math.round((topPhotoCatCount / totalVlm) * 100) : 0
+          const topPhotoColor = topPhotoCat ? (categoryColorMap[topPhotoCat] ?? '#1e73be') : '#1e73be'
+          const topPhotoItems = topPhotoCat ? (scene.category_items?.[topPhotoCat] ?? []) : []
+
+          let changeReason = null
           try {
             const cr = txData.avatar_change_reason
             const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
-            const crMonth = txData.avatar_change_reason_month
-            if (crMonth === selectedMonth) {
-              changeReasonItem = parsed?.item ?? null
-            }
+            const personaMonth = txData.persona_week_start ? new Date(`${txData.persona_week_start}T00:00:00`).getMonth() + 1 : null
+            if (personaMonth === selectedMonth) changeReason = parsed ?? null
           } catch {}
 
+          const weekLabel = (() => {
+            if (!txData.persona_week_start) return `${selectedMonth}월`
+            const s = new Date(`${txData.persona_week_start}T00:00:00`)
+            const adjustedFirst = (new Date(selectedYear, selectedMonth - 1, 1).getDay() + 6) % 7
+            const day = s.getMonth() + 1 === selectedMonth ? s.getDate() : null
+            if (!day) return `${selectedMonth}월`
+            const w = Math.floor((day + adjustedFirst - 1) / 7) + 1
+            const candidate = `${w}주`
+            return txData.week_order?.includes(candidate) ? `${selectedMonth}월 ${candidate}차` : `${selectedMonth}월`
+          })()
 
           return (
-            <div className="rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-3">
-              <p className="text-[11px] text-gray-400">이번 주 페르소나 기준 TOP 카테고리</p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full shrink-0" style={{ background: color }} />
-                  <span className="text-sm font-bold text-gray-900">{name}</span>
-                </div>
-                <span className="text-sm font-extrabold text-gray-900">{amount.toLocaleString()}원</span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-gray-400">📸 사진 비중</span>
-                  {totalVlm > 0
-                    ? <span className="text-[10px] font-bold text-[#1e73be]">{catVlmCount}/{totalVlm}건 ({vlmPct}%)</span>
-                    : <span className="text-[10px] text-gray-300">사진 기록 없음</span>
-                  }
-                </div>
-                <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                  <div className="h-full rounded-full bg-[#1e73be] transition-all" style={{ width: `${vlmPct}%` }} />
-                </div>
-              </div>
-              {changeReasonItem && (
-                <div className="rounded-xl bg-blue-50 px-3 py-2">
-                  {txData.persona_week_start && (
-                    <p className="text-[9px] text-blue-300 mb-0.5">{formatPersonaWeek(txData.persona_week_start, txData.persona_week_end, selectedYear, selectedMonth, txData.week_order)} 기준</p>
-                  )}
-                  <p className="text-[10px] font-semibold text-[#1e73be] mb-0.5">{changeReasonItem.header}</p>
-                  <p className="text-[11px] text-gray-500 leading-relaxed">{changeReasonItem.context}</p>
+            <div className="rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-4">
+              <p className="text-[11px] text-gray-400">{weekLabel} 페르소나 기준</p>
+
+              {/* 사진 TOP 카테고리 */}
+              {topPhotoCat && totalVlm > 0 && (
+                <div className="flex flex-col gap-1">
+                  <p className="text-[10px] text-gray-400 font-medium">📸 사진 TOP 카테고리</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full shrink-0" style={{ background: topPhotoColor }} />
+                      <span className="text-sm font-bold text-gray-900">{topPhotoCat}</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-[#1e73be]">{topPhotoCatCount}/{totalVlm}건 ({topPhotoCatPct}%)</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                    <div className="h-full rounded-full bg-[#1e73be] transition-all" style={{ width: `${topPhotoCatPct}%` }} />
+                  </div>
                 </div>
               )}
-              {sceneItems.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {sceneItems.map((item, i) => (
-                    <span key={i} className="text-[11px] text-[#1e73be] font-medium bg-blue-50 rounded-full px-2.5 py-0.5 border border-blue-100">{item}</span>
-                  ))}
+
+              {/* 아바타 생성 이유 */}
+              {changeReason && (changeReason.item || changeReason.background) && (
+                <div className="rounded-xl bg-blue-50 px-3 py-2.5 flex flex-col gap-1">
+                  <p className="text-[9px] text-blue-300">{weekLabel} 아바타 생성 이유</p>
+                  {changeReason.item && (
+                    <>
+                      <p className="text-[10px] font-semibold text-[#1e73be]">{changeReason.item.header}</p>
+                      <p className="text-[11px] text-gray-500 leading-relaxed">{changeReason.item.context}</p>
+                    </>
+                  )}
+                  {!changeReason.item && changeReason.background && (
+                    <>
+                      <p className="text-[10px] font-semibold text-[#1e73be]">{changeReason.background.header}</p>
+                      <p className="text-[11px] text-gray-500 leading-relaxed">{changeReason.background.context}</p>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -775,8 +823,8 @@ export default function Report() {
           try {
             const cr = txData.avatar_change_reason
             const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
-            const crMonth = txData.avatar_change_reason_month
-            if (crMonth === selectedMonth) {
+            const personaMonth = txData.persona_week_start ? new Date(`${txData.persona_week_start}T00:00:00`).getMonth() + 1 : null
+            if (personaMonth === selectedMonth) {
               emojiContext = parsed?.emoji?.context ?? null
             }
           } catch {}
@@ -794,7 +842,7 @@ export default function Report() {
                     <div key={w} className="flex flex-col items-center gap-0.5">
                       <span className="text-2xl">{emoji}</span>
                       <span className="text-[10px] font-semibold text-gray-400">{w}</span>
-                      {topCount != null && <span className="text-[9px] text-gray-300">{topCount}/{totalCount}건</span>}
+                      {topCount != null && <span className="text-[9px] text-gray-500">{topCount}/{totalCount}건</span>}
                     </div>
                   )
                 })}
@@ -802,7 +850,7 @@ export default function Report() {
               {emojiContext && (
                 <div className="rounded-xl bg-blue-50 px-3 py-2">
                   {txData.persona_week_start && (
-                    <p className="text-[9px] text-blue-300 mb-0.5">{formatPersonaWeek(txData.persona_week_start, txData.persona_week_end, selectedYear, selectedMonth, txData.week_order)} 기준</p>
+                    <p className="text-[9px] text-blue-300 mb-0.5">아바타 생성 이유</p>
                   )}
                   <p className="text-[11px] text-gray-500 leading-relaxed">{emojiContext}</p>
                 </div>
@@ -817,8 +865,8 @@ export default function Report() {
           try {
             const cr = txData?.avatar_change_reason
             const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
-            const crMonth = txData?.avatar_change_reason_month
-            if (crMonth === selectedMonth) {
+            const personaMonth = txData?.persona_week_start ? new Date(`${txData.persona_week_start}T00:00:00`).getMonth() + 1 : null
+            if (personaMonth === selectedMonth) {
               timeContext = parsed?.time ?? null
             }
           } catch {}
@@ -933,7 +981,7 @@ export default function Report() {
               {timeContext && (
                 <div className="rounded-xl bg-blue-50 px-3 py-2 mt-1">
                   {txData?.persona_week_start && (
-                    <p className="text-[9px] text-blue-300 mb-0.5">{formatPersonaWeek(txData.persona_week_start, txData.persona_week_end, selectedYear, selectedMonth, txData.week_order)} 기준</p>
+                    <p className="text-[9px] text-blue-300 mb-0.5">아바타 생성 이유</p>
                   )}
                   <p className="text-[10px] font-semibold text-[#1e73be] mb-0.5">{timeContext.header}</p>
                   <p className="text-[11px] text-gray-500 leading-relaxed">{timeContext.context}</p>

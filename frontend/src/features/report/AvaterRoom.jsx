@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { getUserId } from '../../common/hooks/useAuth'
 import defaultAvatar from '../../assets/image 61.png'
 
@@ -81,13 +81,14 @@ function EmptyMonthModal({ year, month, onClose }) {
 
 export default function AvaterRoom() {
   const navigate = useNavigate()
+  const location = useLocation()
   const USER_ID = getUserId() ?? 1
   const today = new Date()
 
   const [isExpanded, setIsExpanded] = useState(true)
 
-  const [selectedYear, setSelectedYear] = useState(today.getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(location.state?.year ?? today.getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(location.state?.month ?? today.getMonth() + 1)
   const [selectedWeek, setSelectedWeek] = useState('1주')
 
   const [persona, setPersona] = useState(null)
@@ -192,6 +193,15 @@ export default function AvaterRoom() {
   const avatarName = weekAvatar?.avatar_name ?? (persona?.avatarName ?? '내 페르소나')
   const avatarExplain = weekAvatar?.avatar_explain ?? persona?.avatarExplain ?? ''
   const hasWeekAvatar = !!avatarImgUrl
+
+  const isCurrentWeek = (() => {
+    if (!isCurrentMonth) return false
+    const fw = getFirstWeekday(selectedYear, selectedMonth)
+    const wNum = parseInt(selectedWeek)
+    const weekStart = new Date(selectedYear, selectedMonth - 1, (wNum - 1) * 7 - fw + 1)
+    const weekEnd = new Date(selectedYear, selectedMonth - 1, wNum * 7 - fw)
+    return today >= weekStart && today <= weekEnd
+  })()
 
   const changeReason = safeJsonParse(weekAvatar?.avatar_change_reason ?? txData?.avatar_change_reason, {})
 
@@ -360,8 +370,8 @@ export default function AvaterRoom() {
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden bg-white">
         {/* 아바타 이미지 영역 */}
         <section
-          onClick={() => hasWeekAvatar && setIsExpanded((prev) => !prev)}
-          className={`relative z-30 w-full transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0 ${hasWeekAvatar ? 'cursor-pointer' : 'cursor-default'}`}
+          onClick={() => setIsExpanded((prev) => !prev)}
+          className="relative z-30 w-full transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0 cursor-pointer"
           style={{
             height: isExpanded ? '100%' : '235px',
             padding: isExpanded ? '0px' : '12px 16px 0',
@@ -501,7 +511,11 @@ export default function AvaterRoom() {
                 </div>
               ) : (
                 <div className="mt-28 px-4 py-2 rounded-full bg-black/20 text-white backdrop-blur-sm flex items-center gap-2">
-                  <span className="text-sm font-semibold">이 주에 생성된 페르소나가 없어요</span>
+                  <span className="text-sm font-semibold">
+                    {isCurrentWeek
+                      ? '페르소나를 만들고 있어요. 다음주에 만나요 🐝'
+                      : '이 주에 생성된 페르소나가 없어요'}
+                  </span>
                 </div>
               )}
             </div>
@@ -515,15 +529,24 @@ export default function AvaterRoom() {
               }}
             >
               {!isEmptyMonth && hasWeekAvatar && (
-                <h2 className="text-white text-[26px] font-extrabold mb-4 drop-shadow-lg leading-tight break-keep">
-                  {avatarName}
+                <h2 className="text-white text-[26px] font-extrabold mb-4 leading-tight break-keep">
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      background: 'rgba(0,0,0,0.45)',
+                      borderRadius: '8px',
+                      padding: '6px 10px',
+                      backdropFilter: 'blur(2px)',
+                      lineHeight: 1,
+                    }}
+                  >{avatarName}</span>
                 </h2>
               )}
 
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  navigate('/report/monthly')
+                  navigate('/report/monthly', { state: { year: selectedYear, month: selectedMonth } })
                 }}
                 className="w-full py-3.5 rounded-2xl bg-white/95 text-[#1e73be] font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl active:scale-[0.98] transition-transform"
               >
@@ -538,14 +561,25 @@ export default function AvaterRoom() {
         <section
           className="flex-1 min-h-0 px-5 overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{
-            opacity: (isExpanded || !hasWeekAvatar) ? 0 : 1,
-            transform: (isExpanded || !hasWeekAvatar) ? 'translateY(36px)' : 'translateY(0)',
-            pointerEvents: (isExpanded || !hasWeekAvatar) ? 'none' : 'auto',
+            opacity: isExpanded ? 0 : 1,
+            transform: isExpanded ? 'translateY(36px)' : 'translateY(0)',
+            pointerEvents: isExpanded ? 'none' : 'auto',
           }}
         >
-          <div className="h-full flex flex-col pt-1 pb-2">
-            <div className="text-center mb-1">
-              {!isEmptyMonth && hasWeekAvatar && (
+
+          <div className="h-full flex flex-col pt-4 pb-2">
+            {!hasWeekAvatar ? (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-[15px] font-bold text-gray-500 text-center break-keep px-4">
+                  {isCurrentWeek
+                    ? '페르소나를 만들고 있어요.\n다음주에 만나요 🐝'
+                    : '이 주에 생성된 페르소나가 없어요'}
+                </p>
+              </div>
+            ) : (
+            <>
+            <div className="text-center mb-4">
+              {!isEmptyMonth && (
                 <h2 className="text-[18px] font-extrabold text-gray-900 leading-tight break-keep line-clamp-1">
                   {avatarName}
                 </h2>
@@ -578,6 +612,8 @@ export default function AvaterRoom() {
                 </article>
               ))}
             </div>
+            </>
+            )}
           </div>
         </section>
       </div>

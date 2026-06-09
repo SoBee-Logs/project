@@ -31,18 +31,23 @@ def new_session() -> aiohttp.ClientSession:
     return aiohttp.ClientSession(connector=_ssl_connector())
 
 
-def encrypt_rsa(plain: str) -> str:
+def encrypt_rsa(plain: str, public_key: str | None = None) -> str:
     from cryptography.hazmat.primitives.asymmetric import padding
     from cryptography.hazmat.primitives.serialization import load_der_public_key
-    pub_key = load_der_public_key(base64.b64decode(settings.CODEF_PUBLIC_KEY))
+    key = public_key or settings.CODEF_PUBLIC_KEY
+    pub_key = load_der_public_key(base64.b64decode(key))
     encrypted = pub_key.encrypt(plain.encode(), padding.PKCS1v15())
     return base64.b64encode(encrypted).decode()
 
 
-async def get_access_token(session: aiohttp.ClientSession) -> str:
-    cred = base64.b64encode(
-        f"{settings.CODEF_CLIENT_ID}:{settings.CODEF_CLIENT_SECRET}".encode()
-    ).decode()
+async def get_access_token(
+    session: aiohttp.ClientSession,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+) -> str:
+    cid = client_id or settings.CODEF_CLIENT_ID
+    csecret = client_secret or settings.CODEF_CLIENT_SECRET
+    cred = base64.b64encode(f"{cid}:{csecret}".encode()).decode()
     async with session.post(
         CODEF_TOKEN_URL,
         headers={"Authorization": f"Basic {cred}", "Content-Type": "application/x-www-form-urlencoded"},
@@ -51,7 +56,17 @@ async def get_access_token(session: aiohttp.ClientSession) -> str:
         return (await res.json())["access_token"]
 
 
-async def _post(session: aiohttp.ClientSession, token: str, endpoint: str, payload: dict) -> dict | None:
+class CodefRateLimitError(Exception):
+    pass
+
+
+async def _post(
+    session: aiohttp.ClientSession,
+    token: str,
+    endpoint: str,
+    payload: dict,
+    stop_on: set[str] | None = None,
+) -> dict | None:
     url = f"{settings.CODEF_BASE_URL}{endpoint}"
     async with session.post(
         url,
@@ -60,6 +75,14 @@ async def _post(session: aiohttp.ClientSession, token: str, endpoint: str, paylo
     ) as res:
         data = json.loads(unquote(await res.text()))
         code = data.get("result", {}).get("code", "")
+        # errorList 안의 코드도 확인 (CF-04000 래퍼 내부에 실제 오류 코드 포함)
+        error_codes = {code}
+        for err in data.get("data", {}).get("errorList", []):
+            error_codes.add(err.get("code", ""))
+        if stop_on and error_codes & stop_on:
+            raise CodefRateLimitError(
+                f"CODEF 호출 중단 ({error_codes & stop_on}): {endpoint}"
+            )
         if code != "CF-00000":
             log.warning(f"CODEF [{code}] {data.get('result', {}).get('message')} | {endpoint} | full={data}")
             return None
@@ -73,6 +96,7 @@ async def create_connected_id(
     organization: str,
     login_id: str,
     login_pw: str,
+    public_key: str | None = None,
 ) -> str | None:
     """
     최초 1회 → connected_id 신규 발급 (/account/create).
@@ -87,9 +111,9 @@ async def create_connected_id(
                 "organization": organization,
                 "loginType": login_type,
                 "id": login_id,
-                "password": encrypt_rsa(login_pw),
+                "password": encrypt_rsa(login_pw, public_key),
             }]
-        })
+        }, stop_on={"CF-00012"})
         if data:
             cid = data.get("connectedId")
             log.info(f"connected_id 발급 완료: {organization} loginType={login_type} cid={cid}")
@@ -106,6 +130,7 @@ async def add_institution(
     organization: str,
     login_id: str,
     login_pw: str,
+    public_key: str | None = None,
 ) -> bool:
     """
     기존 connected_id에 새 기관을 추가 (/account/add).
@@ -122,9 +147,9 @@ async def add_institution(
                 "organization": organization,
                 "loginType": login_type,
                 "id": login_id,
-                "password": encrypt_rsa(login_pw),
+                "password": encrypt_rsa(login_pw, public_key),
             }]
-        })
+        }, stop_on={"CF-00012"})
         if data is not None:
             log.info(f"기관 추가 완료: cid={connected_id} {business_type}/{organization} loginType={login_type}")
             return True

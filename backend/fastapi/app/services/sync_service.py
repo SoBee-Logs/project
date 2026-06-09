@@ -34,6 +34,7 @@ from app.services.codef_client import (
     fetch_bank_transactions,
     fetch_card_transactions,
     fetch_bank_transactions_by_account,
+    CodefRateLimitError,
 )
 from app.services.category_mapping_service import resolve_and_update_all_unmapped
 from app.services.lifecycle_service import predict_lifecycle
@@ -133,12 +134,13 @@ async def register_account(
     인증수단이 같은 여러 기관(예: 인증서로 KB은행+국민카드)은 하나의 connected_id로 관리.
     login_id/login_pw는 CODEF에만 전달, 어디에도 저장하지 않음.
     """
+    client_id, client_secret, public_key = settings.get_codef_credentials(user_id)
     async with new_session() as session:
-        token = await get_access_token(session)
+        token = await get_access_token(session, client_id, client_secret)
 
         if connected_id:
             success = await add_institution(
-                session, token, connected_id, business_type, org_code, login_id, login_pw
+                session, token, connected_id, business_type, org_code, login_id, login_pw, public_key
             )
             if not success:
                 raise ValueError(
@@ -147,7 +149,7 @@ async def register_account(
             cid = connected_id
         else:
             cid = await create_connected_id(
-                session, token, business_type, org_code, login_id, login_pw
+                session, token, business_type, org_code, login_id, login_pw, public_key
             )
             if not cid:
                 raise ValueError(
@@ -533,17 +535,16 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
         await conn.begin()
         try:
             async with conn.cursor() as cur:
-                await cur.execute(
-                    "DELETE FROM transactions WHERE user_id=%s AND payment_date BETWEEN %s AND %s",
-                    (user_id, sd, ed),
-                )
                 if records:
                     await cur.executemany("""
                         INSERT INTO transactions
                             (user_id, payment_date, payment_time,
-                             payment_out, payment_in,
-                             payment_place, payment_category, payment_address)
+                            payment_out, payment_in,
+                            payment_place, payment_category, payment_address)
                         VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                        ON DUPLICATE KEY UPDATE
+                            payment_category = VALUES(payment_category),
+                            payment_address = VALUES(payment_address)
                     """, records)
             await conn.commit()
         except Exception:
@@ -615,8 +616,9 @@ async def register_accounts_from_env(
 
     registered: list[str] = []
     if to_register:
+        client_id, client_secret, public_key = settings.get_codef_credentials(user_id)
         async with new_session() as session:
-            token = await get_access_token(session)
+            token = await get_access_token(session, client_id, client_secret)
             groups: dict[str, list] = {}
             for acc in to_register:
                 groups.setdefault(acc["loginId"], []).append(acc)
@@ -626,23 +628,27 @@ async def register_accounts_from_env(
                 for acc in accs:
                     btype = acc["businessType"]
                     org = acc["organization"]
-                    if cid is None:
-                        cid = await create_connected_id(
-                            session, token, btype, org, acc["loginId"], acc["loginPw"]
-                        )
-                        if cid:
-                            _save_institution(user_id, cid, btype, org)
-                            registered.append(org)
-                            log.info(f"connected_id 발급: user={user_id} cid={cid} {btype}/{org}")
-                    else:
-                        ok = await add_institution(
-                            session, token, cid, btype, org, acc["loginId"], acc["loginPw"]
-                        )
-                        if ok:
-                            _save_institution(user_id, cid, btype, org)
-                            registered.append(org)
+                    try:
+                        if cid is None:
+                            cid = await create_connected_id(
+                                session, token, btype, org, acc["loginId"], acc["loginPw"], public_key
+                            )
+                            if cid:
+                                _save_institution(user_id, cid, btype, org)
+                                registered.append(org)
+                                log.info(f"connected_id 발급: user={user_id} cid={cid} {btype}/{org}")
+                        else:
+                            ok = await add_institution(
+                                session, token, cid, btype, org, acc["loginId"], acc["loginPw"], public_key
+                            )
+                            if ok:
+                                _save_institution(user_id, cid, btype, org)
+                                registered.append(org)
+                    except CodefRateLimitError as e:
+                        log.error(f"CODEF 일일 한도 초과 — 등록 중단: {e}")
+                        return {"registered": registered, "missing": [], "rate_limited": True}
 
-    return {"registered": registered, "missing": []}
+    return {"registered": registered, "missing": [], "rate_limited": False}
 
 
 async def sync_transactions_env(
@@ -657,7 +663,7 @@ async def sync_transactions_env(
     ENV 기반 sync (팀원 로컬 테스트용).
 
     ENV 형식:
-      CODEF_CARD_ACCOUNTS=[{"organization":"0301","loginId":"myid","loginPw":"mypw","cardName":"신한카드"}]
+      CODEF_CARD_ACCOUNTS=[{"organization":"0306","loginId":"myid","loginPw":"mypw","cardName":"신한카드"}]
       CODEF_BANK_ACCOUNTS=[{"organization":"0020","loginId":"myid","loginPw":"mypw","account":"1234567890","bankName":"우리은행"}]
 
     흐름:
@@ -698,8 +704,9 @@ async def sync_transactions_env(
     ]
 
     if to_register:
+        client_id, client_secret, public_key = settings.get_codef_credentials(user_id)
         async with new_session() as session:
-            token = await get_access_token(session)
+            token = await get_access_token(session, client_id, client_secret)
 
             # 같은 loginId끼리 그룹핑 → 동일 자격증명이면 하나의 connected_id로 묶음
             groups: dict[str, list] = {}
@@ -711,19 +718,23 @@ async def sync_transactions_env(
                 for acc in accs:
                     btype = acc["businessType"]
                     org   = acc["organization"]
-                    if cid is None:
-                        cid = await create_connected_id(
-                            session, token, btype, org, acc["loginId"], acc["loginPw"]
-                        )
-                        if cid:
-                            _save_institution(user_id, cid, btype, org)
-                            log.info(f"connected_id 발급: user={user_id} cid={cid} {btype}/{org}")
-                    else:
-                        ok = await add_institution(
-                            session, token, cid, btype, org, acc["loginId"], acc["loginPw"]
-                        )
-                        if ok:
-                            _save_institution(user_id, cid, btype, org)
+                    try:
+                        if cid is None:
+                            cid = await create_connected_id(
+                                session, token, btype, org, acc["loginId"], acc["loginPw"], public_key
+                            )
+                            if cid:
+                                _save_institution(user_id, cid, btype, org)
+                                log.info(f"connected_id 발급: user={user_id} cid={cid} {btype}/{org}")
+                        else:
+                            ok = await add_institution(
+                                session, token, cid, btype, org, acc["loginId"], acc["loginPw"], public_key
+                            )
+                            if ok:
+                                _save_institution(user_id, cid, btype, org)
+                    except CodefRateLimitError as e:
+                        log.error(f"CODEF 일일 한도 초과 — 등록 중단: {e}")
+                        raise
 
     # 등록 완료 후 Secrets Manager 기반 일반 sync 실행
     return await sync_transactions(user_id, days=days, skip_avatar=skip_avatar)
@@ -764,8 +775,9 @@ async def sync_transactions(user_id: int, days: int = DAILY_SYNC_DAYS, skip_avat
     bank_meta: list[tuple[str, str]] = []  # [(cid, org), ...]
     card_meta: list[tuple[str, str]] = []
 
+    client_id, client_secret, _ = settings.get_codef_credentials(user_id)
     async with new_session() as session:
-        token = await get_access_token(session)
+        token = await get_access_token(session, client_id, client_secret)
 
         bank_tasks = []
         card_tasks = []

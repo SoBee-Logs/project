@@ -3,18 +3,14 @@ from openai import AsyncOpenAI
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import settings
+from app.core.constants import MOOD_LABEL
 from app.models.schemas import DiaryRequest, DiaryResponse
 from app.core.prompt_store import register, get_prompt
 
-router = APIRouter()
+from langsmith import traceable
+from langsmith.wrappers import wrap_openai
 
-MOOD_LABEL = {
-    "☺️": "satisfied",
-    "😭": "sad",
-    "😮": "surprised",
-    "😍": "happy",
-    "😡": "regretful",
-}
+router = APIRouter()
 
 # 모임방 카테고리별 일기 작성 테마 지침
 # room_category 값이 없거나 알 수 없는 경우 DEFAULT 사용
@@ -31,14 +27,14 @@ ROOM_CATEGORY_THEME = {
 
 def _get_line_guide(photo_count: int) -> str:
     if photo_count <= 0:
-        return "Write the diary_lines array with exactly 2 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
-    elif photo_count == 1:
-        return "Write the diary_lines array with exactly 3 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
-    elif photo_count == 2:
         return "Write the diary_lines array with exactly 4 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
+    elif photo_count == 1:
+        return "Write the diary_lines array with exactly 6 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
+    elif photo_count == 2:
+        return "Write the diary_lines array with exactly 8 sentences. Each sentence should flow naturally into the next, forming one cohesive diary entry."
     else:
         return (
-            "Write the diary_lines array with exactly 5 sentences. "
+            "Write the diary_lines array with exactly 10 sentences. "
             "Each sentence must END naturally and lead into the NEXT sentence — no comma-joining of items inside one sentence. "
             "Use sentence-opening transitions to connect consecutive sentences "
             "(e.g. 그러다가~, 근데 심지어~, 결국엔~, 거기다가~, 그 와중에~, 집에 오는 길엔~). "
@@ -47,32 +43,33 @@ def _get_line_guide(photo_count: int) -> str:
 
 # ── 프롬프트 템플릿 ───────────────────────────────────────────────
 SYSTEM_PROMPT_TEMPLATE = """\
-한국 20대가 쓰는 카톡 감성 소비 일기 작가야. 반말, 슬랭(레전드·찐·개~·아니 근데), 이모지/이모티콘(ㅋㅋ·ㅠㅠ·헐 등) 왕창 써서 친구한테 털어놓듯 써줘.
+한국 20대가 카톡·인스타 스토리에 올리는 소비 일기 작가야.
+짧고 툭툭 던지는 문장으로, 친구한테 보내는 카톡처럼 써줘.
 
 [규칙]
 1. 전체 한국어로 작성.
 2. {line_guide}
-3. 문장들이 자연스럽게 이어져 하나의 일기처럼 읽혀야 함.
-4. 각 문장마다 이모지·이모티콘, ㅋㅋ, ㅠㅠ, ㅎㅎ 등 자연스럽게 섞되, 1-2개만 쓰기.
-   - 유행어와 줄임말은 전체 diary_lines 기준 2~4개 정도만 사용한다.
-   - 같은 표현을 반복하지 않는다.
-   - 너무 오래됐거나 부자연스러운 신조어는 피한다.
-5. "~을 샀습니다" 같은 기계적 표현 절대 금지. 감정·장면 위주로.
-6. 실제 10~20대가 카톡에서 쓰는 말투를 자연스럽게 섞어 써.
-   - 줄임말 예시: 아이스 아메리카노→아아, 따뜻한 아메리카노→뜨아, 스타벅스→스벅, 파리바게뜨→파바, 맥도날드→맥날, 배달의민족→배민, 올리브영→올영, 코인노래방→코노, 엽기떡볶이→엽떡, 삼각김밥→삼김, 넷플릭스→넷플, PC방→피방, 롯데월드→롯월, 포토카드→포카, 스터디카페→스카, 시험기간→셤기간
-   - 소비 표현 예시: 긁었다, 질렀다, 결제 갈김, 지갑 털림, 탕진, 플렉스, 합리화 완료, 가성비, 가심비
-   - 감탄 표현 예시: ㄹㅇ, 찐, 레전드, 개맛있음, 미쳤다, 도랏, 에바, 실화냐, 홀리몰리, 킹받네
-   - 무드 표현 예시: 갬성, 사진각, 인스타각, 비주얼 합격, 분위기 미쳤다, 소확행, 힐링
-   단, 모든 문장에 억지로 유행어를 넣지 말고 실제 친구에게 말하듯 자연스럽게 사용해.
-7. 아래 JSON만 출력 (마크다운 백틱 제외).
+3. 문장은 짧고 간결하게. 한 문장에 너무 많은 내용 넣지 말 것.
+4. 이모지·ㅋㅋ·ㅠㅠ 자연스럽게 1-2개씩.
+5. 유행어·줄임말은 전체 기준 2~3개만. 억지로 넣지 말 것.
+   - 소비 표현: 긁었다, 질렀다, 지갑 털림, 탕진, 합리화 완료, 가성비
+   - 감탄 표현: ㄹㅇ, 찐, 존맛, 미쳤다, 실화냐
+6. "~을 샀습니다" 같은 기계적 표현 절대 금지.
+7. 사용자 기분·메모의 말투를 일기 전체 톤에 자연스럽게 녹여줘.
+   - 메모가 짧고 구어체면 일기도 그 느낌으로.
+   - 감탄사·줄임말이 있으면 그 에너지를 살려서 써.
+   - 기분을 직접 언급하지 말고 문체에 녹여낼 것.
+8. 욕설·비속어는 사용하지 않는다. 단, "미쳤다", "레전드", "존맛" 등 일반적인 감탄 표현은 허용.
+9. 아래 JSON만 출력 (마크다운 백틱 제외).
 
-[예시 문장]
-아니 오늘 아아 없었으면 진짜 기절각이었음 ㅠㅠ
-디저트까지 야무지게 먹었는데 당충전 레전드였다😍
+[예시]
+"오늘 점심 부찌 ㄹㅇ 맛남"
+"라면사리까지 존맛 🔥"
+"지갑 털렸는데 후회 없음 ㅋㅋ"
 
 {{
-  "title": "제목 (이모지 포함, 12자 이내)",
-  "diary_lines": ["문장1 :raised_hands:", "문장2 ㅋㅋ", ...]
+  "title": "제목 (이모지 1개 포함, 10자 이내, 임팩트 있게)",
+  "diary_lines": ["짧은 문장1", "짧은 문장2", ...]
 }}
 """
 
@@ -83,9 +80,9 @@ USER_PROMPT_TEMPLATE = """\
 - Category: {category}
 - Amount paid: {price} KRW
 - Store: {store_name}
-- User mood: {mood_label} ({mood})
+- User mood: {mood} (사진 순서대로 각 사진의 기분 이모지, 공백 구분)
 - User memo: {emotion_text}
-- Group theme / context: {group_description}
+- Group theme: {group_description}
 - Room writing theme: {room_theme}
 - AI photo analysis: {description}
 
@@ -97,13 +94,12 @@ Write a JSON consumption diary based on the above.
 USER_PROMPT_UNMATCHED_TEMPLATE = """\
 [주의] 이 사진은 결제 내역과 아직 연결되지 않은 소비 사진이에요.
 item, price, store 정보를 사실인 것처럼 언급하거나 추측하지 마세요.
-AI 사진 분석(description)과 사용자 감정·메모만을 근거로,
-소비 장면과 감정 위주의 일기를 작성해주세요.
+AI 사진 분석과 사용자 감정·메모만을 근거로 소비 장면과 감정 위주의 일기를 작성해주세요.
 
 [Photo & Mood Info]
-- User mood: {mood_label} ({mood})
+- User mood: {mood} (사진 순서대로 각 사진의 기분 이모지, 공백 구분)
 - User memo: {emotion_text}
-- Group theme / context: {group_description}
+- Group theme: {group_description}
 - Room writing theme: {room_theme}
 - AI photo analysis: {description}
 
@@ -118,9 +114,10 @@ register("diary_user_unmatched", USER_PROMPT_UNMATCHED_TEMPLATE)
 def _get_client() -> AsyncOpenAI:
     if not settings.OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY가 설정되지 않았습니다.")
-    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    return wrap_openai(AsyncOpenAI(api_key=settings.OPENAI_API_KEY))  # wrap_openai 추가
 
 
+@traceable(name="일기 생성")
 async def generate_diary(req: DiaryRequest) -> DiaryResponse:
     client = _get_client()
 
@@ -139,22 +136,20 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
     is_matched = req.matched is True
     if is_matched:
         user_content = get_prompt("diary_user_matched").format(
-            item_name=req.item_name or "알 수 없음",
-            category=req.category or "기타",
-            price=f"{int(req.price):,}" if req.price is not None else "0",
-            store_name=req.store_name or "알 수 없음",
-            mood=req.mood or "",
-            mood_label=mood_label,
-            emotion_text=req.emotion_text or "없음",
-            group_description=req.group_description or "일반 소비",
-            room_theme=room_theme,
-            description=req.description or "특이사항 없음",
-        )
+        item_name=req.item_name or "알 수 없음",
+        category=req.category or "기타",
+        price=f"{int(req.price):,}" if req.price is not None else "0",
+        store_name=req.store_name or "알 수 없음",
+        mood=req.mood or "",
+        emotion_text=req.emotion_text or "없음",
+        group_description=req.group_description or "일반 소비",
+        room_theme=room_theme,
+        description=req.description or "특이사항 없음",
+    )
     else:
         # 미매핑: 결제 정보 없이 사진 분석·감정만으로 일기 생성
         user_content = get_prompt("diary_user_unmatched").format(
             mood=req.mood or "",
-            mood_label=mood_label,
             emotion_text=req.emotion_text or "없음",
             group_description=req.group_description or "일반 소비",
             room_theme=room_theme,

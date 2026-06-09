@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { CURRENT_USER } from '../../common/utils/rooms'
 
@@ -20,6 +20,7 @@ export default function LoadingPage() {
   const [messageIndex, setMessageIndex] = useState(0)
   const [userPhotos, setUserPhotos] = useState([])
   const [personaImage, setPersonaImage] = useState(CURRENT_USER.personaImage)
+  const hasRun = useRef(false) // 추가: StrictMode 중복 실행 방지
 
   const imageUrl = location.state?.imageUrl ?? null
   const selectedRooms =
@@ -34,9 +35,8 @@ export default function LoadingPage() {
     const fetchUserPhotos = async () => {
       try {
         const token = localStorage.getItem('token')
-        const today = getTodayKST() // KST 기준 오늘 날짜
+        const today = getTodayKST()
 
-        // 페르소나 이미지 가져오기
         try {
           const decoded = JSON.parse(atob(token.split('.')[1]))
           const userId = decoded.sub
@@ -67,17 +67,21 @@ export default function LoadingPage() {
   }, [])
 
   useEffect(() => {
+    // 추가: StrictMode 두 번째 실행 막기
+    if (hasRun.current) return
+    hasRun.current = true
+
     const messageTimer = setInterval(() => {
       setMessageIndex((prev) => (prev + 1) % LOADING_MESSAGES.length)
     }, 1000)
 
     const runPipeline = async () => {
       const token = localStorage.getItem('token')
-      const today = getTodayKST() // KST 기준 오늘 날짜
-
+      const today = getTodayKST()
+    
       let roomIds = selectedRooms
       let roomMap = {}
-
+    
       if (roomIds.length === 0) {
         try {
           const res = await fetch('/api/groups', {
@@ -88,9 +92,7 @@ export default function LoadingPage() {
             roomIds = groups.map((g) => g.groupId)
             groups.forEach((g) => { roomMap[g.groupId] = g.groupName })
           }
-        } catch {
-          // 실패 시 빈 배열로 진행
-        }
+        } catch {}
       } else {
         try {
           const res = await fetch('/api/groups', {
@@ -102,56 +104,81 @@ export default function LoadingPage() {
           }
         } catch {}
       }
-
-      // 오늘 사진이 있는 그룹만 필터링 — 사진 없는 그룹에 generate 요청 시 400 방지
+    
+      // 오늘 사진이 있는 그룹만 필터링
+      let photoList = []
       try {
         const photosRes = await fetch(`/api/photos?date=${today}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (photosRes.ok) {
           const photosData = await photosRes.json()
-          const photoList = photosData.photos ?? photosData
+          photoList = photosData.photos ?? photosData
+          console.log('photoList:', photoList)
+          console.log('unmappedPhotos:', photoList.filter((p) => !p.mapped))
           const photoGroups = new Set(photoList.flatMap((p) => p.group ?? []))
           roomIds = roomIds.filter((id) => photoGroups.has(Number(id)))
         }
+      } catch {}
+    
+      // 1. sync — 최신 결제 내역 업데이트
+      try {
+        await fetch('/api/diary/sync', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        })
       } catch {
-        // 필터링 실패 시 기존 roomIds 그대로 사용
+        // sync 실패해도 계속 진행
       }
-
-      const diaries = []
-      for (const roomId of roomIds) {
-        try {
-          const res = await fetch('/api/diary/generate', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              groupId: roomId,
-              date:    today,
-              mood:    mood,
-            }),
-          })
-          if (res.ok) {
-            const data = await res.json()
-            diaries.push({
-              title:           data.title,
-              diaryLines:      data.diaryLines,
-              tags:            data.tags,
-              roomId:          data.roomId ?? roomId,
-              roomLabel:       data.roomLabel,
-              imageUrls:       data.imageUrls ?? [],
-              imageUrl:        data.imageUrls?.[0] ?? imageUrl,
-              photoIds:        data.photoIds ?? [],
-              matchedPhotoIds: data.matchedPhotoIds ?? [],
+    
+      // 2. mapping — 미매핑 사진 매핑
+      try {
+        const unmappedPhotos = photoList.filter((p) => !p.mapped)
+        await Promise.all(
+          unmappedPhotos.map((p) =>
+            fetch(`/api/photos/${p.id}/mapping`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            }).catch(() => {})
+          )
+        )
+      } catch {}
+    
+      // 3. generate — 일기 생성 (병렬)
+      const diaries = (await Promise.all(
+        roomIds.map(async (roomId) => {
+          try {
+            const res = await fetch('/api/diary/generate', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                groupId: roomId,
+                date:    today,
+                mood:    mood,
+              }),
             })
-          }
-        } catch {
-          // 특정 방 일기 생성 실패 시 해당 방만 skip
-        }
-      }
-
+            if (res.ok) {
+              const data = await res.json()
+              return {
+                title:           data.title,
+                diaryLines:      data.diaryLines,
+                tags:            data.tags,
+                roomId:          data.roomId ?? roomId,
+                roomLabel:       data.roomLabel,
+                imageUrls:       data.imageUrls ?? [],
+                imageUrl:        data.imageUrls?.[0] ?? imageUrl,
+                photoIds:        data.photoIds ?? [],
+                matchedPhotoIds: data.matchedPhotoIds ?? [],
+              }
+            }
+          } catch {}
+          return null
+        })
+      )).filter(Boolean)
+    
       clearInterval(messageTimer)
       navigate('/diary-result', {
         replace: true,
