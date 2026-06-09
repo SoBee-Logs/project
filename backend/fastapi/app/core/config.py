@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     CODEF_PUBLIC_KEY: str = ""
     CODEF_BASE_URL: str = "https://development.codef.io"  # prod: https://api.codef.io
 
+    # 유저 그룹별 CODEF API 자격증명 (없으면 전역 CODEF_CLIENT_ID/SECRET/PUBLIC_KEY 사용)
+    # CODEF_CLIENT_ID_1 / CODEF_CLIENT_SECRET_1 / CODEF_PUBLIC_KEY_1 / CODEF_USER_IDS_1=115,116
+    # CODEF_CLIENT_ID_2 / CODEF_CLIENT_SECRET_2 / CODEF_PUBLIC_KEY_2 / CODEF_USER_IDS_2=13,17
+    # ...최대 10개까지 자동 스캔
+
     # 팀원 로컬 테스트용 계정 정보 (ENV 모드)
     # loginId/loginPw는 connected_id 최초 발급 시에만 사용되며 어디에도 저장되지 않음
     # 같은 loginId끼리는 하나의 connected_id로 묶임 (CODEF 스펙: connected_id 1 : 기관 N)
@@ -40,6 +45,22 @@ class Settings(BaseSettings):
 
     # 예: [{"organization":"0020","loginId":"myid","loginPw":"mypw","account":"1234567890","bankName":"우리은행"}]
     CODEF_BANK_ACCOUNTS: str = "[]"
+
+    def get_codef_credentials(self, user_id: int) -> tuple[str, str, str]:
+        """user_id에 맞는 (client_id, client_secret, public_key) 반환. 매핑 없으면 전역값 사용."""
+        import os
+        for i in range(1, 11):
+            user_ids_raw = os.environ.get(f"CODEF_USER_IDS_{i}", "")
+            if not user_ids_raw:
+                break
+            user_ids = [int(x.strip()) for x in user_ids_raw.split(",") if x.strip()]
+            if user_id in user_ids:
+                return (
+                    os.environ.get(f"CODEF_CLIENT_ID_{i}", self.CODEF_CLIENT_ID),
+                    os.environ.get(f"CODEF_CLIENT_SECRET_{i}", self.CODEF_CLIENT_SECRET),
+                    os.environ.get(f"CODEF_PUBLIC_KEY_{i}", self.CODEF_PUBLIC_KEY),
+                )
+        return self.CODEF_CLIENT_ID, self.CODEF_CLIENT_SECRET, self.CODEF_PUBLIC_KEY
 
     def get_codef_card_accounts(self) -> list[dict]:
         """CODEF_CARD_ACCOUNTS JSON 파싱. 실패 시 명확한 에러 발생."""
