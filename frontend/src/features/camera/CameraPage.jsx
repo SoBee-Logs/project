@@ -210,9 +210,10 @@ export default function CameraPage() {
           text,
           mood: MOOD_EMOJIS[selectedMood],
           imageUrl: result.imageUrl,
-          selectedRooms: [],
+          selectedRooms,
           photoId: result.photoId,
           imageFile,
+          myGroups: rooms.map(r => ({ groupId: r.id, groupName: r.label })),
         },
       })
     } catch (err) {
