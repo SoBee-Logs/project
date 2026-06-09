@@ -34,7 +34,7 @@ function FeedPost({ post, onToggleLike, personaImage }) {
         <img
           src={personaImage ?? beeImage}
           alt={post.authorNickname}
-          className="w-9 h-9 rounded-full object-contain bg-white"
+          className="w-9 h-9 rounded-full object-cover bg-white overflow-hidden"
         />
         <span className="flex-1 min-w-0 text-left">
           <span className="block text-sm font-bold text-gray-900">{post.authorNickname}</span>
@@ -95,11 +95,10 @@ function FeedPost({ post, onToggleLike, personaImage }) {
         <div className="flex items-start justify-between gap-2 mb-2">
           <h3 className="text-base font-bold text-gray-900 m-0">{post.title}</h3>
         </div>
-        {post.diaryLines.map((line, i) => (
-          <p key={i} className="text-sm text-gray-700 leading-relaxed m-0 mb-1">
-            {line}
-          </p>
-        ))}
+        <p className="text-sm text-gray-700 leading-relaxed m-0">
+          {post.diaryLines.join(' ')}
+        </p>
+
         <div className="flex items-center justify-between mt-2">
           <p className="text-xs text-gray-400 m-0">좋아요 {post.likes}개</p>
           <time className="text-[10px] text-gray-400 whitespace-nowrap">{post.date} {post.time}</time>
@@ -138,22 +137,19 @@ export default function Feed() {
         const mapped = data.map(mapDiaryToPost)
         setPosts(mapped)
 
-        // 각 작성자의 아바타 이미지를 개별 fetch (중복 요청 방지)
         const uniqueAuthorIds = [...new Set(mapped.map(p => p.authorId).filter(Boolean))]
-        uniqueAuthorIds.forEach(async (authorId) => {
-          try {
-            const r = await fetch(`/api/avatar/${authorId}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            })
-            if (!r.ok) return
-            const d = await r.json()
-            if (d.avatarImgUrl) {
-              setPersonaImages(prev => ({ ...prev, [authorId]: d.avatarImgUrl }))
-            }
-          } catch {
-            // 실패 시 기본 이미지 유지
-          }
+        const avatarResults = await Promise.all(
+          uniqueAuthorIds.map(authorId =>
+            fetch(`/api/avatar/${authorId}`, { headers: { Authorization: `Bearer ${token}` } })
+              .then(r => r.ok ? r.json() : null)
+              .catch(() => null)
+          )
+        )
+        const images = {}
+        uniqueAuthorIds.forEach((authorId, i) => {
+          if (avatarResults[i]?.avatarImgUrl) images[authorId] = avatarResults[i].avatarImgUrl
         })
+        setPersonaImages(images)
       } catch (err) {
         console.error('일기 목록 조회 실패', err)
       } finally {

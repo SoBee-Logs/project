@@ -28,6 +28,8 @@ async def _trigger_airflow_sync(user_id: int, days: int) -> None:
     except Exception as e:
         log.warning(f"Airflow 연결 실패: {e} — 로컬 sync로 fallback")
         asyncio.create_task(sync_transactions(user_id, days=days))
+
+
 from app.models.schemas import (
     SyncRequest, SyncResponse,
     MappingRequest, MappingResponse,
@@ -38,7 +40,7 @@ from app.models.schemas import (
     AvailableOrgsResponse, RegisterFromEnvRequest, RegisterFromEnvResponse,
 )
 from app.services.sync_service import (
-    sync_transactions, sync_transactions_env, register_account,
+    sync_transactions, register_account,
     list_connected_ids, register_accounts_from_env, INITIAL_SYNC_DAYS,
 )
 from app.services.mapping_service import run_mapping
@@ -49,9 +51,19 @@ from app.services.search_parse_service import parse_search_query
 router = APIRouter(prefix="/internal", tags=["internal"])
 
 
-@router.get("/sync/status")
+@router.get(
+    "/sync/status",
+    summary="트랜잭션 적재 완료 여부 확인",
+    description="""
+유저의 `transactions` 테이블 데이터 존재 여부를 반환합니다.
+
+- `synced: true` → 1건 이상 적재됨
+- `synced: false` → 아직 sync 미완료
+
+Airflow DAG 또는 프론트엔드에서 초기 sync 완료 여부를 polling할 때 사용합니다.
+""",
+)
 async def sync_status_check(user_id: int):
-    """트랜잭션 DB 적재 완료 여부 확인 (월 필터 없이 전체 카운트)."""
     from app.db.connection import get_pool
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -64,119 +76,56 @@ async def sync_status_check(user_id: int):
     return {"synced": count > 0, "transaction_count": count}
 
 
-@router.get("/accounts/available-orgs", response_model=AvailableOrgsResponse)
+@router.get(
+    "/accounts/available-orgs",
+    response_model=AvailableOrgsResponse,
+    summary="ENV에 설정된 기관 코드 목록 조회",
+    description="""
+`.env`의 `CODEF_BANK_ACCOUNTS` / `CODEF_CARD_ACCOUNTS`에 등록된 기관 코드 목록을 반환합니다.
+
+`register-from-env` 호출 전 어떤 기관 코드를 요청할 수 있는지 확인할 때 사용합니다.
+
+**응답 예시**
+```json
+{
+  "bank_codes": ["0020", "0088"],
+  "card_codes": ["0306", "0313"]
+}
+```
+""",
+)
 async def accounts_available_orgs():
-    """ENV에 등록된 기관 코드 목록 반환 (프론트 검증용)."""
     from app.core.config import settings
     bank_codes = [acc["organization"] for acc in settings.get_codef_bank_accounts()]
     card_codes = [acc["organization"] for acc in settings.get_codef_card_accounts()]
     return AvailableOrgsResponse(bank_codes=bank_codes, card_codes=card_codes)
 
 
-@router.post("/accounts/register-from-env", response_model=RegisterFromEnvResponse)
-async def accounts_register_from_env(request: RegisterFromEnvRequest):
-    """
-    사용자가 선택한 org_code를 ENV에서 조회 → CODEF 등록 → 30일 sync 백그라운드 트리거.
-    ENV에 없는 기관 코드는 missing 목록으로 반환.
-    """
-    result = await register_accounts_from_env(
-        request.user_id, request.bank_codes, request.card_codes
-    )
-    if result["missing"]:
-        return RegisterFromEnvResponse(
-            user_id=request.user_id,
-            registered=[],
-            missing=result["missing"],
-            message=f"ENV에 없는 기관: {result['missing']}",
-        )
-    asyncio.create_task(_trigger_airflow_sync(request.user_id, days=INITIAL_SYNC_DAYS))
-    return RegisterFromEnvResponse(
-        user_id=request.user_id,
-        registered=result["registered"],
-        missing=[],
-        message=f"{len(result['registered'])}개 기관 등록 완료. 30일 sync 시작.",
-    )
+@router.post(
+    "/accounts/register",
+    response_model=RegisterAccountResponse,
+    summary="금융기관 계정 직접 등록",
+    description="""
+유저가 본인의 `loginId` / `loginPw`를 직접 입력해 금융기관 계정을 CODEF에 등록합니다.
+Swagger에서 유저별로 개별 호출하는 용도입니다.
 
+**connected_id 미전달** → `/account/create`: 새 connected_id 발급 (최초 등록)
+**connected_id 전달** → `/account/add`: 기존 connected_id에 기관 추가
+- 동일 인증수단(같은 ID/PW)으로 여러 기관을 하나의 connected_id로 묶을 때 사용
 
-@router.get("/users")
-async def list_users():
-    """Airflow DAG에서 전체 유저 목록 조회용"""
-    return {"user_ids": await get_all_user_ids()}
+등록 완료 후 최근 30일 트랜잭션 sync를 백그라운드로 트리거합니다.
+`loginId` / `loginPw`는 CODEF에만 전달되며 서버에 저장되지 않습니다.
 
-
-@router.post("/accounts/setup")
-async def accounts_setup():
-    """
-    .env의 CODEF_ACCOUNT_N 목록을 읽어 전체 계정을 일괄 등록.
-    connected_id를 발급받아 Secrets Manager에 저장.
-    """
-    from app.core.config import settings
-    accounts = settings.get_codef_accounts()
-    if not accounts:
-        return {"message": ".env에 CODEF_ACCOUNT_N 설정이 없습니다."}
-
-    results = []
-    registered_user_ids: set[int] = set()
-    for acct in accounts:
-        try:
-            await register_account(
-                user_id=acct["user_id"],
-                business_type=acct["business_type"],
-                org_code=acct["org_code"],
-                login_id=acct["login_id"],
-                login_pw=acct["login_pw"],
-            )
-            registered_user_ids.add(acct["user_id"])
-            results.append({"user_id": acct["user_id"], "org_code": acct["org_code"], "status": "ok"})
-        except Exception as e:
-            results.append({"user_id": acct["user_id"], "org_code": acct["org_code"], "status": "error", "error": str(e)})
-
-    # 등록 성공한 유저별로 초기 30일 sync 백그라운드 트리거 (유저당 1회)
-    for uid in registered_user_ids:
-        asyncio.create_task(sync_transactions(uid, days=INITIAL_SYNC_DAYS))
-
-    return {"results": results}
-
-
-@router.get("/accounts/{user_id}", response_model=ConnectedIdListResponse)
-async def accounts_list(user_id: int):
-    """
-    유저의 connected_id 목록과 각 connected_id에 등록된 기관 목록 조회.
-    응답 예시:
-      {
-        "user_id": 1,
-        "connected_ids": [
-          {
-            "connected_id": "cid_abc",
-            "institutions": [
-              {"businessType": "BK", "organization": "0020"},
-              {"businessType": "CD", "organization": "0301"}
-            ]
-          }
-        ]
-      }
-    """
-    entries = list_connected_ids(user_id)
-    return ConnectedIdListResponse(
-        user_id=user_id,
-        connected_ids=[ConnectedIdInfo(**e) for e in entries],
-    )
-
-
-@router.post("/accounts/register", response_model=RegisterAccountResponse)
+**기관 코드 예시**
+| 기관 | 코드 | 타입 |
+|------|------|------|
+| 우리은행 | 0020 | BK |
+| 신한은행 | 0088 | BK |
+| 신한카드 | 0306 | CD |
+| 하나카드 | 0313 | CD |
+""",
+)
 async def accounts_register(request: RegisterAccountRequest):
-    """
-    금융기관 계정 등록.
-
-    connected_id 미전달: /account/create → 새 connected_id 발급
-      → 최초 등록 또는 다른 인증수단(인증서 vs ID/PW)으로 추가할 때 사용
-
-    connected_id 전달: /account/add → 기존 connected_id에 기관 추가
-      → 인증서 하나로 여러 은행/카드를 하나의 connected_id로 묶을 때 사용
-
-    등록 완료 후 최근 30일 transactions 초기 sync 백그라운드 트리거.
-    login_id / login_pw는 CODEF에만 전달되며 저장되지 않음.
-    """
     cid = await register_account(
         user_id=request.user_id,
         business_type=request.business_type,
@@ -196,11 +145,136 @@ async def accounts_register(request: RegisterAccountRequest):
     )
 
 
-@router.post("/transactions/sync", response_model=SyncResponse)
-async def transactions_sync(request: SyncRequest):
-    from app.services.sync_service import (
-        DAILY_SYNC_DAYS, sync_transactions,
+@router.post(
+    "/accounts/register-from-env",
+    response_model=RegisterFromEnvResponse,
+    summary="CODEF 계정 등록 (ENV 기반, 팀원 테스트용)",
+    description="""
+`.env`에 미리 저장된 팀원 공용 자격증명을 사용해 CODEF connected_id를 발급하고 AWS Secrets Manager에 저장합니다.
+유저가 직접 loginId/loginPw를 입력하지 않아도 되는 팀 내부 테스트 전용 엔드포인트입니다.
+
+**등록 흐름**
+1. `bank_codes` / `card_codes`가 `.env`에 있는지 확인 → 없으면 `missing` 반환
+2. 이미 Secrets Manager에 등록된 기관은 skip
+3. 같은 `loginId`끼리 하나의 connected_id로 묶어 등록 (CODEF 1:N 스펙)
+4. 등록 완료 후 최근 30일 트랜잭션 sync 백그라운드 트리거
+
+**유저 그룹별 CODEF API 계정**
+`.env`의 `CODEF_USER_IDS_N`에 매핑된 user_id는 해당 그룹의 `CODEF_CLIENT_ID_N` 자격증명을 사용합니다.
+매핑이 없으면 전역 `CODEF_CLIENT_ID`로 fallback됩니다.
+
+**에러 케이스**
+- `missing`: ENV에 없는 기관 코드 요청
+- `rate_limited`: CODEF 일일 API 호출 한도(100건) 초과 → 내일 재시도
+""",
+)
+async def accounts_register_from_env(request: RegisterFromEnvRequest):
+    result = await register_accounts_from_env(
+        request.user_id, request.bank_codes, request.card_codes
     )
+    if result["missing"]:
+        return RegisterFromEnvResponse(
+            user_id=request.user_id,
+            registered=[],
+            missing=result["missing"],
+            message=f"ENV에 없는 기관: {result['missing']}",
+        )
+    if result.get("rate_limited"):
+        return RegisterFromEnvResponse(
+            user_id=request.user_id,
+            registered=result["registered"],
+            missing=[],
+            message="CODEF 일일 API 한도 초과. 내일 다시 시도해주세요.",
+        )
+    if not result["registered"]:
+        return RegisterFromEnvResponse(
+            user_id=request.user_id,
+            registered=[],
+            missing=[],
+            message="등록할 기관이 없거나 등록에 실패했습니다.",
+        )
+    asyncio.create_task(_trigger_airflow_sync(request.user_id, days=INITIAL_SYNC_DAYS))
+    return RegisterFromEnvResponse(
+        user_id=request.user_id,
+        registered=result["registered"],
+        missing=[],
+        message=f"{len(result['registered'])}개 기관 등록 완료. 30일 sync 시작.",
+    )
+
+
+@router.get(
+    "/users",
+    summary="전체 유저 ID 목록 조회",
+    description="""
+DB의 활성 유저(`is_active = true`) 전체 ID 목록을 반환합니다.
+
+Airflow DAG에서 일별 sync 대상 유저를 순회할 때 호출합니다.
+""",
+)
+async def list_users():
+    return {"user_ids": await get_all_user_ids()}
+
+
+@router.get(
+    "/accounts/{user_id}",
+    response_model=ConnectedIdListResponse,
+    summary="유저의 connected_id 목록 조회",
+    description="""
+AWS Secrets Manager(`sobee/codef/{user_id}`)에 저장된 connected_id 목록과 각 connected_id에 등록된 기관 정보를 반환합니다.
+
+등록 상태 확인 및 디버깅 용도로 사용합니다.
+
+**응답 예시**
+```json
+{
+  "user_id": 114,
+  "connected_ids": [
+    {
+      "connected_id": "cid_abc123",
+      "institutions": [
+        {"businessType": "BK", "organization": "0020"},
+        {"businessType": "BK", "organization": "0088"}
+      ]
+    },
+    {
+      "connected_id": "cid_def456",
+      "institutions": [
+        {"businessType": "CD", "organization": "0306"}
+      ]
+    }
+  ]
+}
+```
+""",
+)
+async def accounts_list(user_id: int):
+    entries = list_connected_ids(user_id)
+    return ConnectedIdListResponse(
+        user_id=user_id,
+        connected_ids=[ConnectedIdInfo(**e) for e in entries],
+    )
+
+
+@router.post(
+    "/transactions/sync",
+    response_model=SyncResponse,
+    summary="트랜잭션 수동 sync",
+    description="""
+Secrets Manager의 connected_id를 사용해 CODEF에서 트랜잭션을 가져와 DB에 적재합니다.
+
+**처리 순서**
+1. CODEF 은행 계좌 목록 조회 → 계좌별 거래내역 적재
+2. CODEF 카드 승인내역 적재
+3. `transactions` 병합 (체크카드-계좌 매칭, 자기이체 제거, 취소 내역 제거)
+4. 카테고리 매핑 실행 (룰베이스 → LLM 체이닝)
+5. 생애주기 예측 업데이트
+
+`days` 미전달 시 기본 3일 적용 (Airflow 일별 sync 기준).
+connected_id 미등록 유저는 skip 메시지를 반환하며 에러 처리되지 않습니다.
+""",
+)
+async def transactions_sync(request: SyncRequest):
+    from app.services.sync_service import DAILY_SYNC_DAYS
     days = request.days if request.days is not None else DAILY_SYNC_DAYS
     try:
         result = await sync_transactions(request.user_id, days=days)
@@ -214,29 +288,74 @@ async def transactions_sync(request: SyncRequest):
     return SyncResponse(message=msg)
 
 
-@router.post("/mapping/run", response_model=MappingResponse)
+@router.post(
+    "/mapping/run",
+    response_model=MappingResponse,
+    summary="카테고리 매핑 수동 실행",
+    description="""
+미매핑 트랜잭션에 대해 카테고리 매핑을 실행합니다.
+
+**매핑 우선순위**
+1. 룰베이스 매핑 — 키워드 기반 즉시 분류
+2. LLM 자동 매핑 — 룰베이스 미처리 건을 LLM으로 분류
+
+`user_id` / `start_date` / `end_date` 미전달 시 전체 미매핑 건을 대상으로 실행합니다.
+""",
+)
 async def mapping_run(request: MappingRequest):
     result = await run_mapping(request.user_id, request.start_date, request.end_date)
     return MappingResponse(message=result.get("message", "mapping complete"))
 
 
+@router.post(
+    "/diary/generate",
+    response_model=DiaryGenerateResponse,
+    summary="소비 일기 생성",
+    description="""
+유저의 최근 소비 데이터를 기반으로 AI 소비 일기를 생성합니다.
 
-
-@router.post("/diary/generate", response_model=DiaryGenerateResponse)
+생성된 일기는 `diary` 테이블에 저장됩니다.
+""",
+)
 async def diary_generate(request: DiaryGenerateRequest):
     result = await generate_diary(request.user_id)
     return DiaryGenerateResponse(message=result.get("message", "diary generated"))
 
 
-@router.post("/parse-search", response_model=ParseSearchResponse)
+@router.post(
+    "/parse-search",
+    response_model=ParseSearchResponse,
+    summary="자연어 검색 쿼리 파싱",
+    description="""
+자연어 검색 입력을 구조화된 필터 조건으로 변환합니다.
+
+검색 기능의 전처리 단계로 사용됩니다.
+
+**예시**
+- 입력: `"지난달 카페 지출"`
+- 출력: `{"category": "카페", "period": "last_month", "type": "출금"}`
+""",
+)
 async def parse_search(request: ParseSearchRequest):
     result = await parse_search_query(request.query)
     return ParseSearchResponse(**result)
 
 
-@router.get("/persona/has-photo")
+@router.get(
+    "/persona/has-photo",
+    summary="페르소나 생성 가능 여부 확인",
+    description="""
+지정 기간(`start_date` ~ `end_date`) 내에 사진-결제 매핑 데이터(`persona_transaction`)가 존재하는지 확인합니다.
+
+Airflow 아바타 생성 DAG에서 생성 조건 충족 여부를 판단할 때 사용합니다.
+
+- `has_photo: true` → 매핑 데이터 존재, 아바타 생성 가능
+- `has_photo: false` → 매핑 데이터 없음, 아바타 생성 skip
+
+`start_date` / `end_date` 형식: `YYYY-MM-DD`
+""",
+)
 async def persona_has_photo(user_id: int, start_date: str, end_date: str):
-    """지난주(start_date~end_date) 기간에 photo-결제 매핑 데이터 존재 여부 반환 (Airflow용)."""
     from app.db.connection import get_pool
     pool = await get_pool()
     async with pool.acquire() as conn:

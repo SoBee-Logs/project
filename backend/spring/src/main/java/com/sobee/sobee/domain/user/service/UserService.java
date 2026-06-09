@@ -4,6 +4,7 @@ import com.sobee.sobee.domain.user.dto.UserPersonaDto;
 import com.sobee.sobee.domain.user.dto.UserRequestDto;
 import com.sobee.sobee.domain.user.entity.Avatar;
 import com.sobee.sobee.domain.user.entity.User;
+import com.sobee.sobee.domain.b_log.repository.DiaryRepository;
 import com.sobee.sobee.domain.user.repository.AvatarRepository;
 import com.sobee.sobee.domain.user.repository.UserRepository;
 import com.sobee.sobee.global.jwt.JwtUtil;
@@ -18,6 +19,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final AvatarRepository avatarRepository;
+    private final DiaryRepository diaryRepository;
     private final JwtUtil jwtUtil;
 
     public void register(UserRequestDto dto) {
@@ -44,6 +46,10 @@ public class UserService {
         return jwtUtil.generateToken(user.getUserId(), user.getEmail());
     }
 
+    public int getTotalLikes(Long userId) {
+    return diaryRepository.sumLikesByUserId(userId);
+    }   
+
     public UserPersonaDto getPersona(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("유저를 찾을 수 없습니다."));
@@ -53,8 +59,14 @@ public class UserService {
                 : null;
         Avatar avatar = avatarRepository.findTopByUserIdOrderByAvatarCreatedAtDesc(userId)
                 .orElse(null);
-        if (avatar == null) return new UserPersonaDto(null, null, null, null, createdAt);
-        return new UserPersonaDto(avatar.getAvatarName(), avatar.getAvatarExplain(), avatar.getAvatarImgUrl(), avatar.getAvatarChangeReason(), createdAt);
+        if (avatar == null) return new UserPersonaDto(user.getName(), null, null, null, null, createdAt);
+        return new UserPersonaDto(user.getName(), avatar.getAvatarName(), avatar.getAvatarExplain(), avatar.getAvatarImgUrl(), avatar.getAvatarChangeReason(), createdAt);
+    }
+
+    public String getUserName(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("유저를 찾을 수 없습니다."));
+        return user.getName();
     }
 
     // 회원 탈퇴 — Soft Delete (is_active = false)

@@ -206,53 +206,76 @@ def _get_mime_type(filename: str) -> str:
     ext = filename.lower().rsplit(".", 1)[-1]
     return {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(ext, "image/jpeg")
 
-
-async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str) -> dict:
+#503 에러 대비 : 재시도로직 추가
+async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str, max_retries: int = 2) -> dict:
     image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
     
-    start = time.time() 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=[image_part, get_prompt("vlm_extraction")],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=0.1,
-            thinking_config=types.ThinkingConfig(  # 이거 추가
-                thinking_budget=0
-            ),
-        ),
-    )
-    elapsed = time.time() - start
-    print(f"[Gemini] 응답시간: {elapsed:.2f}s | thinking_budget=0")
+    for attempt in range(max_retries):
+        try:
+            start = time.time()
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[image_part, get_prompt("vlm_extraction")],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.1,
+                    thinking_config=types.ThinkingConfig(
+                        thinking_budget=0
+                    ),
+                ),
+            )
+            elapsed = time.time() - start
+            print(f"[Gemini] 응답시간: {elapsed:.2f}s | attempt={attempt+1}")
 
-    content = response.text
-    if not content:
-        return {"error": "Gemini 응답이 비어있습니다."}
+            content = response.text
+            if not content:
+                return {"error": "Gemini 응답이 비어있습니다."}
 
-    try:
-        cleaned = content.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("```")[1]
-            if cleaned.startswith("json"):
-                cleaned = cleaned[4:]
-        result = json.loads(cleaned.strip())
-        result["_elapsed_ms"] = round(elapsed * 1000)  # ← 이게 없음
-        return result
-    except json.JSONDecodeError:
-        return {"error": "JSON 파싱 실패", "raw_response": content[:200]}
+            try:
+                cleaned = content.strip()
+                if cleaned.startswith("```"):
+                    cleaned = cleaned.split("```")[1]
+                    if cleaned.startswith("json"):
+                        cleaned = cleaned[4:]
+                result = json.loads(cleaned.strip())
+                result["_elapsed_ms"] = round(elapsed * 1000)
+                return result
+            except json.JSONDecodeError:
+                return {"error": "JSON 파싱 실패", "raw_response": content[:200]}
+
+        except Exception as e:
+            # 503 등 서버 에러면 재시도
+            if attempt < max_retries - 1:
+                print(f"[Gemini] 오류 발생 (attempt={attempt+1}), 3초 후 재시도: {e}")
+                time.sleep(1)
+                continue
+            # 마지막 시도도 실패하면 에러 반환
+            print(f"[Gemini] 최종 실패: {e}")
+            return {"error": f"Gemini 호출 실패: {str(e)}"}
 
 
 # exif 파라미터 추가 — 엔드포인트에서 원본 EXIF를 미리 추출해서 넘겨줌
 async def analyze_image(filename: str, image_bytes: bytes, exif: dict = None) -> dict:
     client = _get_client()
 
-    # exif가 없으면 직접 추출 (일반 JPEG/PNG 케이스)
+    # exif가 없으면 직접 추출
     if exif is None:
         exif = extract_exif(image_bytes)
 
     address = None
     if exif["gps"]:
         address = reverse_geocode(exif["gps"]["latitude"], exif["gps"]["longitude"])
+
+    # 추가: 이미지 리사이즈 (전송 크기 줄여서 속도 개선)
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        img.thumbnail((768 , 768))
+        buf = io.BytesIO()
+        img.convert("RGB").save(buf, format="JPEG", quality=85)
+        image_bytes = buf.getvalue()
+        filename = "resized.jpg"
+    except Exception:
+        pass  # 리사이즈 실패 시 원본 사용
 
     mime_type = _get_mime_type(filename)
     vlm_result = await _analyze_with_gemini(client, image_bytes, mime_type)

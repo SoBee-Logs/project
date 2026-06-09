@@ -30,6 +30,13 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{userId}/name")
+    public ResponseEntity<Map<String, String>> getUserName(@PathVariable Long userId) {
+        Map<String, String> result = new HashMap<>();
+        result.put("name", userService.getUserName(userId));
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/{userId}/persona")
     public ResponseEntity<UserPersonaDto> getPersona(@PathVariable Long userId) {
         return ResponseEntity.ok(userService.getPersona(userId));
@@ -40,5 +47,12 @@ public class UserController {
     public ResponseEntity<String> deleteUser(@PathVariable Long userId) {
         userService.deactivateUser(userId);
         return ResponseEntity.ok("회원 탈퇴 완료");
+    }
+
+    @GetMapping("/{userId}/likes")
+    public ResponseEntity<?> getTotalLikes(@PathVariable Long userId) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("totalLikes", userService.getTotalLikes(userId));
+        return ResponseEntity.ok(response);
     }
 }

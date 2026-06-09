@@ -3,6 +3,7 @@ package com.sobee.sobee.domain.b_log.controller;
 import com.sobee.sobee.domain.b_log.dto.DiaryFeedItemResponse;
 import com.sobee.sobee.domain.b_log.dto.DiaryGenerateRequest;
 import com.sobee.sobee.domain.b_log.dto.DiaryGenerateResponse;
+import com.sobee.sobee.domain.b_log.dto.DiaryPreviewResponse;
 import com.sobee.sobee.domain.b_log.dto.DiarySaveRequest;
 import com.sobee.sobee.domain.b_log.service.DiaryService;
 import com.sobee.sobee.global.jwt.JwtUtil;
@@ -52,6 +53,15 @@ public class DiaryController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
+    @GetMapping("/preview")
+    public ResponseEntity<DiaryPreviewResponse> getDiaryPreview(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam Long groupId
+    ) {
+        extractUserId(authHeader);
+        return ResponseEntity.ok(diaryService.getDiaryPreview(groupId));
+    }
+
     @GetMapping("/list")
     public ResponseEntity<List<DiaryFeedItemResponse>> getDiaryList(
             @RequestHeader("Authorization") String authHeader,
@@ -71,4 +81,13 @@ public class DiaryController {
         diaryService.toggleLike(diaryId);
         return ResponseEntity.ok().build();
     }
+
+    @PostMapping("/sync")
+        public ResponseEntity<Void> syncTransactions(
+                @RequestHeader("Authorization") String authHeader
+        ) {
+            Long userId = extractUserId(authHeader);
+            diaryService.syncTransactions(userId);
+            return ResponseEntity.ok().build();
+        }
 }
