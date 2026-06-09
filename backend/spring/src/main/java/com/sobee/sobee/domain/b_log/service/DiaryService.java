@@ -103,10 +103,10 @@ public class DiaryService {
         .collect(Collectors.toList());
 
         // 대표값은 category 있는 것 우선으로 첫 번째 (기존 로직 유지)
-        PhotoVlmResult bestVlm = allVlms.stream()
-        .filter(vlm -> vlm.getVlmCategory() != null)
-        .findFirst()
-        .orElse(allVlms.isEmpty() ? null : allVlms.get(0));
+        // PhotoVlmResult bestVlm = allVlms.stream()
+        // .filter(vlm -> vlm.getVlmCategory() != null)
+        // .findFirst()
+        // .orElse(allVlms.isEmpty() ? null : allVlms.get(0));
 
         // 여러 사진의 item_name, description 합치기
         String combinedItemName = allVlms.stream()
@@ -118,6 +118,23 @@ public class DiaryService {
         .map(PhotoVlmResult::getVlmDescription)
         .filter(Objects::nonNull)
         .collect(Collectors.joining(" / "));
+
+        String combinedCategory = allVlms.stream()
+        .map(PhotoVlmResult::getVlmCategory)
+        .filter(Objects::nonNull)
+        .distinct()
+        .collect(Collectors.joining(", "));
+
+        Integer totalPrice = allVlms.stream()
+        .filter(vlm -> vlm.getVlmPriceEstimate() != null)
+        .mapToInt(vlm -> vlm.getVlmPriceEstimate().intValue())
+        .sum();
+
+        String combinedStoreName = allVlms.stream()
+        .map(PhotoVlmResult::getVlmStoreName)
+        .filter(Objects::nonNull)
+        .distinct()
+        .collect(Collectors.joining(", "));
                         
 
         // 감정 데이터 — 전체 수집 후 텍스트 합치기
@@ -129,30 +146,31 @@ public class DiaryService {
         EmotionsText latestEmotion = allEmotions.isEmpty() ? null : allEmotions.get(0);
 
         String combinedEmotionText = allEmotions.stream()
-        .map(EmotionsText::getText)
-        .filter(Objects::nonNull)
-        .collect(Collectors.joining(", "));
+                .map(EmotionsText::getText)
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(", "));
 
-        String moodEmoji = latestEmotion != null && latestEmotion.getEmoji() != null
-                ? latestEmotion.getEmoji().getEmoji()
-                : null;
+        // 수정: 전체 mood 이모지 순서대로 합치기
+        String moodEmoji = allEmotions.stream()
+        .map(EmotionsText::getEmoji)
+        .filter(Objects::nonNull)
+        .map(MoodType::getEmoji)
+        .collect(Collectors.joining(" "));
 
         boolean matched = !matchedPhotoIds.isEmpty();
 
         // FastApiDiaryRequest 빌드 부분 수정
         FastApiDiaryRequest faReq = FastApiDiaryRequest.builder()
         .item_name(combinedItemName.isEmpty() ? null : combinedItemName)
-        .category(bestVlm != null ? bestVlm.getVlmCategory() : null)
-        .price(bestVlm != null && bestVlm.getVlmPriceEstimate() != null
-                ? bestVlm.getVlmPriceEstimate().intValue() : null)
-        .store_name(bestVlm != null ? bestVlm.getVlmStoreName() : null)
+        .category(combinedCategory.isEmpty() ? null : combinedCategory)
+        .price(totalPrice > 0 ? totalPrice : null)
+        .store_name(combinedStoreName.isEmpty() ? null : combinedStoreName)
         .description(combinedDescription.isEmpty() ? null : combinedDescription)
         .matched(matched)
         .mood(moodEmoji)
         .emotion_text(combinedEmotionText.isEmpty() ? null : combinedEmotionText)
         .tags(Collections.singletonList("#" + group.getGroupName()))
         .group_description(group.getGroupDescription())
-        // 모임방 카테고리 — FastAPI에서 카테고리별 일기 테마 적용에 사용
         .room_category(group.getCategory() != null ? group.getCategory().name() : null)
         .build();
         
