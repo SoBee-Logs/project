@@ -281,6 +281,12 @@ export default function Report() {
 
   const [persona,       setPersona]       = useState(null)
   const [lifecycle,     setLifecycle]     = useState(null)
+  const [peers,         setPeers]         = useState([])
+  const [expandedPeer,  setExpandedPeer]  = useState(null)
+  const [selectedCat,   setSelectedCat]   = useState(null)
+  const [catDeselected, setCatDeselected] = useState(false)
+  const [catWeek,       setCatWeek]       = useState('전체')
+  const [timeWeek,      setTimeWeek]      = useState('전체')
   const [txData,        setTxData]        = useState(null)
   const [recommendData, setRecommendData] = useState(null)
   const [recommendRefreshing, setRecommendRefreshing] = useState(false)
@@ -335,7 +341,13 @@ export default function Report() {
   useEffect(() => {
     fetch(`/api/lifecycle/${USER_ID}`)
       .then(r => r.json())
-      .then(data => setLifecycle(data))
+      .then(data => {
+        setLifecycle(data)
+        fetch(`/api/lifecycle/${USER_ID}/peers`)
+          .then(r => r.json())
+          .then(setPeers)
+          .catch(() => setPeers([]))
+      })
       .catch(() => setLifecycle({ life_stage_code: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' }))
 
     fetch(`/api/users/${USER_ID}/persona`)
@@ -436,11 +448,6 @@ export default function Report() {
     ? timeList.reduce((a, b) => a.pct > b.pct ? a : b)
     : null
 
-  const [selectedCat, setSelectedCat] = useState(null)
-  const [catDeselected, setCatDeselected] = useState(false)
-  const [catWeek, setCatWeek] = useState('전체')
-  const [timeWeek, setTimeWeek] = useState('전체')
-
   if (loading) return (
     <div className="flex flex-col h-full">
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
@@ -538,6 +545,22 @@ export default function Report() {
     <div className="flex flex-col h-full">
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
+      {expandedPeer && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setExpandedPeer(null)}
+        >
+          <div className="flex flex-col items-center gap-3">
+            <img
+              src={expandedPeer.avatar_img_url}
+              alt={expandedPeer.avatar_name}
+              className="w-64 h-64 rounded-2xl object-cover shadow-2xl"
+            />
+            <p className="text-white font-bold text-base drop-shadow">{expandedPeer.avatar_name}</p>
+          </div>
+        </div>
+      )}
+
       {isEmptyMonth && (
         <EmptyMonthModal
           year={selectedYear}
@@ -573,7 +596,7 @@ export default function Report() {
 
         {/* ① 소비 리포트 (월 총액) */}
         <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
-          <p className="text-xs text-gray-400 mb-1">📊 {selectedYear}년 {selectedMonth}월 총 소비</p>
+          <p className="text-xs text-gray-500 font-semibold mb-1">📊 {selectedYear}년 {selectedMonth}월 총 소비</p>
           <span className="text-2xl font-extrabold text-gray-900">
             {txData ? txData.payment_out.toLocaleString() : '-'}원
           </span>
@@ -586,6 +609,42 @@ export default function Report() {
             </div>
           )}
         </div>
+
+        {/* 생애주기 */}
+        {lifecycle && lifecycle.life_stage_code && lifecycle.life_stage_code !== '생애주기 없음' && (() => {
+          const LIFECYCLE_EMOJI = {
+            '십대': '🧑‍🎓', '대학생': '🎓', '사회초년생': '💼', '신혼': '💍',
+            '자녀영유아': '🍼', '자녀의무교육': '🏫', '자녀대학생': '📚',
+            '중년기타': '⛳', '2nd Life': '🌅', '은퇴': '🏡',
+          }
+          const emoji = LIFECYCLE_EMOJI[lifecycle.life_stage_code] ?? '🧬'
+          return (
+            <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
+              <p className="text-xs text-gray-500 font-semibold mb-2">👤 나의 소비 생애주기</p>
+              <div className="flex items-center gap-2">
+                <span className="text-base shrink-0">{emoji}</span>
+                <p className="text-base font-bold text-gray-900">{lifecycle.life_stage_code}</p>
+              </div>
+              {peers.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-[10px] text-gray-400 mb-2">같은 생애주기 유저</p>
+                  <div className="flex gap-3 justify-center">
+                    {peers.map((peer, i) => (
+                      <div key={i} className="flex flex-col items-center gap-1" onClick={() => setExpandedPeer(peer)}>
+                        <img
+                          src={peer.avatar_img_url}
+                          alt={peer.avatar_name}
+                          className="w-14 h-14 rounded-xl object-cover border border-gray-100 cursor-pointer active:scale-95 transition-transform"
+                        />
+                        <p className="text-[10px] text-gray-500 text-center max-w-[56px] truncate">{peer.avatar_name}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* 주간 목표 달성 현황 AlertBoard */}
         <AlertBoard />
