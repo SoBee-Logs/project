@@ -61,14 +61,6 @@ function FeedPost({ post, onToggleLike, personaImage }) {
             >
               ›
             </button>
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
-              {images.map((_, i) => (
-                <span
-                  key={i}
-                  className={`w-1.5 h-1.5 rounded-full ${i === currentIndex ? 'bg-white' : 'bg-white/50'}`}
-                />
-              ))}
-            </div>
           </>
         )}
 
@@ -90,6 +82,17 @@ function FeedPost({ post, onToggleLike, personaImage }) {
           </svg>
         </button>
       </figure>
+
+      {images.length > 1 && (
+        <div className="flex justify-center gap-1.5 py-2">
+          {images.map((_, i) => (
+            <span
+              key={i}
+              className={`rounded-full transition-all ${i === currentIndex ? 'w-4 h-1.5 bg-gray-700' : 'w-1.5 h-1.5 bg-gray-300'}`}
+            />
+          ))}
+        </div>
+      )}
 
       <section className="px-4 py-3 text-left">
         <div className="flex items-start justify-between gap-2 mb-2">
@@ -192,8 +195,10 @@ export default function Feed() {
 
   return (
     <main className="min-h-full bg-[#F3F4F6]">
-      <StatusBar />
-      <RoomTabs activeRoom={activeRoom} onChange={setActiveRoom} showAdd />
+      <div className="sticky top-0 z-10 bg-white">
+        <StatusBar />
+        <RoomTabs activeRoom={activeRoom} onChange={setActiveRoom} showAdd />
+      </div>
 
       <section className="py-3 pb-4">
         {isLoading ? (
