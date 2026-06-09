@@ -31,6 +31,7 @@ export default function CameraPage() {
   const [gpsError, setGpsError] = useState(null)
   const vlmPromiseRef = useRef(null)
   const fileInputRef = useRef(null)
+  const albumInputRef = useRef(null)
 
  // 홈에서 group 정보 못 받아왔을때 groups api 호출해서 방 정보 가져오기
   useEffect(() => {
@@ -68,7 +69,6 @@ export default function CameraPage() {
       { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
     )
   }, [])
-
   const toggleRoom = (roomId) => {
     setSelectedRooms((prev) =>
       prev.includes(roomId) ? prev.filter((id) => id !== roomId) : [...prev, roomId]
@@ -235,10 +235,7 @@ export default function CameraPage() {
       </header>
 
       <section className="flex-1 overflow-y-auto px-5 pb-8 space-y-6">
-        <figure
-          className="w-full aspect-square rounded-3xl bg-[#E8E8E8] m-0 relative flex flex-col justify-end items-center pb-6 cursor-pointer"
-          onClick={() => fileInputRef.current?.click()}
-        >
+        <figure className="w-full h-70 rounded-3xl bg-white border-2 border-dashed border-gray-200 m-0 relative flex flex-col justify-center items-center gap-3.5 pb-1">
           {previewUrl ? (
             <img
               src={previewUrl}
@@ -246,19 +243,30 @@ export default function CameraPage() {
               className="absolute inset-0 w-full h-full object-cover rounded-3xl"
             />
           ) : (
-            <span className="relative flex items-center gap-8 text-2xl z-10">
-              <span>⚡</span>
-              <span>📷</span>
-            </span>
+            <>
+              <svg className="mt-4" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#93C5FD" strokeWidth="1.5">
+                <polyline points="16 16 12 12 8 16" />
+                <line x1="12" y1="12" x2="12" y2="21" />
+                <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+              </svg>
+              <p className="text-[15px] font-bold text-gray-800">사진 업로드</p>
+              <p className="text-[13px] text-gray-400">사진을 업로드 해주세요.</p>
+
+              <div className="flex gap-3 mt-6">
+                <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageChange} />
+                <button type="button" onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center gap-1.5 px-4 py-2 rounded-2xl bg-gray-100 text-[10px] text-gray-600 font-medium">
+                  <span className="text-sm">📷 카메라</span>
+                </button>
+
+                <input ref={albumInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                <button type="button" onClick={() => albumInputRef.current?.click()}
+                  className="flex flex-col items-center gap-1.5 px-4 py-2 rounded-2xl bg-gray-100 text-[10px] text-gray-600 font-medium">
+                  <span className="text-sm">🖼️ 앨범</span>
+                </button>
+              </div>
+            </>
           )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={handleImageChange}
-          />
         </figure>
 
         {gpsLoading && (
@@ -371,7 +379,7 @@ export default function CameraPage() {
           </div>
         )}
 
-        <label className="block text-left mt-2">
+        <label className="block text-left mt-4">
           <span className="text-[15px] font-bold text-gray-900 mb-2 block">텍스트</span>
           <input
             type="text"
@@ -385,7 +393,7 @@ export default function CameraPage() {
 
         <section className="text-left">
           <p className="text-[15px] font-bold text-gray-900 mb-4">소비 기분</p>
-          <ul className="flex justify-between list-none p-0 m-0 px-1">
+          <ul className="flex justify-between list-none p-0 m-0">
             {MOOD_EMOJIS.map((emoji, i) => (
               <li key={i}>
                 <button
