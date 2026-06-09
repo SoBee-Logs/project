@@ -95,11 +95,10 @@ function FeedPost({ post, onToggleLike, personaImage }) {
         <div className="flex items-start justify-between gap-2 mb-2">
           <h3 className="text-base font-bold text-gray-900 m-0">{post.title}</h3>
         </div>
-        {post.diaryLines.map((line, i) => (
-          <p key={i} className="text-sm text-gray-700 leading-relaxed m-0 mb-1">
-            {line}
-          </p>
-        ))}
+        <p className="text-sm text-gray-700 leading-relaxed m-0">
+          {post.diaryLines.join(' ')}
+        </p>
+
         <div className="flex items-center justify-between mt-2">
           <p className="text-xs text-gray-400 m-0">좋아요 {post.likes}개</p>
           <time className="text-[10px] text-gray-400 whitespace-nowrap">{post.date} {post.time}</time>
