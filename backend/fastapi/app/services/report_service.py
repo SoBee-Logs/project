@@ -202,7 +202,8 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         avatar_week_num = (avatar_date.day + adjusted_first - 1) // 7 + 1
         week_num = avatar_week_num - 1
     else:
-        today_obj = datetime.now().date()
+        from zoneinfo import ZoneInfo
+        today_obj = datetime.now(ZoneInfo("Asia/Seoul")).date()
         week_num = (today_obj.day + adjusted_first - 1) // 7 + 1 - 1
 
     if week_num < 1:
