@@ -4,6 +4,7 @@ import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import StatusBar from '../../common/components/StatusBar'
 import { jwtDecode } from 'jwt-decode'
+import calendarIcon from '../../assets/calendar_icon.png'
 
 
 const toLocalDateStr = (date) => {
@@ -22,6 +23,7 @@ export default function ConsumptionLog() {
   const [isLoading, setIsLoading] = useState(true)
   const [showCalendar, setShowCalendar] = useState(false)
   const [selectedDate, setSelectedDate] = useState(toLocalDateStr(new Date()))
+  const [tempDate, setTempDate] = useState(new Date())
   const [joinedAt, setJoinedAt] = useState(null)
   const isToday = selectedDate === toLocalDateStr(new Date())
 
@@ -96,7 +98,12 @@ export default function ConsumptionLog() {
   }
 
   const handleDateChange = (date) => {
-    setSelectedDate(toLocalDateStr(date))
+    if (date > today) return
+    setTempDate(date)
+  }
+
+  const handleConfirmDate = () => {
+    setSelectedDate(toLocalDateStr(tempDate))
     setShowCalendar(false)
   }
 
@@ -117,7 +124,7 @@ export default function ConsumptionLog() {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="flex items-center justify-center w-8 h-8 -ml-1 mb-2 text-gray-800"
+          className="flex items-center justify-center w-8 h-8 -ml-2 mb-2 text-gray-800"
           aria-label="뒤로가기"
         >
           <span className="text-[22px] leading-none">‹</span>
@@ -127,41 +134,381 @@ export default function ConsumptionLog() {
         </p>
         <button
           type="button"
-          onClick={() => setShowCalendar(true)}
-          className="mt-1.5 inline-flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1 border border-gray-200"
+          onClick={() => {
+            setTempDate(new Date(selectedDate + 'T00:00:00'))
+            setShowCalendar(true)
+          }}
+          className="mt-2 flex items-center rounded-full border"
+          style={{
+            width: 'fit-content',
+            padding: '8px 14px 8px 10px',
+            gap: '10px',
+            background: '#F3F8FF',
+            borderColor: '#DCEBFF',
+            boxShadow: '0 4px 12px rgba(31, 122, 224, 0.06)',
+          }}
         >
-          <span className="text-[11px]">📅</span>
-          <span className="text-[11px] text-gray-500">{toKoreanLabel(selectedDate)}</span>
+          <img
+            src={calendarIcon}
+            alt="날짜 선택"
+            className="w-[28px] h-[28px] object-contain shrink-0"
+          />
+
+          <span
+            style={{
+              width: '1px',
+              height: '20px',
+              background: '#D6E8FF',
+              flexShrink: 0,
+            }}
+          />
+
+          <span
+            className="text-[12px] font-semibold"
+            style={{
+              color: '#253858',
+              letterSpacing: '-0.3px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {toKoreanLabel(selectedDate)}
+          </span>
         </button>
       </header>
 
       {showCalendar && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-6"
+          className="fixed inset-0 z-50 flex items-center justify-center px-6"
+          style={{ background: 'rgba(0, 0, 0, 0.42)' }}
           onClick={() => setShowCalendar(false)}
         >
           <div
-            className="bg-white rounded-3xl p-6 w-full max-w-[340px] shadow-2xl"
+            className="calendar-modal"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-[15px] font-bold text-gray-900 mb-4 text-center">📅 날짜 선택</p>
+            <div className="calendar-modal-header">
+              <div className="calendar-title-wrap">
+                <div className="calendar-icon">
+                  <img
+                    src={calendarIcon}
+                    alt="날짜 선택"
+                    className="w-[40px] h-[40px] object-contain"
+                  />
+                </div>
+                <div>
+                  <h2 className="calendar-title">날짜 선택</h2>
+                  <p className="calendar-desc">
+                    소비 로그를 확인할 날짜를 선택하세요
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="calendar-close"
+                onClick={() => setShowCalendar(false)}
+                aria-label="닫기"
+              >
+                ×
+              </button>
+            </div>
+
             <Calendar
               onChange={handleDateChange}
-              value={new Date(selectedDate + 'T00:00:00')}
-              maxDate={today}
+              value={tempDate}
               minDate={joinedAt ?? undefined}
               locale="ko-KR"
               calendarType="gregory"
               formatDay={(locale, date) => date.getDate()}
+              prev2Label={null}
+              next2Label={null}
+              prevLabel={<span className="calendar-arrow">‹</span>}
+              nextLabel={<span className="calendar-arrow">›</span>}
+              navigationLabel={({ date }) => (
+                <span className="calendar-month-label">
+                  {date.getFullYear()}년 {date.getMonth() + 1}월
+                </span>
+              )}
             />
-            <button
-              type="button"
-              onClick={() => setShowCalendar(false)}
-              className="w-full mt-4 py-3 rounded-2xl bg-gray-100 text-[13px] text-gray-600 font-semibold"
-            >
-              취소
-            </button>
+
+            <div className="calendar-actions">
+              <button
+                type="button"
+                className="calendar-cancel"
+                onClick={() => setShowCalendar(false)}
+              >
+                취소
+              </button>
+
+              <button
+                type="button"
+                className="calendar-confirm"
+                onClick={handleConfirmDate}
+              >
+                선택 완료
+              </button>
+            </div>
           </div>
+
+          <style>{`
+            .calendar-modal {
+              width: 100%;
+              max-width: 340px;
+              background: #FFFFFF;
+              border-radius: 28px;
+              padding: 24px 22px 22px;
+              box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+            }
+
+            .calendar-modal-header {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              margin-bottom: 22px;
+            }
+
+            .calendar-title-wrap {
+              display: flex;
+              align-items: flex-start;
+              gap: 10px;
+            }
+
+            .calendar-icon {
+              width: 45px;
+              height: 45px;
+              border-radius: 12px;
+              background: #EBF5FF;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              flex-shrink: 0;
+              }
+
+            .calendar-title {
+              margin: 0;
+              font-size: 22px;
+              font-weight: 800;
+              color: #111827;
+              line-height: 1.15;
+              letter-spacing: -0.8px;
+            }
+
+            .calendar-desc {
+              margin: 8px 0 0;
+              font-size: 12px;
+              font-weight: 500;
+              color: #6B7280;
+              line-height: 1.3;
+              letter-spacing: -0.3px;
+            }
+
+            .calendar-close {
+              width: 38px;
+              height: 38px;
+              border: 0;
+              border-radius: 18px;
+              background: #F3F6FA;
+              color: #7B8494;
+              font-size: 30px;
+              line-height: 1;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              cursor: pointer;
+              padding: 0 0 5px;
+            }
+
+            .calendar-modal .react-calendar {
+              width: 100%;
+              border: none;
+              font-family: inherit;
+              background: transparent;
+            }
+
+            .calendar-modal .react-calendar__navigation {
+              height: 54px;
+              display: grid;
+              grid-template-columns: 50px 1fr 50px;
+              align-items: center;
+              margin-bottom: 12px;
+            }
+
+            .calendar-modal .react-calendar__navigation button {
+              min-width: 0;
+              height: 44px;
+              border: none;
+              border-radius: 14px;
+              background: #EEF6FF;
+              color: #93C5FD;
+              font-size: 22px;
+              font-weight: 800;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              padding: 0;
+            }
+
+            .calendar-modal .react-calendar__navigation button:enabled:hover,
+            .calendar-modal .react-calendar__navigation button:enabled:focus {
+              background: #DBEAFE;
+            }
+
+            .calendar-modal .react-calendar__navigation button:disabled {
+              background: #F5F7FA;
+              color: #CBD5E1;
+            }
+
+            .calendar-modal .react-calendar__navigation__label {
+              background: transparent !important;
+              color: #111827 !important;
+              pointer-events: none;
+            }
+
+            .calendar-month-label {
+              font-size: 21px;
+              font-weight: 800;
+              color: #111827;
+              letter-spacing: -0.7px;
+            }
+
+            .calendar-modal .react-calendar__month-view__weekdays {
+              margin-bottom: 8px;
+            }
+
+            .calendar-modal .react-calendar__month-view__weekdays__weekday {
+              padding: 0;
+              text-align: center;
+              font-size: 13px;
+              font-weight: 800;
+              color: #6B7280;
+            }
+
+            .calendar-modal .react-calendar__month-view__weekdays__weekday abbr {
+              text-decoration: none;
+            }
+
+            .calendar-modal .react-calendar__month-view__weekdays__weekday:first-child {
+              color: #EF4444;
+            }
+
+            .calendar-modal .react-calendar__month-view__weekdays__weekday:last-child {
+              color: #93C5FD;
+            }
+
+            .calendar-modal .react-calendar__month-view__days {
+              row-gap: 6px;
+            }
+
+            .calendar-modal .react-calendar__tile {
+              height: 44px;
+              padding: 0;
+              background: transparent;
+              border: none;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: #111827;
+              font-size: 15px;
+              font-weight: 700;
+            }
+
+            .calendar-modal .react-calendar__tile abbr {
+              width: 36px;
+              height: 36px;
+              border-radius: 9999px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: #FFFFFF;
+              border: 1.5px solid #DBEAFE;
+              box-shadow: 0 2px 8px rgba(147, 197, 253, 0.15);
+            }
+
+            .calendar-modal .react-calendar__tile:enabled:hover,
+            .calendar-modal .react-calendar__tile:enabled:focus {
+              background: transparent;
+            }
+
+            .calendar-modal .react-calendar__tile:enabled:hover abbr,
+            .calendar-modal .react-calendar__tile:enabled:focus abbr {
+              background: #EEF6FF;
+              color: #60A5FA;
+              border-color: #BFDBFE;
+            }
+
+            .calendar-modal .react-calendar__tile--active {
+              background: transparent !important;
+            }
+
+            .calendar-modal .react-calendar__tile--active abbr {
+              background: #00BFFF !important;
+              color: #FFFFFF !important;
+              border-color: #00BFFF !important;
+              box-shadow: 0 8px 18px rgba(0, 191, 255, 0.35);
+            }
+
+            .calendar-modal .react-calendar__tile--now {
+              background: transparent;
+            }
+
+            .calendar-modal .react-calendar__tile--now abbr {
+              border-color: #BFDBFE;
+              color: #60A5FA;
+            }
+
+            .calendar-modal .react-calendar__month-view__days__day--neighboringMonth abbr {
+              background: transparent !important;
+              border: 1.5px solid transparent !important;
+              box-shadow: none !important;
+              color: #CBD5E1 !important;
+            }
+
+            .calendar-modal .react-calendar__month-view__days__day--weekend {
+              color: #111827;
+            }
+
+            .calendar-modal .react-calendar__month-view__days__day--weekend:nth-child(7n + 1) {
+              color: #EF4444;
+            }
+
+            .calendar-modal .react-calendar__month-view__days__day--weekend:nth-child(7n) {
+              color: #93C5FD;
+            }
+
+            .calendar-modal .react-calendar__tile:disabled abbr {
+              background: #F3F5F7 !important;
+              color: #C1C7D0 !important;
+              border-color: #F3F5F7 !important;
+              box-shadow: none !important;
+            }
+
+            .calendar-actions {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 12px;
+              margin-top: 22px;
+            }
+
+            .calendar-cancel,
+            .calendar-confirm {
+              height: 54px;
+              border: none;
+              border-radius: 22px;
+              font-size: 15px;
+              font-weight: 800;
+              cursor: pointer;
+            }
+
+            .calendar-cancel {
+              background: #F3F5F7;
+              color: #334155;
+            }
+
+            .calendar-confirm {
+              background: #00BFFF;
+              color: #FFFFFF;
+              box-shadow: 0 8px 18px rgba(0, 191, 255, 0.3);
+          `}</style>
         </div>
       )}
 
@@ -194,12 +541,12 @@ export default function ConsumptionLog() {
                     <div className="flex flex-col gap-1 mt-1">
                       {tags.map((tag, i) => (
                         <span
-                        key={i}
-                        className="text-[10px] font-semibold text-[#185FA5] bg-[#EBF5FF] rounded-full text-center block"
-                        style={{ width: '52px', padding: '1px 0' }}
-                      >
-                        {tag}
-                      </span>
+                          key={i}
+                          className="text-[10px] font-semibold text-[#185FA5] bg-[#EBF5FF] rounded-full text-center block"
+                          style={{ width: '52px', padding: '1px 0' }}
+                        >
+                          {tag}
+                        </span>
                       ))}
                     </div>
                   </div>
