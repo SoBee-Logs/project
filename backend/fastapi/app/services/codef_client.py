@@ -66,7 +66,7 @@ async def _post(
     endpoint: str,
     payload: dict,
     stop_on: set[str] | None = None,
-) -> dict | None:
+) -> dict | list | None:
     url = f"{settings.CODEF_BASE_URL}{endpoint}"
     async with session.post(
         url,
@@ -74,11 +74,15 @@ async def _post(
         json=payload,
     ) as res:
         data = json.loads(unquote(await res.text()))
+        if isinstance(data, list):
+            return data
         code = data.get("result", {}).get("code", "")
         # errorList 안의 코드도 확인 (CF-04000 래퍼 내부에 실제 오류 코드 포함)
         error_codes = {code}
-        for err in data.get("data", {}).get("errorList", []):
-            error_codes.add(err.get("code", ""))
+        data_field = data.get("data", {})
+        if isinstance(data_field, dict):
+            for err in data_field.get("errorList", []):
+                error_codes.add(err.get("code", ""))
         if stop_on and error_codes & stop_on:
             raise CodefRateLimitError(
                 f"CODEF 호출 중단 ({error_codes & stop_on}): {endpoint}"
@@ -233,10 +237,7 @@ async def fetch_card_transactions(
     })
     if not data:
         return []
-    if isinstance(data, list):
-        txs = data
-    else:
-        txs = data.get("resApprovalList", data.get("resList", []))
+    txs = data if isinstance(data, list) else [data]
     for tx in txs:
         tx["_org"] = org_code
     return txs
