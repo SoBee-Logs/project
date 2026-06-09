@@ -26,6 +26,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'com.mysql:mysql-connector-j'
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+	implementation 'org.imgscalr:imgscalr-lib:4.2'  // 업로드 되는 사진의 용량 줄이는데 사용
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 	implementation 'software.amazon.awssdk:s3:2.25.11'
