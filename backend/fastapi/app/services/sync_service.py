@@ -801,14 +801,15 @@ async def sync_transactions(
     except Exception as e:
         log.error(f"카테고리 매핑 실패 (sync는 정상 완료): {e}")
 
-    # 생애주기 예측 — 매핑 완료 후 트랜잭션 기반으로 예측 → users.life_stage_code 저장
+    # 생애주기 예측 — 초기 sync(30일)일 때만 실행
     lifecycle_result = {}
-    try:
-        lifecycle_resp = await predict_lifecycle(LifecycleRequest(user_id=user_id))
-        lifecycle_result = {"life_stage_code": lifecycle_resp.life_stage_code}
-        log.info(f"생애주기 예측 완료: user={user_id} → {lifecycle_resp.life_stage_code}")
-    except Exception as e:
-        log.error(f"생애주기 예측 실패 (sync는 정상 완료): {e}")
+    if days >= INITIAL_SYNC_DAYS:
+        try:
+            lifecycle_resp = await predict_lifecycle(LifecycleRequest(user_id=user_id))
+            lifecycle_result = {"life_stage_code": lifecycle_resp.life_stage_code}
+            log.info(f"생애주기 예측 완료: user={user_id} → {lifecycle_resp.life_stage_code}")
+        except Exception as e:
+            log.error(f"생애주기 예측 실패 (sync는 정상 완료): {e}")
 
     return {
         "user_id": user_id,
