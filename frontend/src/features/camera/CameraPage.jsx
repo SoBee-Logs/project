@@ -129,7 +129,12 @@ export default function CameraPage() {
     }
   }
 
-  const handleNext = async () => {
+  const hasUploaded = useRef(false) 
+
+ const handleNext = async () => {
+  if (hasUploaded.current) return  // 추가 : 중복 업로드 방지
+  hasUploaded.current = true  // 추가
+
     if (selectedRooms.length === 0 || !imageFile) return
 
     setIsLoading(true)
