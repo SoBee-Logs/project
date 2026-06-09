@@ -106,7 +106,7 @@ export default function ReportDetail() {
   return (
     <div className="flex flex-col h-full">
       <AppBar title="리포트 상세" onBack={() => navigate('/report/monthly', { state: { year, month } })} />
-    <div className="flex flex-col gap-4 pt-4 px-4 pb-24 overflow-y-auto flex-1">
+      <div className="flex flex-col gap-4 pt-4 px-4 pb-24 overflow-y-auto flex-1">
 
       <div className="flex items-center gap-2">
         <span className="text-sm font-bold text-gray-700">{year}년 {month}월 상세 리포트</span>
@@ -214,7 +214,7 @@ export default function ReportDetail() {
           )
         }
       </div>
-    </div>
+      </div>
     </div>
   )
 }
