@@ -206,10 +206,10 @@ def _get_mime_type(filename: str) -> str:
     ext = filename.lower().rsplit(".", 1)[-1]
     return {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(ext, "image/jpeg")
 
-
+#503 에러 대비 : 재시도로직 추가
 async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str, max_retries: int = 2) -> dict:
     image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-
+    
     for attempt in range(max_retries):
         try:
             start = time.time()
@@ -244,10 +244,12 @@ async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str, max_r
                 return {"error": "JSON 파싱 실패", "raw_response": content[:200]}
 
         except Exception as e:
+            # 503 등 서버 에러면 재시도
             if attempt < max_retries - 1:
                 print(f"[Gemini] 오류 발생 (attempt={attempt+1}), 3초 후 재시도: {e}")
-                time.sleep(3)
+                time.sleep(1)
                 continue
+            # 마지막 시도도 실패하면 에러 반환
             print(f"[Gemini] 최종 실패: {e}")
             return {"error": f"Gemini 호출 실패: {str(e)}"}
 
