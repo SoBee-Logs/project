@@ -240,7 +240,13 @@ export default function CameraPage() {
       </header>
 
       <section className="flex-1 overflow-y-auto px-5 pb-8 space-y-6">
-        <figure className="w-full h-70 rounded-3xl bg-white border-2 border-dashed border-gray-200 m-0 relative flex flex-col justify-center items-center gap-3.5 pb-1">
+        <figure
+          className={`w-full h-70 rounded-3xl bg-white m-0 relative flex flex-col justify-center items-center gap-3.5 pb-1 overflow-hidden ${
+            previewUrl
+              ? 'border-0'
+              : 'border-2 border-dashed border-gray-200'
+          }`}
+        >
           {previewUrl ? (
             <img
               src={previewUrl}
@@ -392,7 +398,11 @@ export default function CameraPage() {
             onChange={(e) => setText(e.target.value)}
             placeholder="사진에 대해 설명해주세요!"
             maxLength={50}
-            className="w-full px-4 py-3.5 rounded-2xl bg-[#F0F0F0] border-0 text-[14px] text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-300"
+            className="w-full px-4 py-2.5 rounded-2xl border text-[14px] text-gray-700 placeholder:text-[#8EA4C2] focus:outline-none focus:ring-2 focus:ring-[#BBD8FF]"
+            style={{
+              background: '#F3F8FF',
+              borderColor: '#DCEBFF',
+            }}
           />
         </label>
 
@@ -415,7 +425,7 @@ export default function CameraPage() {
           </ul>
         </section>
 
-        <section className="text-left">
+       <section className="text-left">
           <p className="text-[15px] font-bold text-gray-900 mb-3">모임 선택</p>
           <ul className="flex gap-3 overflow-x-auto list-none p-0 m-0 pb-1">
             {rooms.length === 0 ? (
@@ -428,16 +438,31 @@ export default function CameraPage() {
                     <button
                       type="button"
                       onClick={() => toggleRoom(room.id)}
-                      className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-[#F0F0F0] min-w-[100px]"
+                      className="flex items-center gap-2 px-4 py-3 rounded-2xl border min-w-[100px]"
+                      style={{
+                        background: checked ? '#E7F1FF' : '#F3F8FF',
+                        borderColor: checked ? '#8CBFFF' : '#DCEBFF',
+                        boxShadow: checked
+                          ? '0 4px 12px rgba(31, 122, 224, 0.10)'
+                          : 'none',
+                      }}
                     >
-                      <span className="text-[14px] font-bold text-[#3B82F6]">{room.label}</span>
                       <span
-                        className={`w-5 h-5 rounded border-2 border-dashed flex items-center justify-center ${
-                          checked ? 'border-[#3B82F6] bg-sky-50' : 'border-[#3B82F6]/50'
-                        }`}
+                        className="text-[14px] font-bold"
+                        style={{ color: '#1F7AE0' }}
+                      >
+                        {room.label}
+                      </span>
+
+                      <span
+                        className="w-5 h-5 rounded-md border-2 border-dashed flex items-center justify-center"
+                        style={{
+                          borderColor: checked ? '#1F7AE0' : 'rgba(31, 122, 224, 0.45)',
+                          background: checked ? '#FFFFFF' : 'transparent',
+                        }}
                       >
                         {checked && (
-                          <span className="text-[10px] text-[#3B82F6] font-bold">✓</span>
+                          <span className="text-[10px] text-[#1F7AE0] font-bold">✓</span>
                         )}
                       </span>
                     </button>
