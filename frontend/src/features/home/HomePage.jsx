@@ -132,11 +132,11 @@ export default function Home() {
               }} />
               
               {/* 검색바 오버레이 */}
-              <div className="absolute top-4 left-0 right-0 z-20 px-3 flex items-center gap-2">
+              <div className="absolute top-3 left-0 right-0 z-20 px-3 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => navigate('/search')}
-                  className="flex-1 flex items-center gap-2 rounded-2xl px-4 py-1.5 text-left cursor-pointer"
+                  className="flex-1 flex items-center gap-2 rounded-2xl px-4 py-1 text-left cursor-pointer"
                   style={{ background: 'rgba(240,246,255,0.85)' }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#21BCEA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
@@ -145,7 +145,7 @@ export default function Home() {
                   </svg>
                   <span className="text-[11px] flex-1" style={{ color: '#0073BC' }}>궁금한 걸 자유롭게 물어보세요!</span>
                 </button>
-                <button type="button" onClick={() => setSettingsOpen(true)} className="w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer border-0" style={{ background: 'rgba(240,246,255,0.85)' }}>
+                <button type="button" onClick={() => setSettingsOpen(true)} className="w-7.5 h-7.5 rounded-2xl flex items-center justify-center shrink-0 cursor-pointer border-0" style={{ background: 'rgba(240,246,255,0.85)' }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0073BC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -227,10 +227,10 @@ export default function Home() {
             }}
           >
             <div className="px-4 pt-4">
-              <span className="block text-[13px] font-bold leading-tight" style={{ color: '#FFFFFF' }}>
+              <span className="block text-[15px] font-bold leading-tight" style={{ color: '#FFFFFF' }}>
                 카메라
               </span>
-              <span className="block text-[11px] font-bold leading-tight mt-2.5" style={{ color: '#FFFFFF' }}>
+              <span className="block text-[11px] font-bold leading-tight mt-2" style={{ color: '#FFFFFF' }}>
                 소비 사진을 찍어주세요!
               </span>
             </div>
@@ -264,8 +264,8 @@ export default function Home() {
                 overflow: 'visible',
               }}
             >
-              <span className="block text-[12px] font-bold leading-tight self-start pt-1" style={{ color: '#003B72' }}>
-                나의<br />소비 로그
+              <span className="block text-[13px] font-bold leading-tight self-start pt-2" style={{ color: '#003B72' }}>
+                소비 로그
               </span>
               <img
                 src={receiptHalo}
@@ -292,7 +292,7 @@ export default function Home() {
                 overflow: 'visible',
               }}
             >
-              <span className="block text-[12px] font-bold leading-tight self-start pt-1" style={{ color: '#003B72' }}>
+              <span className="block text-[13px] font-bold leading-tight self-start pt-2" style={{ color: '#003B72' }}>
                 상품 추천
               </span>
               <img
