@@ -198,10 +198,10 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
 
   return (
     <>
-      <nav className="flex items-center bg-white border-b border-gray-100">
+      <nav className="flex items-center bg-white border-b border-gray-100 px-4 py-2 gap-2">
         <div
           ref={scrollRef}
-          className={`flex flex-1 overflow-x-auto scrollbar-hide ${dragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+          className={`flex flex-1 gap-2 overflow-x-auto scrollbar-hide ${dragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
@@ -214,24 +214,30 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
                 key={room.id}
                 type="button"
                 onClick={() => handleTabClick(room.id)}
-                className={`shrink-0 px-4 py-2.5 text-sm font-medium relative ${
-                  active ? 'text-[#0083CA]' : 'text-gray-400'
+                className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                  active
+                    ? 'font-bold'
+                    : 'bg-gray-100 text-gray-400 border-transparent'
                 }`}
+                style={active ? {
+                  background: '#F3F8FF',
+                  borderColor: '#DCEBFF',
+                  color: '#1F5FAE',
+                  boxShadow: '0 3px 10px rgba(31, 122, 224, 0.05)',
+                } : {}}
               >
                 {room.label}
-                {active && (
-                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#0083CA] rounded-full" />
-                )}
               </button>
             )
           })}
         </div>
+
         {showAdd && (
-          <div className="relative shrink-0 pr-2">
+          <div className="relative shrink-0">
             <button
               type="button"
               onClick={() => setShowAddMenu(!showAddMenu)}
-              className="w-8 h-8 shrink-0 flex items-center justify-center text-gray-500 text-xl font-light"
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 text-xl font-light"
             >+</button>
             {showAddMenu && (
               <div style={{
