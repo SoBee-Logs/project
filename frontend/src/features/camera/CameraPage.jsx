@@ -438,12 +438,14 @@ export default function CameraPage() {
         <button
           type="button"
           onClick={handleNext}
-          disabled={selectedRooms.length === 0 || !imageFile || isLoading}
+          disabled={selectedRooms.length === 0 || !imageFile || isLoading || vlmLoading}
           className="w-full py-3.5 rounded-2xl bg-[#38BDF8] text-white font-bold text-[15px] disabled:opacity-40 mt-2"
         >
           {isLoading
             ? (loadingStep === 'analyze' ? '분석 중...' : '업로드 중...')
-            : '다음'}
+            : vlmLoading
+              ? 'AI 분석 중...'
+              : '다음'}
         </button>
       </section>
     </main>
