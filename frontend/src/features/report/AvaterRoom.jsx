@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getUserId } from '../../common/hooks/useAuth'
 import defaultAvatar from '../../assets/image 61.png'
+import { MousePointerClick } from 'lucide-react'
 
 function getFirstWeekday(year, month) {
   return (new Date(year, month - 1, 1).getDay() + 6) % 7
@@ -54,7 +55,7 @@ function getWeekDateRange(year, month, weekLabel) {
   if (isNaN(w)) return ''
   const adjustedFirst = getFirstWeekday(year, month)
   const startDate = new Date(year, month - 1, (w - 1) * 7 - adjustedFirst + 1)
-  const endDate   = new Date(year, month - 1, w * 7 - adjustedFirst)
+  const endDate = new Date(year, month - 1, w * 7 - adjustedFirst)
   const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`
   return `${fmt(startDate)}~${fmt(endDate)}`
 }
@@ -258,7 +259,6 @@ export default function AvaterRoom() {
       changeReason?.time ||
       changeReason?.item
 
-    // DB의 avatar_change_reason이 있으면 그 값을 그대로 우선 반영
     if (hasChangeReason) {
       return [
         {
@@ -297,7 +297,6 @@ export default function AvaterRoom() {
       ]
     }
 
-    // avatar_change_reason이 없을 때만 기존 주차별 데이터로 카드 생성
     const items = []
 
     const topEmotion = getTopEmotionByWeek()
@@ -367,6 +366,7 @@ export default function AvaterRoom() {
           }}
         />
       )}
+
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden bg-white">
         {/* 아바타 이미지 영역 */}
         <section
@@ -488,12 +488,27 @@ export default function AvaterRoom() {
               )}
             </div>
 
-            {/* 로딩 */}
-            {loading && (
-              <div className="absolute inset-0 z-30 bg-black/20 backdrop-blur-[1px] flex items-center justify-center">
-                <div className="px-4 py-2 rounded-full bg-white/90 text-[#1e73be] text-sm font-bold shadow">
-                  불러오는 중...
-                </div>
+            {/* 확장 상태 페르소나 카드 */}
+            {!isEmptyMonth && hasWeekAvatar && (
+              <div
+                className="absolute left-6 bottom-[110px] z-20 transition-opacity duration-500"
+                style={{
+                  opacity: isExpanded ? 1 : 0,
+                  pointerEvents: 'none',
+                }}
+              >
+                <h2
+                  className="m-0 font-extrabold leading-tight break-keep"
+                  style={{
+                    fontSize: '25px',
+                    color: '#FFFFFF',
+                    letterSpacing: '-0.8px',
+                    textShadow: '0 2px 8px rgba(11, 1, 7, 0.3)',
+                    fontWeight: 1000,
+                  }}
+                >
+                  {avatarName}
+                </h2>
               </div>
             )}
 
@@ -502,15 +517,16 @@ export default function AvaterRoom() {
               className="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-500 z-20"
               style={{
                 opacity: isExpanded ? 1 : 0,
+                paddingTop: '90px',
               }}
             >
               {hasWeekAvatar ? (
-                <div className="mt-28 px-4 py-2 rounded-full bg-black/35 text-white backdrop-blur-sm flex items-center gap-2 animate-pulse">
-                  <span className="text-[15px]">👆</span>
-                  <span className="text-sm font-semibold">화면을 터치해보세요</span>
+                <div className="mt-2 px-4 py-2 rounded-full bg-black/35 text-white backdrop-blur-sm flex items-center gap-2 animate-pulse">
+                  <MousePointerClick className="w-4 h-4 shrink-0" />
+                  <span className="text-sm font-semibold">페르소나를 터치해보세요</span>
                 </div>
               ) : (
-                <div className="mt-28 px-4 py-2 rounded-full bg-black/20 text-white backdrop-blur-sm flex items-center gap-2">
+                <div className="mt-2 px-4 py-2 rounded-full bg-black/20 text-white backdrop-blur-sm flex items-center gap-2">
                   <span className="text-sm font-semibold">
                     {isCurrentWeek
                       ? '페르소나를 만들고 있어요. 다음주에 만나요 🐝'
@@ -520,38 +536,91 @@ export default function AvaterRoom() {
               )}
             </div>
 
-            {/* 확장 상태 하단 타이틀 + 소비 리포트 버튼 */}
+            {/* 확장 상태 하단 소비 리포트 버튼 */}
             <div
-              className="absolute bottom-0 left-0 w-full px-5 pt-20 pb-6 bg-gradient-to-t from-black/85 via-black/45 to-transparent transition-opacity duration-500 z-20"
+              className="absolute bottom-0 left-0 w-full px-6 pt-24 pb-6 bg-gradient-to-t from-black/55 via-black/15 to-transparent transition-opacity duration-500 z-20"
               style={{
                 opacity: isExpanded ? 1 : 0,
                 pointerEvents: isExpanded ? 'auto' : 'none',
               }}
             >
-              {!isEmptyMonth && hasWeekAvatar && (
-                <h2 className="text-white text-[26px] font-extrabold mb-4 leading-tight break-keep">
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      background: 'rgba(0,0,0,0.45)',
-                      borderRadius: '8px',
-                      padding: '6px 10px',
-                      backdropFilter: 'blur(2px)',
-                      lineHeight: 1,
-                    }}
-                  >{avatarName}</span>
-                </h2>
-              )}
-
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   navigate('/report/monthly', { state: { year: selectedYear, month: selectedMonth } })
                 }}
-                className="w-full py-3.5 rounded-2xl bg-white/95 text-[#1e73be] font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl active:scale-[0.98] transition-transform"
+                className="w-full rounded-[28px] bg-white/95 flex items-center gap-3 active:scale-[0.98] transition-transform"
+                style={{
+                  padding: '11px 13px',
+                  boxShadow: '0 14px 34px rgba(15, 23, 42, 0.20)',
+                  border: '1px solid rgba(220, 235, 255, 0.9)',
+                  backdropFilter: 'blur(8px)',
+                }}
               >
-                <span>📊</span>
-                <span>소비 리포트 보기</span>
+                <span
+                  className="w-[52px] h-[52px] rounded-[16px] flex items-center justify-center shrink-0"
+                  style={{
+                    background: 'linear-gradient(135deg, #6EA8FF 0%, #2F7DF6 100%)',
+                    boxShadow: '0 8px 18px rgba(47, 125, 246, 0.25)',
+                  }}
+                >
+                  <svg
+                    width="27"
+                    height="27"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 19V10" />
+                    <path d="M12 19V5" />
+                    <path d="M19 19v-7" />
+                  </svg>
+                </span>
+
+                <span className="flex-1 min-w-0 text-left">
+                  <span
+                    className="block text-[18px] font-extrabold leading-tight"
+                    style={{
+                      color: '#2F7DF6',
+                      letterSpacing: '-0.6px',
+                    }}
+                  >
+                    소비 리포트 보기
+                  </span>
+                  <span
+                    className="block text-[12px] font-medium mt-0.5 truncate"
+                    style={{
+                      color: '#6B7280',
+                      letterSpacing: '-0.3px',
+                    }}
+                  >
+                    이번 주 소비를 한눈에 확인해요
+                  </span>
+                </span>
+
+                <span
+                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                  style={{
+                    background: '#F3F8FF',
+                    color: '#2F7DF6',
+                  }}
+                >
+                  <svg
+                    width="19"
+                    height="19"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </span>
               </button>
             </div>
           </div>
@@ -566,7 +635,6 @@ export default function AvaterRoom() {
             pointerEvents: isExpanded ? 'none' : 'auto',
           }}
         >
-
           <div className="h-full flex flex-col pt-4 pb-2">
             {!hasWeekAvatar ? (
               <div className="flex-1 flex items-center justify-center">
@@ -577,42 +645,42 @@ export default function AvaterRoom() {
                 </p>
               </div>
             ) : (
-            <>
-            <div className="text-center mb-4">
-              {!isEmptyMonth && (
-                <h2 className="text-[18px] font-extrabold text-gray-900 leading-tight break-keep line-clamp-1">
-                  {avatarName}
-                </h2>
-              )}
+              <>
+                <div className="text-center mb-4">
+                  {!isEmptyMonth && (
+                    <h2 className="text-[18px] font-extrabold text-gray-900 leading-tight break-keep line-clamp-1">
+                      {avatarName}
+                    </h2>
+                  )}
 
-              {descText && (
-                <p className="text-gray-500 text-[11px] mt-0.5 leading-snug break-keep line-clamp-2">
-                  {descText}
-                </p>
-              )}
-            </div>
+                  {descText && (
+                    <p className="text-gray-500 text-[11px] mt-0.5 leading-snug break-keep line-clamp-2">
+                      {descText}
+                    </p>
+                  )}
+                </div>
 
-            <div className="grid grid-cols-2 gap-1.5 flex-1">
-              {detailsData.map((item, idx) => (
-                <article
-                  key={`${item.title}-${idx}`}
-                  className="flex flex-col px-2.5 pt-1.5 pb-1.5 rounded-[18px] bg-gray-50 border border-gray-100 shadow-sm active:scale-[0.98] transition-transform"
-                >
-                  <div className="w-8 h-8 shrink-0 bg-white rounded-full flex items-center justify-center text-base shadow-sm border border-gray-100/50 mb-1.5">
-                    {item.emoji}
-                  </div>
+                <div className="grid grid-cols-2 gap-1.5 flex-1">
+                  {detailsData.map((item, idx) => (
+                    <article
+                      key={`${item.title}-${idx}`}
+                      className="flex flex-col px-2.5 pt-1.5 pb-1.5 rounded-[18px] bg-gray-50 border border-gray-100 shadow-sm active:scale-[0.98] transition-transform"
+                    >
+                      <div className="w-8 h-8 shrink-0 bg-white rounded-full flex items-center justify-center text-base shadow-sm border border-gray-100/50 mb-1.5">
+                        {item.emoji}
+                      </div>
 
-                  <h3 className="font-extrabold text-gray-900 text-[12.5px] mb-1 leading-tight break-keep">
-                    {item.title}
-                  </h3>
+                      <h3 className="font-extrabold text-gray-900 text-[12.5px] mb-1 leading-tight break-keep">
+                        {item.title}
+                      </h3>
 
-                  <p className="text-gray-500 text-[10.5px] leading-snug break-keep overflow-hidden">
-                    {item.desc}
-                  </p>
-                </article>
-              ))}
-            </div>
-            </>
+                      <p className="text-gray-500 text-[10.5px] leading-snug break-keep overflow-hidden">
+                        {item.desc}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </section>
