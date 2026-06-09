@@ -48,3 +48,25 @@ async def get_mapped_transactions_with_vlm(user_id: int, start_date: str, end_da
             )
             rows = await cur.fetchall()
     return [dict(row) for row in rows]
+
+
+async def get_photo_emotions_by_taken_at(user_id: int, start_date: str, end_date: str) -> list[tuple]:
+    """기간 내(taken_at 기준) 매핑된 사진들의 (감정 enum 이름, 촬영시각) 조회.
+    리포트 주차별 감정 집계(weekly_top_emotion)와 동일한 모집단 — 사진 단위 1행.
+    start_date, end_date: 'YYYY-MM-DD' 형식 문자열"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                """
+                SELECT et.emoji AS mood, pm.taken_at
+                FROM (SELECT DISTINCT photo_id FROM persona_transaction WHERE user_id = %s) pt
+                JOIN photo_metadata pm ON pt.photo_id = pm.photo_id
+                JOIN emotions_text et ON pt.photo_id = et.photo_id
+                WHERE DATE(pm.taken_at) BETWEEN %s AND %s
+                  AND et.emoji IS NOT NULL AND et.emoji != ''
+                """,
+                (user_id, start_date, end_date),
+            )
+            rows = await cur.fetchall()
+    return [(r["mood"], r["taken_at"]) for r in rows]

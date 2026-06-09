@@ -1,5 +1,6 @@
 from app.services.lifecycle_service import engine
 from app.core.constants import MOOD_NAME_TO_EMOJI
+from app.core.emotion import pick_top_mood_name
 from sqlalchemy import text
 import pandas as pd
 from datetime import datetime, timedelta
@@ -310,27 +311,28 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         if not all_mapped_df.empty:
             all_mapped_df['week_label'] = all_mapped_df['taken_date'].apply(classify_week)
 
-        # 감정별 집계 (taken_at 기준)
+        # 감정별 집계 (taken_at 기준) — 사진 단위 1행, 동률 시 최근 사진 우선(avatar와 공유 규칙)
         emotion_df = pd.read_sql(text("""
-            SELECT DATE(pm.taken_at) AS taken_date, et.emoji
+            SELECT MAX(pm.taken_at) AS taken_at, et.emoji
             FROM (SELECT DISTINCT photo_id FROM persona_transaction WHERE user_id = :user_id) pt
             JOIN photo_metadata pm ON pt.photo_id = pm.photo_id
             JOIN emotions_text et ON pt.photo_id = et.photo_id
             WHERE DATE(pm.taken_at) BETWEEN :start AND :end
               AND et.emoji IS NOT NULL AND et.emoji != ''
-            GROUP BY pt.photo_id, et.emoji, DATE(pm.taken_at)
+            GROUP BY pt.photo_id, et.emoji
         """), engine, params={
             "user_id": user_id,
             "start": first_day_obj.strftime("%Y-%m-%d"),
             "end":   last_day_obj.strftime("%Y-%m-%d"),
         })
         if not emotion_df.empty:
-            emotion_df['week_label'] = emotion_df['taken_date'].apply(classify_week)
+            emotion_df['taken_at'] = pd.to_datetime(emotion_df['taken_at'])
+            emotion_df['week_label'] = emotion_df['taken_at'].dt.date.apply(classify_week)
             for week in week_order:
                 week_em = emotion_df[emotion_df['week_label'] == week]
                 if not week_em.empty:
                     counts = week_em['emoji'].value_counts()
-                    top_mood = counts.idxmax()
+                    top_mood = pick_top_mood_name(zip(week_em['emoji'], week_em['taken_at']))
                     total = len(all_mapped_df[all_mapped_df['week_label'] == week]) if not all_mapped_df.empty else len(week_em)
                     weekly_top_emotion[week] = {
                         "emoji": MOOD_EMOJI.get(top_mood, top_mood),
