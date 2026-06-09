@@ -17,13 +17,20 @@ from langsmith import traceable
 from langsmith.wrappers import wrap_openai
 
 from app.core.config import settings
-from app.core.constants import MOOD_EXPRESSION_EN, MOOD_KO
+from app.core.constants import MOOD_EXPRESSION_EN, MOOD_KO, MOOD_NAME_TO_EMOJI
 from app.core.prompt_store import register, get_prompt
-from app.db.transaction_repository import get_transactions_by_date_range, get_mapped_transactions_with_vlm
+from app.db.transaction_repository import (
+    get_transactions_by_date_range, get_mapped_transactions_with_vlm,
+    get_photo_emotions_by_taken_at,
+)
+from app.core.emotion import pick_top_mood_name
 from app.db.user_repository import update_user_avatar, get_user_life_stage
 from app.services.ai_insight_service import LIFE_STAGE_KO
 from app.services.category_mapping_service import STANDARD_CATEGORIES
 from app.models.schemas import AvatarRequest, AvatarResponse
+
+import logging
+log = logging.getLogger(__name__)
 
 _AVATAR_PROMPT = """
 Preserve the mascot's core identity — body colors (sky blue upper, yellow lower), wings, antennae, and overall silhouette — from the reference image.
@@ -78,6 +85,7 @@ Personality vibe (derived from the user's most frequently used emoji): {personal
 4. PROPS: ONE iconic prop the character is holding or interacting with.
    Must represent the user's actual consumed item: {top_items}.
    Choose the single most visually iconic object from the item name above.
+   If the item above is empty, ambiguous, or hard to depict, fall back to a category-based prop: {props_hint}.
    Immediately recognizable. Occupies less than 15% of the image area.
    Never cover the bee mascot's body.
 
@@ -425,9 +433,10 @@ async def _analyze_persona(
 @traceable(name="아바타 생성", project_name="sobee-avatar")
 async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str) -> AvatarResponse:
     # 1. DB 병렬 조회
-    transactions, mapped, life_stage_code_raw = await asyncio.gather(
+    transactions, mapped, photo_emotions, life_stage_code_raw = await asyncio.gather(
         get_transactions_by_date_range(user_id, start_date, end_date),
         get_mapped_transactions_with_vlm(user_id, start_date, end_date),
+        get_photo_emotions_by_taken_at(user_id, start_date, end_date),
         get_user_life_stage(user_id),
     )
     if not transactions:
@@ -440,11 +449,13 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
     # 2. VLM 데이터 추출
     vlm_items = list(dict.fromkeys(r["vlm_item_name"] for r in mapped if r.get("vlm_item_name")))
     vlm_descriptions = [r["vlm_description"] for r in mapped if r.get("vlm_description")]
-    emoji_counts: dict[str, int] = defaultdict(int)
-    for r in mapped:
-        if r.get("emoji"):
-            emoji_counts[r["emoji"]] += 1
-    emoji = max(emoji_counts, key=emoji_counts.get) if emoji_counts else None
+    # 감정 집계: 리포트 주차별 감정(weekly_top_emotion)과 동일한 모집단(taken_at 기준, 사진 단위)·
+    # 동일한 동률 규칙(최빈, 동률 시 최근 사진 우선)을 공유 함수로 적용해 화면 표기와 통일한다.
+    top_mood = pick_top_mood_name(photo_emotions)  # emotions_text.emoji는 enum 이름(HAPPY/SAD...)
+    # enum 이름 → 실제 이모지 글자 변환 (report_service와 동일 규칙). 미등록 enum이면 경고 후 무시.
+    if top_mood and top_mood not in MOOD_NAME_TO_EMOJI:
+        log.warning(f"[avatar] 알 수 없는 감정 enum: {top_mood!r} (user_id={user_id})")
+    emoji = MOOD_NAME_TO_EMOJI.get(top_mood) if top_mood else None
     has_vlm = bool(vlm_items or emoji)
 
     # 3. 페르소나 핵심 요소 추출
@@ -465,7 +476,6 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
         consumption_habit=f"Top spending category: {top_category}. Key consumed item: {top_items}.",
         time_pattern=TIME_SLOTS.get(dominant_slot, {}).get("en", dominant_slot),
         personality=f"{face_vibe} vibe. {life_stage_vibe}.",
-        top_category=top_category,
         props_hint=props_hint,
         emoji=face_expression,
         top_items=top_items,
