@@ -23,7 +23,7 @@ export default function DiaryResult() {
 
   const diary = diaries[roomIndex]
   const bodyText = diary
-    ? [diary.subtitle, ...(diary.diaryLines ?? [])].filter(Boolean).join('\n\n')
+    ? (diary.diaryLines ?? []).filter(Boolean).join(' ')
     : ''
 
   useEffect(() => {
@@ -314,7 +314,7 @@ export default function DiaryResult() {
               </svg>
             </button>
           </header>
-          <p className="text-[13px] text-gray-500 m-0 whitespace-pre-line leading-relaxed">
+          <p className="text-[13px] text-gray-500 m-0 leading-relaxed">
             {bodyText}
           </p>
         </article>
