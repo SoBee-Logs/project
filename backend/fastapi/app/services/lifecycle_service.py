@@ -10,8 +10,6 @@ except Exception:
     lifecycle_model = None
     ML_AVAILABLE = False
 from app.core.config import settings
-from google import genai
-from google.genai import types
 
 _MODEL_PATH = Path(__file__).resolve().parents[2] / "ml" / "model.pkl"
 
@@ -40,31 +38,6 @@ LIFECYCLE_KO = {
     'SECLIFE':    '2nd Life',
     'RETIR':      '은퇴',
 }
-
-
-def _generate_lifecycle_description(lifecycle_label: str, top_categories: list) -> str:
-    """Gemini를 사용해 생애주기 설명 1~2문장 생성. 실패 시 fallback 반환."""
-    try:
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        top_str = ", ".join(top_categories)
-        prompt = (
-            f"사용자의 주요 소비 카테고리는 {top_str}야. "
-            f"금액은 절대 언급하지 말고, 이 소비 패턴을 보고 왜 '{lifecycle_label}'인지 "
-            f"1~2문장으로 친근하게 설명해줘. "
-            f"마지막은 반드시 '~{lifecycle_label}으로 분석됐어요!' 로 끝내줘. "
-            f"예시: '친구들과 돈 주고받을 때 펌뱅킹이나 FB이체를 많이 활용하고, 든든한 한식을 즐겨 먹는 전형적인 소비 패턴이라 대학생으로 분석됐어요!'"
-        )
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_budget=0)
-            ),
-        )
-        return response.text.strip()
-    except Exception:
-        top_str = "과 ".join(top_categories[:2]) if top_categories else "일상 소비"
-        return f"주요 소비가 {top_str}에 집중되어 있어 '{lifecycle_label}'으로 분석됐어요!"
 
 
 # ─────────────────────────────────────────
@@ -124,18 +97,9 @@ async def predict_lifecycle(request: LifecycleRequest) -> LifecycleResponse:
             "user_id":         user_id
         })
 
-    # 카테고리별 지출 TOP 3 분석
-    cat_col = 'payment_category' if 'payment_category' in df_tx.columns else 'payment_category_id'
-    category_summary = df_tx.groupby(cat_col)['payment_out'].sum()
-    top3 = category_summary.nlargest(3)
-    top3_names = [str(cat) for cat, _ in top3.items()]
-
-    # Gemini로 자연어 설명 생성
-    description = _generate_lifecycle_description(result['lifecycle_label'], top3_names)
-
     return LifecycleResponse(
         life_stage_code=result["lifecycle_label"],
-        description=description,
+        description=f"'{result['lifecycle_label']}' 패턴으로 분류된 소비 성향을 가지고 있어요.",
         confidence=result["confidence"],
     )
 
