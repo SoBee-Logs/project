@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import RoomTabs from '../../common/components/RoomTabs'
 import StatusBar from '../../common/components/StatusBar'
 import beeImage from '../../assets/image 61.png'
+import calendarIcon from '../../assets/calendar_icon.png'
 
 const mapDiaryToPost = (item) => ({
   id: item.diaryId,
@@ -24,6 +25,15 @@ const mapDiaryToPost = (item) => ({
   matchedPhotoIds: item.matchedPhotoIds || [],
 })
 
+const formatFeedDate = (dateStr) => {
+  if (!dateStr || dateStr === '날짜 없음') return dateStr
+
+  const [year, month, day] = dateStr.split('-').map(Number)
+  if (!year || !month || !day) return dateStr
+
+  return `${year}년 ${month}월 ${day}일`
+}
+
 function FeedPost({ post, onToggleLike, personaImage }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const images = post.imageUrls || []
@@ -42,24 +52,41 @@ function FeedPost({ post, onToggleLike, personaImage }) {
         </span>
       </header>
 
-      <figure className="m-0 w-full aspect-square bg-gray-100 relative overflow-hidden">
+      <figure className="m-0 w-full aspect-square bg-gray-100 relative group overflow-hidden">
         {images.length > 0 && (
-          <img src={images[currentIndex]} alt="" className="w-full h-full object-cover" />
+          <img
+            src={images[currentIndex]}
+            alt=""
+            className="w-full h-full object-cover"
+          />
         )}
 
         {images.length > 1 && (
           <>
             <button
-              onClick={() => setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 flex items-center justify-center shadow text-base"
+              type="button"
+              onClick={() =>
+                setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)
+              }
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 flex items-center justify-center shadow text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+              aria-label="이전 이미지"
             >
-              ‹
+              <span className="text-[24px] leading-none -translate-y-[3px]">
+                ‹
+              </span>
             </button>
+
             <button
-              onClick={() => setCurrentIndex((prev) => (prev + 1) % images.length)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 flex items-center justify-center shadow text-base"
+              type="button"
+              onClick={() =>
+                setCurrentIndex((prev) => (prev + 1) % images.length)
+              }
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 flex items-center justify-center shadow text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+              aria-label="다음 이미지"
             >
-              ›
+              <span className="text-[24px] leading-none -translate-y-[3px]">
+                ›
+              </span>
             </button>
           </>
         )}
@@ -88,7 +115,14 @@ function FeedPost({ post, onToggleLike, personaImage }) {
           {images.map((_, i) => (
             <span
               key={i}
-              className={`rounded-full transition-all ${i === currentIndex ? 'w-4 h-1.5 bg-gray-700' : 'w-1.5 h-1.5 bg-gray-300'}`}
+              className={`rounded-full transition-all ${
+                i === currentIndex 
+                  ? 'w-4 h-1.5' 
+                  : 'w-1.5 h-1.5'
+              }`}
+              style={{
+                background: i === currentIndex ? '#2F7DF6' : '#DCEBFF'
+              }}
             />
           ))}
         </div>
@@ -194,13 +228,13 @@ export default function Feed() {
   }, {})
 
   return (
-    <main className="min-h-full bg-[#F3F4F6]">
+    <main className="min-h-full bg-[#F5F7FB]">
       <div className="sticky top-0 z-10 bg-white">
         <StatusBar />
         <RoomTabs activeRoom={activeRoom} onChange={setActiveRoom} showAdd />
       </div>
 
-      <section className="py-3 pb-4">
+      <section className="py-1 pb-4">
         {isLoading ? (
           <p className="text-center text-sm text-gray-400 py-12">불러오는 중...</p>
         ) : posts.length === 0 ? (
@@ -210,11 +244,46 @@ export default function Feed() {
         ) : (
           Object.entries(groupedPosts).map(([date, datePosts]) => (
             <div key={date}>
-              <div className="flex items-center gap-3 px-4 py-2">
-                <div className="flex-1 h-px bg-gray-300" />
-                <span className="text-[11px] text-gray-400 font-medium shrink-0">📅 {date}</span>
-                <div className="flex-1 h-px bg-gray-300" />
+              <div className="flex items-center gap-3 px-4 py-1.5">
+                <div
+                  className="flex-1 h-px"
+                  style={{ background: '#DCEBFF' }}
+                />
+
+                <div
+                  className="flex items-center rounded-full border shrink-0"
+                  style={{
+                    padding: '5px 12px 5px 8px',
+                    gap: '7px',
+                    background: '#F3F8FF',
+                    borderColor: '#DCEBFF',
+                    boxShadow: '0 3px 10px rgba(31, 122, 224, 0.05)',
+                  }}
+                >
+                  <img
+                    src={calendarIcon}
+                    alt=""
+                    className="w-[20px] h-[20px] object-contain shrink-0"
+                  />
+
+                  <span
+                    className="text-[11px] font-bold"
+                    style={{
+                      color: '#1F5FAE',
+                      letterSpacing: '-0.2px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {formatFeedDate(date)}
+                  </span>
+                </div>
+
+                <div
+                  className="flex-1 h-px"
+                  style={{ background: '#DCEBFF' }}
+                />
               </div>
+
               {datePosts.map((post) => (
                 <FeedPost
                   key={post.id}
