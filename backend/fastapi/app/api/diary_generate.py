@@ -50,35 +50,22 @@ SYSTEM_PROMPT_TEMPLATE = """\
 1. 전체 한국어로 작성.
 2. {line_guide}
 3. 문장은 짧고 간결하게. 한 문장에 너무 많은 내용 넣지 말 것.
-   - 좋은 예: "오늘 점심 부찌 ㄹㅇ 맛남", "라면사리까지 존맛 🔥", "지갑은 털렸지만 행복함 ㅠㅠ"
-   - 나쁜 예: "오늘 부대찌개를 먹었는데 국물이 칼칼하고 라면사리까지 추가해서 배가 너무 불렀다"
 4. 이모지·ㅋㅋ·ㅠㅠ 자연스럽게 1-2개씩.
 5. 유행어·줄임말은 전체 기준 2~3개만. 억지로 넣지 말 것.
-   - 줄임말 예시: 아아, 뜨아, 스벅, 파바, 맥날, 배민, 올영, 코노, 엽떡, 삼김, 넷플, 피방, 부찌, 포카, 스카
-   - 소비 표현: 긁었다, 질렀다, 결제 갈김, 지갑 털림, 탕진, 합리화 완료, 가성비, 가심비
-   - 감탄 표현: ㄹㅇ, 찐, 레전드, 존맛, 미쳤다, 실화냐, 홀리몰리
-   - 무드 표현: 갬성, 사진각, 인스타각, 소확행, 힐링
-6. "~을 샀습니다" 같은 기계적 표현 절대 금지. 감정·장면 위주로.
-7. 사용자 기분이 일기 전체 톤에 자연스럽게 배어나도록 써.
-   - 기분을 직접 언급하지 말고 문체와 표현에 녹여낼 것.
-   - 설레는 기분이면 들뜬 표현, 슬픈 기분이면 쓸쓸한 뉘앙스로.
-8. 아래 JSON만 출력 (마크다운 백틱 제외).
+   - 소비 표현: 긁었다, 질렀다, 지갑 털림, 탕진, 합리화 완료, 가성비
+   - 감탄 표현: ㄹㅇ, 찐, 존맛, 미쳤다, 실화냐
+6. "~을 샀습니다" 같은 기계적 표현 절대 금지.
+7. 사용자 기분·메모의 말투를 일기 전체 톤에 자연스럽게 녹여줘.
+   - 메모가 짧고 구어체면 일기도 그 느낌으로.
+   - 감탄사·줄임말이 있으면 그 에너지를 살려서 써.
+   - 기분을 직접 언급하지 말고 문체에 녹여낼 것.
+8. 욕설·비속어는 사용하지 않는다. 단, "미쳤다", "레전드", "존맛" 등 일반적인 감탄 표현은 허용.
+9. 아래 JSON만 출력 (마크다운 백틱 제외).
 
-[좋은 예시 - 식당]
+[예시]
 "오늘 점심 부찌 ㄹㅇ 맛남"
 "라면사리까지 존맛 🔥"
 "지갑 털렸는데 후회 없음 ㅋㅋ"
-"다음에 또 올듯"
-
-[좋은 예시 - 카페]
-"스벅 신메뉴 또 질러버림 😅"
-"비주얼은 합격"
-"맛도 ㄹㅇ 괜찮았음"
-
-[좋은 예시 - 쇼핑]
-"올영 들어갔다가 탈탈 털림 ㅠㅠ"
-"세일이라 합리화 완료"
-"근데 진짜 잘 샀음 ㅋㅋ"
 
 {{
   "title": "제목 (이모지 1개 포함, 10자 이내, 임팩트 있게)",
@@ -93,9 +80,9 @@ USER_PROMPT_TEMPLATE = """\
 - Category: {category}
 - Amount paid: {price} KRW
 - Store: {store_name}
-- User mood: {mood_label} ({mood})
+- User mood: {mood} (사진 순서대로 각 사진의 기분 이모지, 공백 구분)
 - User memo: {emotion_text}
-- Group theme / context: {group_description}
+- Group theme: {group_description}
 - Room writing theme: {room_theme}
 - AI photo analysis: {description}
 
@@ -107,13 +94,12 @@ Write a JSON consumption diary based on the above.
 USER_PROMPT_UNMATCHED_TEMPLATE = """\
 [주의] 이 사진은 결제 내역과 아직 연결되지 않은 소비 사진이에요.
 item, price, store 정보를 사실인 것처럼 언급하거나 추측하지 마세요.
-AI 사진 분석(description)과 사용자 감정·메모만을 근거로,
-소비 장면과 감정 위주의 일기를 작성해주세요.
+AI 사진 분석과 사용자 감정·메모만을 근거로 소비 장면과 감정 위주의 일기를 작성해주세요.
 
 [Photo & Mood Info]
-- User mood: {mood_label} ({mood})
+- User mood: {mood} (사진 순서대로 각 사진의 기분 이모지, 공백 구분)
 - User memo: {emotion_text}
-- Group theme / context: {group_description}
+- Group theme: {group_description}
 - Room writing theme: {room_theme}
 - AI photo analysis: {description}
 
@@ -150,22 +136,20 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
     is_matched = req.matched is True
     if is_matched:
         user_content = get_prompt("diary_user_matched").format(
-            item_name=req.item_name or "알 수 없음",
-            category=req.category or "기타",
-            price=f"{int(req.price):,}" if req.price is not None else "0",
-            store_name=req.store_name or "알 수 없음",
-            mood=req.mood or "",
-            mood_label=mood_label,
-            emotion_text=req.emotion_text or "없음",
-            group_description=req.group_description or "일반 소비",
-            room_theme=room_theme,
-            description=req.description or "특이사항 없음",
-        )
+        item_name=req.item_name or "알 수 없음",
+        category=req.category or "기타",
+        price=f"{int(req.price):,}" if req.price is not None else "0",
+        store_name=req.store_name or "알 수 없음",
+        mood=req.mood or "",
+        emotion_text=req.emotion_text or "없음",
+        group_description=req.group_description or "일반 소비",
+        room_theme=room_theme,
+        description=req.description or "특이사항 없음",
+    )
     else:
         # 미매핑: 결제 정보 없이 사진 분석·감정만으로 일기 생성
         user_content = get_prompt("diary_user_unmatched").format(
             mood=req.mood or "",
-            mood_label=mood_label,
             emotion_text=req.emotion_text or "없음",
             group_description=req.group_description or "일반 소비",
             room_theme=room_theme,
