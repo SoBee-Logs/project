@@ -126,14 +126,18 @@ Swagger에서 유저별로 개별 호출하는 용도입니다.
 """,
 )
 async def accounts_register(request: RegisterAccountRequest):
-    cid = await register_account(
-        user_id=request.user_id,
-        business_type=request.business_type,
-        org_code=request.org_code,
-        login_id=request.login_id,
-        login_pw=request.login_pw,
-        connected_id=request.connected_id,
-    )
+    from fastapi import HTTPException
+    try:
+        cid = await register_account(
+            user_id=request.user_id,
+            business_type=request.business_type,
+            org_code=request.org_code,
+            login_id=request.login_id,
+            login_pw=request.login_pw,
+            connected_id=request.connected_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     action = "기관 추가" if request.connected_id else "connected_id 발급"
     return RegisterAccountResponse(
         user_id=request.user_id,
