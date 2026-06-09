@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getUserId } from '../../common/hooks/useAuth'
+import AppBar from '../../common/components/AppBar'
 
 const CATEGORY_PALETTE = [
   '#1e73be', '#38BDF8', '#60a5fa', '#93c5fd', '#0ea5e9',
@@ -103,13 +104,14 @@ export default function ReportDetail() {
   const maxTotal = Math.max(...categoryList.map(c => c.total), 1)
  
   return (
-    // ✅ 스크롤 컨테이너에 ref 부착
-    <div className="flex flex-col gap-4 pt-4 px-4 pb-24 overflow-y-auto">
- 
+    <div className="flex flex-col h-full">
+      <AppBar title="리포트 상세" onBack={() => navigate('/report/monthly', { state: { year, month } })} />
+      <div className="flex flex-col gap-4 pt-4 px-4 pb-24 overflow-y-auto flex-1">
+
       <div className="flex items-center gap-2">
         <span className="text-sm font-bold text-gray-700">{year}년 {month}월 상세 리포트</span>
       </div>
- 
+
       <div className="rounded-2xl border border-gray-100 p-4 shadow-sm">
         <p className="text-xs text-gray-500 font-semibold mb-4">📊 카테고리별 소비</p>
         {categoryList.length === 0
@@ -211,6 +213,7 @@ export default function ReportDetail() {
             </div>
           )
         }
+      </div>
       </div>
     </div>
   )
