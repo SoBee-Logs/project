@@ -278,7 +278,10 @@ export default function Home() {
             {/* 상품 추천 카드 */}
             <button
               type="button"
-              onClick={() => navigate('/report', { state: { scrollTo: 'aiRecommend' } })}
+              onClick={() => {
+                const now = new Date()
+                navigate('/report/monthly', { state: { scrollTo: 'aiRecommend', year: now.getFullYear(), month: now.getMonth() + 1 } })
+              }}
               className="rounded-[18px] flex items-end justify-between cursor-pointer border-0 text-left relative"
               style={{
                 background: '#EBF5FF',
