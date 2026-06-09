@@ -1,7 +1,6 @@
-# Sobee FastAPI - B조 서버
+# Sobee FastAPI
 
-> B조 AI 기능 전용 FastAPI 서버입니다.
-> 아바타 생성, 금융상품 추천, 생애주기 예측 기능을 담당합니다.
+> AI 기능 전용 FastAPI 서버입니다.
 
 ---
 

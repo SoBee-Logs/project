@@ -104,7 +104,7 @@ async def accounts_available_orgs():
 @router.post(
     "/accounts/register",
     response_model=RegisterAccountResponse,
-    summary="금융기관 계정 직접 등록",
+    summary="금융기관 계정 직접 입력으로 등록 (codef_connected_id)",
     description="""
 유저가 본인의 `loginId` / `loginPw`를 직접 입력해 금융기관 계정을 CODEF에 등록합니다.
 Swagger에서 유저별로 개별 호출하는 용도입니다.
@@ -113,7 +113,7 @@ Swagger에서 유저별로 개별 호출하는 용도입니다.
 **connected_id 전달** → `/account/add`: 기존 connected_id에 기관 추가
 - 동일 인증수단(같은 ID/PW)으로 여러 기관을 하나의 connected_id로 묶을 때 사용
 
-등록 완료 후 최근 30일 트랜잭션 sync를 백그라운드로 트리거합니다.
+등록 완료 후 데이터 수집은 `POST /internal/transactions/sync`를 별도 호출하세요.
 `loginId` / `loginPw`는 CODEF에만 전달되며 서버에 저장되지 않습니다.
 
 **기관 코드 예시**
@@ -134,21 +134,20 @@ async def accounts_register(request: RegisterAccountRequest):
         login_pw=request.login_pw,
         connected_id=request.connected_id,
     )
-    asyncio.create_task(_trigger_airflow_sync(request.user_id, days=INITIAL_SYNC_DAYS))
     action = "기관 추가" if request.connected_id else "connected_id 발급"
     return RegisterAccountResponse(
         user_id=request.user_id,
         business_type=request.business_type,
         org_code=request.org_code,
         connected_id=cid,
-        message=f"{action} 완료. Airflow 초기 30일 sync 트리거됨.",
+        message=f"{action} 완료. 데이터 수집은 POST /internal/transactions/sync 를 호출하세요.",
     )
 
 
 @router.post(
     "/accounts/register-from-env",
     response_model=RegisterFromEnvResponse,
-    summary="CODEF 계정 등록 (ENV 기반, 팀원 테스트용)",
+    summary="금융기관 계정 env로 등록 (codef_connected_id)",
     description="""
 `.env`에 미리 저장된 팀원 공용 자격증명을 사용해 CODEF connected_id를 발급하고 AWS Secrets Manager에 저장합니다.
 유저가 직접 loginId/loginPw를 입력하지 않아도 되는 팀 내부 테스트 전용 엔드포인트입니다.
@@ -223,28 +222,6 @@ async def list_users():
 AWS Secrets Manager(`sobee/codef/{user_id}`)에 저장된 connected_id 목록과 각 connected_id에 등록된 기관 정보를 반환합니다.
 
 등록 상태 확인 및 디버깅 용도로 사용합니다.
-
-**응답 예시**
-```json
-{
-  "user_id": 114,
-  "connected_ids": [
-    {
-      "connected_id": "cid_abc123",
-      "institutions": [
-        {"businessType": "BK", "organization": "0020"},
-        {"businessType": "BK", "organization": "0088"}
-      ]
-    },
-    {
-      "connected_id": "cid_def456",
-      "institutions": [
-        {"businessType": "CD", "organization": "0306"}
-      ]
-    }
-  ]
-}
-```
 """,
 )
 async def accounts_list(user_id: int):
