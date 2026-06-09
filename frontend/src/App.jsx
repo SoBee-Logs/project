@@ -24,7 +24,7 @@ const routeConfig = [
   { path: '/home/detail',    element: <HomeDetail />,   bottomNav: false, floatingNav: false, appBar: true, title: '홈 상세' },
   { path: '/report',         element: <AvaterRoom />,   bottomNav: true,  floatingNav: false, appBar: false, noScroll: true, statusBar: true },
   { path: '/report/monthly', element: <Report />,       bottomNav: true,  floatingNav: false, appBar: false, statusBar: true },
-  { path: '/report/detail',  element: <ReportDetail />, bottomNav: false, floatingNav: false, appBar: true,  title: '리포트 상세' },
+  { path: '/report/detail',  element: <ReportDetail />, bottomNav: false, floatingNav: false, appBar: false },
   { path: '/feed',           element: <Feed />,         bottomNav: true,  floatingNav: false, appBar: false },
   { path: '/camera',         element: <CameraPage />,   bottomNav: false, floatingNav: false, appBar: false },
   { path: '/consumption-log',element: <ConsumptionLog />,bottomNav: false,floatingNav: false, appBar: false },
