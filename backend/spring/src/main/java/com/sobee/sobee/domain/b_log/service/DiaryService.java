@@ -40,6 +40,7 @@ public class DiaryService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final PhotoService photoService;
+    private final TransactionRepository transactionRepository; 
 
     @Value("${fastapi.base-url}/api/diary/generate")
     private String fastapiDiaryUrl;
@@ -125,9 +126,11 @@ public class DiaryService {
         .distinct()
         .collect(Collectors.joining(", "));
 
-        Integer totalPrice = allVlms.stream()
-        .filter(vlm -> vlm.getVlmPriceEstimate() != null)
-        .mapToInt(vlm -> vlm.getVlmPriceEstimate().intValue())
+        Integer actualPrice = matchedPhotos.stream()
+        .flatMap(p -> personaTransactionRepository.findByPhotoId(p.getPhotoId()).stream())
+        .mapToInt(pt -> transactionRepository.findByPaymentId(pt.getPaymentId())
+                .map(t -> t.getPaymentOut() != null ? t.getPaymentOut() : 0)
+                .orElse(0))
         .sum();
 
         String combinedStoreName = allVlms.stream()
@@ -163,7 +166,7 @@ public class DiaryService {
         FastApiDiaryRequest faReq = FastApiDiaryRequest.builder()
         .item_name(combinedItemName.isEmpty() ? null : combinedItemName)
         .category(combinedCategory.isEmpty() ? null : combinedCategory)
-        .price(totalPrice > 0 ? totalPrice : null)
+        .price(actualPrice > 0 ? actualPrice : null)
         .store_name(combinedStoreName.isEmpty() ? null : combinedStoreName)
         .description(combinedDescription.isEmpty() ? null : combinedDescription)
         .matched(matched)
