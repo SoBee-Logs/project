@@ -121,6 +121,21 @@ function CompanyLogo({ src, company, fallbackEmoji, size, bg }) {
     );
 }
 
+// ─── Skeleton Card ───────────────────────────────────────────────────────────
+function SkeletonCard() {
+    return (
+        <div style={{ background: "#fff", borderRadius: 16, padding: "16px", display: "flex", gap: 14, border: "1.5px solid #EEF1F5", marginBottom: 12 }}>
+            <style>{`@keyframes shimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }`}</style>
+            <div style={{ width: 72, height: 110, borderRadius: 8, flexShrink: 0, background: "linear-gradient(90deg,#EEF1F5 25%,#e0e4ea 50%,#EEF1F5 75%)", backgroundSize: "800px 100%", animation: "shimmer 1.2s infinite" }} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, justifyContent: "center" }}>
+                <div style={{ height: 14, borderRadius: 4, width: "65%", background: "linear-gradient(90deg,#EEF1F5 25%,#e0e4ea 50%,#EEF1F5 75%)", backgroundSize: "800px 100%", animation: "shimmer 1.2s infinite" }} />
+                <div style={{ height: 11, borderRadius: 4, width: "40%", background: "linear-gradient(90deg,#EEF1F5 25%,#e0e4ea 50%,#EEF1F5 75%)", backgroundSize: "800px 100%", animation: "shimmer 1.2s infinite" }} />
+                <div style={{ height: 11, borderRadius: 4, width: "85%", background: "linear-gradient(90deg,#EEF1F5 25%,#e0e4ea 50%,#EEF1F5 75%)", backgroundSize: "800px 100%", animation: "shimmer 1.2s infinite" }} />
+            </div>
+        </div>
+    );
+}
+
 // ─── Product Card ─────────────────────────────────────────────────────────────
 const TYPE_ICON = {
     card:      { emoji: "💳", bg: "linear-gradient(135deg, #2A7FD8, #0E3F78)" },
@@ -562,6 +577,7 @@ export default function ProductSearch() {
     const [query, setQuery] = useState(searchParams.get("q") || "");
     const [isSearched, setIsSearched] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isAiLoading, setIsAiLoading] = useState(false);
     const searchAbortRef = useRef(null);
     const scrollRef = useRef(null);
     const [activePage, setActivePage] = useState(searchParams.get("detail") ? "detail" : "search");
@@ -660,7 +676,10 @@ export default function ProductSearch() {
             if (e.name === "AbortError") return;
             setError("검색 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
         } finally {
-            if (!controller.signal.aborted) setIsLoading(false);
+            if (!controller.signal.aborted) {
+                setIsLoading(false);
+                setIsAiLoading(false);
+            }
         }
     };
 
@@ -797,10 +816,8 @@ export default function ProductSearch() {
             {/* Body */}
             <div ref={scrollRef} className="hide-scrollbar" style={{ flex: 1, overflowY: "scroll", padding: "16px 20px", paddingBottom: isSearched && aiText ? "90px" : "16px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 {isLoading ? (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12 }}>
-                        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                        <div style={{ width: 40, height: 40, borderRadius: "50%", border: `3px solid ${WOORI_GREEN}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
-                        <p style={{ fontSize: 13, color: "#8494A8", margin: 0 }}>AI가 분석 중이에요...</p>
+                    <div>
+                        {[0, 1, 2, 3].map(i => <SkeletonCard key={i} />)}
                     </div>
                 ) : error ? (
                     <div style={{ textAlign: "center", padding: "40px 0", color: "#8494A8", fontSize: 14 }}>
