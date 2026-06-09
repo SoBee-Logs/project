@@ -22,4 +22,5 @@ public class PhotoVlmResultRequest {
     private String address;        // 역지오코딩 주소
     private String taken_at;       // VLM이 EXIF에서 추출한 실제 촬영 일시 (매핑 날짜 기준으로 사용)
     private Object groups;         // VLM groups 배열 JSON으로 저장
+    private Boolean is_valid;  // 추가: 실제 소비 사진 여부
 }
