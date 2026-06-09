@@ -4,6 +4,7 @@ import com.sobee.sobee.domain.user.dto.UserPersonaDto;
 import com.sobee.sobee.domain.user.dto.UserRequestDto;
 import com.sobee.sobee.domain.user.entity.Avatar;
 import com.sobee.sobee.domain.user.entity.User;
+import com.sobee.sobee.domain.b_log.repository.DiaryRepository;
 import com.sobee.sobee.domain.user.repository.AvatarRepository;
 import com.sobee.sobee.domain.user.repository.UserRepository;
 import com.sobee.sobee.global.jwt.JwtUtil;
@@ -18,6 +19,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final AvatarRepository avatarRepository;
+    private final DiaryRepository diaryRepository;
     private final JwtUtil jwtUtil;
 
     public void register(UserRequestDto dto) {

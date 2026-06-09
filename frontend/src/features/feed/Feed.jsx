@@ -138,22 +138,19 @@ export default function Feed() {
         const mapped = data.map(mapDiaryToPost)
         setPosts(mapped)
 
-        // 각 작성자의 아바타 이미지를 개별 fetch (중복 요청 방지)
         const uniqueAuthorIds = [...new Set(mapped.map(p => p.authorId).filter(Boolean))]
-        uniqueAuthorIds.forEach(async (authorId) => {
-          try {
-            const r = await fetch(`/api/avatar/${authorId}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            })
-            if (!r.ok) return
-            const d = await r.json()
-            if (d.avatarImgUrl) {
-              setPersonaImages(prev => ({ ...prev, [authorId]: d.avatarImgUrl }))
-            }
-          } catch {
-            // 실패 시 기본 이미지 유지
-          }
+        const avatarResults = await Promise.all(
+          uniqueAuthorIds.map(authorId =>
+            fetch(`/api/avatar/${authorId}`, { headers: { Authorization: `Bearer ${token}` } })
+              .then(r => r.ok ? r.json() : null)
+              .catch(() => null)
+          )
+        )
+        const images = {}
+        uniqueAuthorIds.forEach((authorId, i) => {
+          if (avatarResults[i]?.avatarImgUrl) images[authorId] = avatarResults[i].avatarImgUrl
         })
+        setPersonaImages(images)
       } catch (err) {
         console.error('일기 목록 조회 실패', err)
       } finally {
