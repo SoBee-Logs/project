@@ -129,7 +129,7 @@ def _build_llm_prompt(items: list[dict]) -> str:
    [교육/학습(12) 고정 - 온라인쇼핑(3) 아님]
    - 클래스101, 밀리의서재, 리디북스, 웅진씽크빅, 해커스, Coursera → 교육/학습(12)
    - 스터디카페 → 교육/학습(12), 카페(2) 아님
-   - ANTHROPIC, PBC 등 소프트웨어/AI 구독
+   - ANTHROPIC, CLAUDE.AI, ChatGPT, OpenAI 등 AI 구독 → 문화/여가(7)
 
    [뷰티/미용(10) 고정 - 온라인쇼핑(3) 아님]
    - COSRX, 글로시박스 등 뷰티 브랜드 → 뷰티/미용(10)
