@@ -192,8 +192,10 @@ export default function Feed() {
 
   return (
     <main className="min-h-full bg-[#F3F4F6]">
-      <StatusBar />
-      <RoomTabs activeRoom={activeRoom} onChange={setActiveRoom} showAdd />
+      <div className="sticky top-0 z-10 bg-white">
+        <StatusBar />
+        <RoomTabs activeRoom={activeRoom} onChange={setActiveRoom} showAdd />
+      </div>
 
       <section className="py-3 pb-4">
         {isLoading ? (
