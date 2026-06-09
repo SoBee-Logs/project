@@ -22,6 +22,7 @@ export default function ConsumptionLog() {
   const [photos, setPhotos] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCalendar, setShowCalendar] = useState(false)
+  const [openGroupPhotoId, setOpenGroupPhotoId] = useState(null)
   const [selectedDate, setSelectedDate] = useState(toLocalDateStr(new Date()))
   const [tempDate, setTempDate] = useState(new Date())
   const [joinedAt, setJoinedAt] = useState(null)
@@ -88,11 +89,13 @@ export default function ConsumptionLog() {
     fetchPhotos()
   }, [selectedDate])
 
-  const getGroupHashtags = (groupIds) => {
+  const getGroupNames = (groupIds) => {
+    if (!Array.isArray(groupIds)) return []
+
     return groupIds
       .map((gid) => {
         const group = myGroups.find((g) => Number(g.groupId) === Number(gid))
-        return group ? `#${group.groupName}` : null
+        return group ? group.groupName : null
       })
       .filter(Boolean)
   }
@@ -209,21 +212,61 @@ export default function ConsumptionLog() {
                 onClick={() => setShowCalendar(false)}
                 aria-label="닫기"
               >
-                ×
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M18 6L6 18" />
+                  <path d="M6 6L18 18" />
+                </svg>
               </button>
             </div>
 
             <Calendar
               onChange={handleDateChange}
               value={tempDate}
+              maxDate={new Date()}
               minDate={joinedAt ?? undefined}
               locale="ko-KR"
               calendarType="gregory"
               formatDay={(locale, date) => date.getDate()}
               prev2Label={null}
               next2Label={null}
-              prevLabel={<span className="calendar-arrow">‹</span>}
-              nextLabel={<span className="calendar-arrow">›</span>}
+              prevLabel={
+                <svg
+                  className="calendar-arrow-icon"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M15 18L9 12L15 6" />
+                </svg>
+              }
+              nextLabel={
+                <svg
+                  className="calendar-arrow-icon"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M9 18L15 12L9 6" />
+                </svg>
+              }
               navigationLabel={({ date }) => (
                 <span className="calendar-month-label">
                   {date.getFullYear()}년 {date.getMonth() + 1}월
@@ -282,7 +325,7 @@ export default function ConsumptionLog() {
               align-items: center;
               justify-content: center;
               flex-shrink: 0;
-              }
+            }
 
             .calendar-title {
               margin: 0;
@@ -315,7 +358,8 @@ export default function ConsumptionLog() {
               align-items: center;
               justify-content: center;
               cursor: pointer;
-              padding: 0 0 5px;
+              padding: 0;
+              transform: translateY(0);
             }
 
             .calendar-modal .react-calendar {
@@ -346,6 +390,18 @@ export default function ConsumptionLog() {
               align-items: center;
               justify-content: center;
               padding: 0;
+            }
+
+            .calendar-arrow {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 100%;
+              height: 100%;
+              font-size: 24px;
+              font-weight: 800;
+              line-height: 1;
+              transform: translateY(-1px);
             }
 
             .calendar-modal .react-calendar__navigation button:enabled:hover,
@@ -508,6 +564,7 @@ export default function ConsumptionLog() {
               background: #00BFFF;
               color: #FFFFFF;
               box-shadow: 0 8px 18px rgba(0, 191, 255, 0.3);
+            }
           `}</style>
         </div>
       )}
@@ -515,7 +572,7 @@ export default function ConsumptionLog() {
       <div className="flex-1 overflow-y-auto px-5 pb-[140px] relative">
         {/* 수정: 타임라인 세로선 left 위치 조정 */}
         <span
-          className="absolute left-[82px] top-2 bottom-4 w-[1.5px] bg-gray-200 rounded-full"
+          className="absolute left-[108px] top-2 bottom-4 w-[1.5px] bg-gray-200 rounded-full"
           aria-hidden
         />
 
@@ -528,27 +585,148 @@ export default function ConsumptionLog() {
         ) : (
           <ul className="list-none m-0 p-0 pb-4">
             {photos.map((photo) => {
-              const tags = getGroupHashtags(photo.group)
+              const groups = getGroupNames(photo.group)
+              const firstGroup = groups[0]
+              const extraCount = Math.max(groups.length - 1, 0)
+              const isGroupOpen = openGroupPhotoId === photo.id
+
               return (
                 <li key={photo.id} className="flex gap-0 mb-6 relative items-start">
-                  {/* 수정: w-[68px]으로 넓힘 */}
-                  <div className="w-[68px] shrink-0 text-left pt-1">
+                  <div className="w-[90px] shrink-0 text-left pt-1">
                     <span className="block text-[12px] font-semibold text-gray-900 leading-tight">
                       {toKoreanTime(photo.time)}
                     </span>
                     <span className="block text-[18px] mt-1">{photo.emoji}</span>
-                    {/* 수정: 버블 고정 너비 + 가운데 정렬 */}
-                    <div className="flex flex-col gap-1 mt-1">
-                      {tags.map((tag, i) => (
-                        <span
-                          key={i}
-                          className="text-[10px] font-semibold text-[#185FA5] bg-[#EBF5FF] rounded-full text-center block"
-                          style={{ width: '52px', padding: '1px 0' }}
+
+                    {groups.length > 0 && (
+                      <div className="relative mt-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenGroupPhotoId((prev) => (prev === photo.id ? null : photo.id))
+                          }
+                          className="inline-flex items-center justify-center rounded-full border"
+                          style={{
+                            width: 'fit-content',
+                            padding: '3px 6px',
+                            gap: '3px',
+                            background: '#F3F8FF',
+                            borderColor: '#DCEBFF',
+                            color: '#1F5FAE',
+                            boxShadow: isGroupOpen
+                              ? '0 4px 10px rgba(31, 122, 224, 0.10)'
+                              : 'none',
+                          }}
                         >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 800,
+                              letterSpacing: '-0.3px',
+                              lineHeight: 1.1,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {firstGroup}
+                          </span>
+
+                          {extraCount > 0 && (
+                            <span
+                              style={{
+                                fontSize: '9px',
+                                fontWeight: 800,
+                                lineHeight: 1,
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              +{extraCount}
+                            </span>
+                          )}
+
+                          {groups.length > 1 && (
+                            <svg
+                              width="9"
+                              height="9"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              style={{
+                                flexShrink: 0,
+                                transform: isGroupOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.16s ease',
+                              }}
+                            >
+                              <path d="M6 9l6 6 6-6" />
+                            </svg>
+                          )}
+                        </button>
+
+                        {isGroupOpen && groups.length > 1 && (
+                          <div
+                            className="absolute left-0 top-[28px] z-20 rounded-2xl border bg-white"
+                            style={{
+                              width: '92px',
+                              padding: '6px',
+                              borderColor: '#DCEBFF',
+                              boxShadow: '0 8px 20px rgba(15, 23, 42, 0.10)',
+                            }}
+                          >
+                            {groups.map((groupName, i) => (
+                              <div
+                                key={`${photo.id}-${groupName}-${i}`}
+                                className="flex items-center gap-1.5"
+                                style={{
+                                  padding: '5px 3px',
+                                  borderBottom:
+                                    i === groups.length - 1 ? 'none' : '1px solid #EEF4FF',
+                                }}
+                              >
+                                <span
+                                  className="flex items-center justify-center shrink-0"
+                                  style={{
+                                    width: '14px',
+                                    height: '14px',
+                                    borderRadius: '5px',
+                                    background: '#EBF5FF',
+                                    color: '#1F7AE0',
+                                  }}
+                                >
+                                  <svg
+                                    width="10"
+                                    height="10"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.4"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M4 10.5L12 4l8 6.5" />
+                                    <path d="M6.5 9.5V20h11V9.5" />
+                                    <path d="M10 20v-5h4v5" />
+                                  </svg>
+                                </span>
+
+                                <span
+                                  className="truncate"
+                                  style={{
+                                    fontSize: '10px',
+                                    fontWeight: 700,
+                                    color: '#253858',
+                                    letterSpacing: '-0.3px',
+                                  }}
+                                >
+                                  {groupName}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="w-[18px] shrink-0 flex justify-center pt-[5px]">
