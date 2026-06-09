@@ -31,12 +31,10 @@ public class Photo {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "is_valid", nullable = false)
-    private Boolean isValid;
+    // is_valid 제거
 
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
-        this.isValid = true;
     }
 }
