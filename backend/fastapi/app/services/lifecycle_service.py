@@ -97,22 +97,10 @@ async def predict_lifecycle(request: LifecycleRequest) -> LifecycleResponse:
             "user_id":         user_id
         })
 
-    # 카테고리별 지출 TOP 3 분석
-    cat_col  = 'payment_category' if 'payment_category' in df_tx.columns else 'payment_category_id'
-    category_summary = df_tx.groupby(cat_col)['payment_out'].sum()
-    top3     = category_summary.nlargest(3)
-    top3_str = ", ".join([f"{cat}({int(amt):,}원)" for cat, amt in top3.items()])
-
-    # 설명 생성
-    description = (
-        f"주요 소비가 {top3_str}에 집중되어 있어 "
-        f"'{result['lifecycle_label']}' 패턴으로 분류되었습니다. "
-        f"(확신도 {result['confidence']*100:.0f}%)"
-    )
-
     return LifecycleResponse(
         life_stage_code=result["lifecycle_label"],
-        description=description
+        description=f"'{result['lifecycle_label']}' 패턴으로 분류된 소비 성향을 가지고 있어요.",
+        confidence=result["confidence"],
     )
 
 
@@ -139,10 +127,9 @@ async def get_lifecycle(user_id: int) -> LifecycleResponse:
 
     life_stage_code = row[0]
 
-    # life_stage_code 비어있음 → 자동 예측 트리거
+    # life_stage_code 없음 → 최초 예측 트리거 (ML 모델 호출)
     if not life_stage_code:
         try:
-            from app.models.schemas import LifecycleRequest
             predicted = await predict_lifecycle(LifecycleRequest(user_id=user_id))
             return predicted
         except Exception:
@@ -151,10 +138,41 @@ async def get_lifecycle(user_id: int) -> LifecycleResponse:
                 description="아직 생애주기 분석이 완료되지 않았어요."
             )
 
-    # 한글 라벨 변환
+    # 저장된 값 있으면 바로 반환 (LLM 호출 없음)
     lifecycle_label = LIFECYCLE_KO.get(life_stage_code, life_stage_code)
-
     return LifecycleResponse(
         life_stage_code=lifecycle_label,
         description=f"'{lifecycle_label}' 패턴으로 분류된 소비 성향을 가지고 있어요."
     )
+
+
+async def get_lifecycle_peers(user_id: int) -> list:
+    """같은 생애주기를 가진 다른 유저 중 아바타가 있는 랜덤 3명 반환."""
+    with engine.connect() as conn:
+        # 현재 유저의 life_stage_code 조회
+        row = conn.execute(text(
+            "SELECT life_stage_code FROM users WHERE user_id = :uid"
+        ), {"uid": user_id}).fetchone()
+
+        if not row or not row[0]:
+            return []
+
+        life_stage_code = row[0]
+
+        # 같은 생애주기 + avatar 테이블에 아바타 있는 다른 유저 랜덤 3명
+        rows = conn.execute(text("""
+            SELECT a.avatar_name, a.avatar_img_url
+            FROM users u
+            JOIN avatar a ON u.user_id = a.user_id
+            WHERE u.life_stage_code = :code
+              AND u.user_id != :uid
+              AND a.avatar_img_url IS NOT NULL
+              AND a.avatar_img_url != ''
+            ORDER BY RAND()
+            LIMIT 3
+        """), {"code": life_stage_code, "uid": user_id}).fetchall()
+
+    return [
+        {"avatar_name": r[0] or "익명", "avatar_img_url": r[1]}
+        for r in rows
+    ]
