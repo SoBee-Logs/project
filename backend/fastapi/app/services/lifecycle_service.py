@@ -10,6 +10,8 @@ except Exception:
     lifecycle_model = None
     ML_AVAILABLE = False
 from app.core.config import settings
+from google import genai
+from google.genai import types
 
 _MODEL_PATH = Path(__file__).resolve().parents[2] / "ml" / "model.pkl"
 
@@ -38,6 +40,31 @@ LIFECYCLE_KO = {
     'SECLIFE':    '2nd Life',
     'RETIR':      '은퇴',
 }
+
+
+def _generate_lifecycle_description(lifecycle_label: str, top_categories: list) -> str:
+    """Gemini를 사용해 생애주기 설명 1~2문장 생성. 실패 시 fallback 반환."""
+    try:
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        top_str = ", ".join(top_categories)
+        prompt = (
+            f"사용자의 주요 소비 카테고리는 {top_str}야. "
+            f"금액은 절대 언급하지 말고, 이 소비 패턴을 보고 왜 '{lifecycle_label}'인지 "
+            f"1~2문장으로 친근하게 설명해줘. "
+            f"마지막은 반드시 '~{lifecycle_label}으로 분석됐어요!' 로 끝내줘. "
+            f"예시: '친구들과 돈 주고받을 때 펌뱅킹이나 FB이체를 많이 활용하고, 든든한 한식을 즐겨 먹는 전형적인 소비 패턴이라 대학생으로 분석됐어요!'"
+        )
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(thinking_budget=0)
+            ),
+        )
+        return response.text.strip()
+    except Exception:
+        top_str = "과 ".join(top_categories[:2]) if top_categories else "일상 소비"
+        return f"주요 소비가 {top_str}에 집중되어 있어 '{lifecycle_label}'으로 분석됐어요!"
 
 
 # ─────────────────────────────────────────
@@ -98,21 +125,18 @@ async def predict_lifecycle(request: LifecycleRequest) -> LifecycleResponse:
         })
 
     # 카테고리별 지출 TOP 3 분석
-    cat_col  = 'payment_category' if 'payment_category' in df_tx.columns else 'payment_category_id'
+    cat_col = 'payment_category' if 'payment_category' in df_tx.columns else 'payment_category_id'
     category_summary = df_tx.groupby(cat_col)['payment_out'].sum()
-    top3     = category_summary.nlargest(3)
-    top3_str = ", ".join([f"{cat}({int(amt):,}원)" for cat, amt in top3.items()])
+    top3 = category_summary.nlargest(3)
+    top3_names = [str(cat) for cat, _ in top3.items()]
 
-    # 설명 생성
-    description = (
-        f"주요 소비가 {top3_str}에 집중되어 있어 "
-        f"'{result['lifecycle_label']}' 패턴으로 분류되었습니다. "
-        f"(확신도 {result['confidence']*100:.0f}%)"
-    )
+    # Gemini로 자연어 설명 생성
+    description = _generate_lifecycle_description(result['lifecycle_label'], top3_names)
 
     return LifecycleResponse(
         life_stage_code=result["lifecycle_label"],
-        description=description
+        description=description,
+        confidence=result["confidence"],
     )
 
 
@@ -139,10 +163,9 @@ async def get_lifecycle(user_id: int) -> LifecycleResponse:
 
     life_stage_code = row[0]
 
-    # life_stage_code 비어있음 → 자동 예측 트리거
+    # life_stage_code 없음 → 최초 예측 트리거 (ML + Gemini 호출)
     if not life_stage_code:
         try:
-            from app.models.schemas import LifecycleRequest
             predicted = await predict_lifecycle(LifecycleRequest(user_id=user_id))
             return predicted
         except Exception:
@@ -151,10 +174,41 @@ async def get_lifecycle(user_id: int) -> LifecycleResponse:
                 description="아직 생애주기 분석이 완료되지 않았어요."
             )
 
-    # 한글 라벨 변환
+    # 저장된 값 있으면 바로 반환 (LLM 호출 없음)
     lifecycle_label = LIFECYCLE_KO.get(life_stage_code, life_stage_code)
-
     return LifecycleResponse(
         life_stage_code=lifecycle_label,
         description=f"'{lifecycle_label}' 패턴으로 분류된 소비 성향을 가지고 있어요."
     )
+
+
+async def get_lifecycle_peers(user_id: int) -> list:
+    """같은 생애주기를 가진 다른 유저 중 아바타가 있는 랜덤 3명 반환."""
+    with engine.connect() as conn:
+        # 현재 유저의 life_stage_code 조회
+        row = conn.execute(text(
+            "SELECT life_stage_code FROM users WHERE user_id = :uid"
+        ), {"uid": user_id}).fetchone()
+
+        if not row or not row[0]:
+            return []
+
+        life_stage_code = row[0]
+
+        # 같은 생애주기 + avatar 테이블에 아바타 있는 다른 유저 랜덤 3명
+        rows = conn.execute(text("""
+            SELECT a.avatar_name, a.avatar_img_url
+            FROM users u
+            JOIN avatar a ON u.user_id = a.user_id
+            WHERE u.life_stage_code = :code
+              AND u.user_id != :uid
+              AND a.avatar_img_url IS NOT NULL
+              AND a.avatar_img_url != ''
+            ORDER BY RAND()
+            LIMIT 3
+        """), {"code": life_stage_code, "uid": user_id}).fetchall()
+
+    return [
+        {"avatar_name": r[0] or "익명", "avatar_img_url": r[1]}
+        for r in rows
+    ]
