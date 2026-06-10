@@ -220,48 +220,45 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
         prev_monday = datetime(target_year, target_month, week_start_day).date()
         prev_sunday = datetime(target_year, target_month, week_end_day).date()
 
-    # VLM 장면 — 아바타 생성 주간, photo_metadata.taken_at 기준으로 필터
-    persona_vlm_scene = {}
-    try:
-        scene_df = pd.read_sql(text("""
-            SELECT
-                pvr.vlm_item_name  AS item_name,
-                COALESCE(cm.category_name, '기타') AS category,
-                pvr.vlm_store_name AS store_name,
-                pvr.vlm_store_type AS store_type
-            FROM persona_transaction pt
-            JOIN photo_metadata pm     ON pt.photo_id = pm.photo_id
-            JOIN photo_vlm_results pvr ON pt.vlm_id = pvr.vlm_id
-            LEFT JOIN transactions t   ON pt.payment_id = t.payment_id
-            LEFT JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
-            WHERE pt.user_id = :user_id
-              AND DATE(pm.taken_at) BETWEEN :start AND :end
-        """), engine, params={
-            "user_id": user_id,
-            "start": str(prev_monday),
-            "end":   str(prev_sunday),
-        })
-        if not scene_df.empty:
-            store_type_counts = scene_df['store_type'].dropna().value_counts().to_dict()
-            top_items = scene_df['item_name'].dropna().unique().tolist()[:5]
+    def fetch_vlm_scene(start_date, end_date):
+        try:
+            scene_df = pd.read_sql(text("""
+                SELECT
+                    pvr.vlm_item_name  AS item_name,
+                    COALESCE(cm.category_name, '기타') AS category,
+                    pvr.vlm_store_name AS store_name,
+                    pvr.vlm_store_type AS store_type
+                FROM persona_transaction pt
+                JOIN photo_metadata pm     ON pt.photo_id = pm.photo_id
+                JOIN photo_vlm_results pvr ON pt.vlm_id = pvr.vlm_id
+                LEFT JOIN transactions t   ON pt.payment_id = t.payment_id
+                LEFT JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+                WHERE pt.user_id = :user_id
+                  AND DATE(pm.taken_at) BETWEEN :start AND :end
+            """), engine, params={"user_id": user_id, "start": str(start_date), "end": str(end_date)})
+            if scene_df.empty:
+                return {}
             cat_items = {}
             for _, row in scene_df.dropna(subset=['category', 'item_name']).iterrows():
                 cat_items.setdefault(row['category'], [])
                 if row['item_name'] not in cat_items[row['category']]:
                     cat_items[row['category']].append(row['item_name'])
-            category_counts = scene_df['category'].value_counts().to_dict()
-            persona_vlm_scene = {
-                "total_count":     len(scene_df),
-                "store_type_counts": store_type_counts,
-                "top_items":       top_items,
-                "category_items":  {k: v[:2] for k, v in cat_items.items()},
-                "category_counts": category_counts,
+            return {
+                "total_count":       len(scene_df),
+                "store_type_counts": scene_df['store_type'].dropna().value_counts().to_dict(),
+                "top_items":         scene_df['item_name'].dropna().unique().tolist()[:5],
+                "category_items":    {k: v[:2] for k, v in cat_items.items()},
+                "category_counts":   scene_df['category'].value_counts().to_dict(),
             }
-    except Exception as e:
-        print(f"[PERSONA VLM SCENE ERROR] {e}")
+        except Exception as e:
+            print(f"[PERSONA VLM SCENE ERROR] {e}")
+            return {}
+
+    # 마지막 페르소나 주차 VLM 장면 (기존 호환용)
+    persona_vlm_scene = fetch_vlm_scene(prev_monday, prev_sunday)
 
     # avatar_change_reason — avatar 테이블 최신 레코드에서 조회
-    # weekly_avatar — 해당 월 각 주차에 생성된 아바타 이미지
+    # weekly_avatar — 해당 월 각 주차에 생성된 아바타 이미지 + 직전 주 VLM 장면
     avatar_change_reason = None
     avatar_change_reason_month = None
     weekly_avatar = {}
@@ -281,12 +278,27 @@ def get_transaction_report(user_id: int, year: int = None, month: int = None):
             for _, row in cr_df.iterrows():
                 created_at = row['avatar_created_at']
                 if pd.notna(created_at):
+                    avatar_week_num = (pd.to_datetime(created_at).day + adjusted_first - 1) // 7 + 1
+                    prev_week_num   = avatar_week_num - 1
+                    if prev_week_num >= 1:
+                        w_start = max(1, (prev_week_num - 1) * 7 - adjusted_first + 1)
+                        w_end   = min(last_day_num, prev_week_num * 7 - adjusted_first)
+                        scene_start = datetime(target_year, target_month, w_start).date()
+                        scene_end   = datetime(target_year, target_month, w_end).date()
+                    else:
+                        # 직전 주가 이전 달에 걸치는 경우
+                        pm = target_month - 1 if target_month > 1 else 12
+                        py = target_year if target_month > 1 else target_year - 1
+                        pm_last = calendar.monthrange(py, pm)[1]
+                        scene_start = datetime(py, pm, 1).date()
+                        scene_end   = datetime(py, pm, pm_last).date()
                     week_label = classify_week(created_at)
                     weekly_avatar[week_label] = {
                         "avatar_img_url":       row['avatar_img_url'],
                         "avatar_name":          row['avatar_name'],
                         "avatar_change_reason": row['avatar_change_reason'],
                         "avatar_explain":       row['avatar_explain'],
+                        "vlm_scene":            fetch_vlm_scene(scene_start, scene_end),
                     }
     except Exception:
         pass
