@@ -30,7 +30,7 @@ export default function Home() {
   const [feedPreviews, setFeedPreviews] = useState([])
   const [currentTime, setCurrentTime] = useState('')
 
-  const [totalLikes, setTotalLikes] = useState(0)
+  const [prevDaySummary, setPrevDaySummary] = useState(null)
   const [diaryCount, setDiaryCount] = useState(0)
 
   useEffect(() => {
@@ -59,9 +59,13 @@ export default function Home() {
 
     const fetchAll = async () => {
       try {
-        const [personaRes, likesRes, groupsRes] = await Promise.all([
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`
+
+        const [personaRes, summaryRes, groupsRes] = await Promise.all([
           fetch(`/api/users/${userId}/persona`),
-          fetch(`/api/users/${userId}/likes`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`/api/photos/ai-summary?date=${yStr}`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch('/api/groups', { headers: { Authorization: `Bearer ${token}` } }),
         ])
 
@@ -70,9 +74,9 @@ export default function Home() {
           if (data) { setPersona(data); if (data.name) setUserName(data.name) }
         }
 
-        if (likesRes.ok) {
-          const data = await likesRes.json()
-          if (data) setTotalLikes(data.totalLikes)
+        if (summaryRes.ok) {
+          const data = await summaryRes.json()
+          if (data?.summary) setPrevDaySummary(data.summary)
         }
 
         if (groupsRes.ok) {
@@ -176,7 +180,6 @@ export default function Home() {
                 boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
               }}
             >
-              {/* 텍스트 */}
               <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
                 <p style={{ margin: '0 0 1px', fontSize: '12px', fontWeight: 700, color: '#9AA6B2' }}>
                   {userName ? `${userName}님의 소비 페르소나` : '나의 소비 페르소나'}
@@ -186,18 +189,20 @@ export default function Home() {
                 </p>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <div style={{
-                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    background: '#F0F6FF', borderRadius: '10px', padding: '1px 0',
+                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    background: '#EBF5FF', borderRadius: '10px', padding: '4px 0',
                   }}>
-                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>📸 기록한 순간</span>
+                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '2px' }}>📸 기록한 순간</span>
                     <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{diaryCount}</strong>
                   </div>
                   <div style={{
                     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    background: '#F0F6FF', borderRadius: '10px', padding: '1px 0',
+                    background: '#EBF5FF', borderRadius: '10px', padding: '4px 8px',
                   }}>
-                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>❤️ 받은 좋아요</span>
-                    <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{totalLikes}</strong>
+                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '2px', textAlign: 'center' }}>🤖 어제 소비 요약</span>
+                    <span style={{ fontSize: '10px', color: '#111827', fontWeight: 700, lineHeight: 1.35, textAlign: 'center' }}>
+                      {prevDaySummary ?? '기록 없음'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -219,7 +224,7 @@ export default function Home() {
               background: '#2F7DF6',
               border: 'none',
               boxShadow: '0 8px 18px rgba(47,125,246,0.18)',
-              minHeight: '85px',
+              minHeight: '72px',
               overflow: 'visible',
             }}
           >
@@ -236,7 +241,7 @@ export default function Home() {
                 src={cameraHalo}
                 alt="camera"
                 className="object-contain block"
-                style={{ width: '100px', height: '100px', marginBottom: '-5px', marginRight: '8px' }}
+                style={{ width: '82px', height: '82px', marginBottom: '-5px', marginRight: '8px' }}
               />
             </div>
           </button>
@@ -256,7 +261,7 @@ export default function Home() {
                 background: '#EBF5FF',
                 border: 'none',
                 boxShadow: 'none',
-                minHeight: '40px',
+                minHeight: '34px',
                 padding: '5px 12px',
                 overflow: 'visible',
               }}
@@ -268,7 +273,7 @@ export default function Home() {
                 src={receiptHalo}
                 alt="receipt"
                 className="object-contain block"
-                style={{ width: '68px', height: '68px', marginBottom: '-10px', marginRight: '-6px' }}
+                style={{ width: '56px', height: '56px', marginBottom: '-10px', marginRight: '-6px' }}
               />
             </button>
 
@@ -284,7 +289,7 @@ export default function Home() {
                 background: '#EBF5FF',
                 border: 'none',
                 boxShadow: 'none',
-                minHeight: '40px',
+                minHeight: '34px',
                 padding: '5px 12px',
                 overflow: 'visible',
               }}
@@ -296,7 +301,7 @@ export default function Home() {
                 src={productBag}
                 alt="product recommendation"
                 className="object-contain block"
-                style={{ width: '75px', height: '75px', marginBottom: '-10px', marginRight: '-6px' }}
+                style={{ width: '62px', height: '62px', marginBottom: '-10px', marginRight: '-6px' }}
               />
             </button>
           </div>
@@ -304,7 +309,7 @@ export default function Home() {
       </section>
 
       {/* 피드 */}
-      <section className="px-3 pt-3 pb-22">
+      <section className="px-3 pt-3 pb-4">
         <h2 className="text-[14px] font-bold mb-0.5" style={{ color: '#003B72', paddingLeft: '2px' }}>피드 하이라이트</h2>
         {feedPreviews.length === 0 ? (
           <p className="text-[13px] text-gray-400 text-center py-6">
@@ -337,8 +342,13 @@ export default function Home() {
                       <span className="text-[10px] text-gray-400">사진이 없어요</span>
                     </div>
                   )}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent px-2 pb-2 pt-4">
-                    <p className="text-[11px] font-bold text-white m-0 truncate">{item.groupName}</p>
+                  <div className="absolute bottom-0 left-0 right-0 px-2 pb-0">
+                    <p
+                      className="text-[9px] font-bold text-white m-0 truncate inline-block max-w-full px-1.5 py-px rounded-full"
+                      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
+                    >
+                      {item.groupName}
+                    </p>
                   </div>
                 </figure>
               </button>

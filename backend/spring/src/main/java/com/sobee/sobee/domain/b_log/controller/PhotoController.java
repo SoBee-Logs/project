@@ -131,4 +131,14 @@ public ResponseEntity<List<Map<String, Object>>> getMappingResult(
         photoService.performMatchingForPhoto(photoId, userId);
         return ResponseEntity.ok().build();
     }
+
+    @GetMapping("/ai-summary")
+    public ResponseEntity<Map<String, Object>> getAiSummary(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam("date") String date
+    ) {
+        Long userId = extractUserId(authHeader);
+        Map<String, Object> result = photoService.getAiSummary(userId, date);
+        return ResponseEntity.ok(result);
+    }
 }

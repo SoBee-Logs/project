@@ -323,6 +323,16 @@ async def parse_search(request: ParseSearchRequest):
 
 
 @router.get(
+    "/daily-summary",
+    summary="어제 소비 한 줄 요약 생성",
+)
+async def daily_summary(user_id: int, date: str):
+    from app.api.vlm import generate_daily_consumption_summary
+    summary = await generate_daily_consumption_summary(user_id, date)
+    return {"summary": summary}
+
+
+@router.get(
     "/persona/has-photo",
     summary="페르소나 생성 가능 여부 확인",
     description="""

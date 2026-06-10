@@ -19,7 +19,7 @@ import ProductDetail from './features/search/ProductDetail'
 const routeConfig = [
   { path: '/',               element: <Login />,        bottomNav: false, floatingNav: false, appBar: false },
   { path: '/login',          element: <Login />,        bottomNav: false, floatingNav: false, appBar: false },
-  { path: '/home',           element: <Home />,         bottomNav: true,  floatingNav: true,  appBar: false },
+  { path: '/home',           element: <Home />,         bottomNav: true,  floatingNav: false, appBar: false },
   { path: '/home/detail',    element: <HomeDetail />,   bottomNav: false, floatingNav: false, appBar: true, title: '홈 상세' },
   { path: '/report',         element: <AvaterRoom />,   bottomNav: true,  floatingNav: false, appBar: false, noScroll: true },
   { path: '/report/monthly', element: <Report />,       bottomNav: true,  floatingNav: false, appBar: false },
