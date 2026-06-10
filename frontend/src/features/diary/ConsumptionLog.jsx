@@ -120,7 +120,7 @@ export default function ConsumptionLog() {
 
   return (
     <main className="flex flex-col min-h-full bg-white">
-      <header className="px-5 pt-2 pb-3 shrink-0">
+      <header className="px-5 pt-1 pb-3 shrink-0">
         <div className="flex items-center gap-2 mb-2">
           <button
             type="button"
