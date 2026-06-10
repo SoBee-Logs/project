@@ -23,7 +23,6 @@ desktop.ini
 logs/
 
 venv/
-*.pem
 tmp/
 
 # Python
@@ -32,3 +31,5 @@ __pycache__/
 *.pyo
 
 prompts.json
+
+node_modules/
