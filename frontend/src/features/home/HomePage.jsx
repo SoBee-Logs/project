@@ -30,7 +30,7 @@ export default function Home() {
   const [feedPreviews, setFeedPreviews] = useState([])
   const [currentTime, setCurrentTime] = useState('')
 
-  const [prevDaySummary, setPrevDaySummary] = useState(null)
+  const [totalLikes, setTotalLikes] = useState(0)
   const [diaryCount, setDiaryCount] = useState(0)
 
   useEffect(() => {
@@ -59,13 +59,9 @@ export default function Home() {
 
     const fetchAll = async () => {
       try {
-        const yesterday = new Date()
-        yesterday.setDate(yesterday.getDate() - 1)
-        const yStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`
-
-        const [personaRes, summaryRes, groupsRes] = await Promise.all([
+        const [personaRes, likesRes, groupsRes] = await Promise.all([
           fetch(`/api/users/${userId}/persona`),
-          fetch(`/api/photos/ai-summary?date=${yStr}`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`/api/users/${userId}/likes`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch('/api/groups', { headers: { Authorization: `Bearer ${token}` } }),
         ])
 
@@ -74,9 +70,9 @@ export default function Home() {
           if (data) { setPersona(data); if (data.name) setUserName(data.name) }
         }
 
-        if (summaryRes.ok) {
-          const data = await summaryRes.json()
-          if (data?.summary) setPrevDaySummary(data.summary)
+        if (likesRes.ok) {
+          const data = await likesRes.json()
+          if (data) setTotalLikes(data.totalLikes)
         }
 
         if (groupsRes.ok) {
@@ -189,20 +185,18 @@ export default function Home() {
                 </p>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <div style={{
-                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    background: '#EBF5FF', borderRadius: '10px', padding: '4px 0',
+                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    background: '#EBF5FF', borderRadius: '10px', padding: '1px 0',
                   }}>
-                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '2px' }}>📸 기록한 순간</span>
+                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>📸 기록한 순간</span>
                     <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{diaryCount}</strong>
                   </div>
                   <div style={{
                     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    background: '#EBF5FF', borderRadius: '10px', padding: '4px 8px',
+                    background: '#EBF5FF', borderRadius: '10px', padding: '1px 0',
                   }}>
-                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '2px', textAlign: 'center' }}>🤖 어제 소비 요약</span>
-                    <span style={{ fontSize: '10px', color: '#111827', fontWeight: 700, lineHeight: 1.35, textAlign: 'center' }}>
-                      {prevDaySummary ?? '기록 없음'}
-                    </span>
+                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>❤️ 받은 좋아요</span>
+                    <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{totalLikes}</strong>
                   </div>
                 </div>
               </div>

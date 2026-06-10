@@ -292,59 +292,6 @@ async def analyze_image(filename: str, image_bytes: bytes, exif: dict = None) ->
     }
 
 
-async def generate_daily_consumption_summary(user_id: int, date_str: str) -> str | None:
-    from app.db.connection import get_pool
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("""
-                SELECT v.vlm_category, v.vlm_item_name, v.vlm_price_estimate, v.vlm_store_name
-                FROM photos p
-                JOIN photo_vlm_results v ON p.photo_id = v.photo_id
-                WHERE p.user_id = %s AND DATE(p.created_at) = %s
-                  AND v.vlm_category IS NOT NULL
-                  AND v.vlm_category != '기타'
-                  AND v.is_valid = TRUE
-            """, (user_id, date_str))
-            rows = await cur.fetchall()
-
-    if not rows:
-        return None
-
-    items = []
-    for category, item_name, price, store in rows:
-        parts = []
-        if store:
-            parts.append(store)
-        if item_name:
-            parts.append(item_name)
-        if price:
-            parts.append(f"{int(price):,}원")
-        if category:
-            parts.append(f"({category})")
-        items.append(" ".join(parts))
-
-    consumption_text = "\n".join(f"- {item}" for item in items)
-
-    client = _get_client()
-    prompt = f"""다음은 어제의 소비 목록이야. 이걸 한 문장으로 자연스럽게 요약해줘.
-20대 한국어 감성으로, 이모지 1개 포함, 15자 이내로.
-소비 목록:
-{consumption_text}
-한 문장으로만 답해줘. 따옴표 없이."""
-
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=[prompt],
-        config=types.GenerateContentConfig(
-            temperature=0.7,
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
-        ),
-    )
-
-    return (response.text or "").strip().strip('"')
-
-
 @router.post("/analyze")
 async def analyze_image_endpoint(image: UploadFile = File(...)):
     image_bytes = await image.read()

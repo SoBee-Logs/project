@@ -24,11 +24,8 @@ import com.sobee.sobee.domain.b_log.repository.PhotoVlmResultRepository;
 import com.sobee.sobee.domain.b_log.repository.TransactionRepository;
 import com.sobee.sobee.global.s3.S3Uploader;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -61,14 +58,6 @@ public class PhotoService {
     private final PersonaTransactionRepository personaTransactionRepository;
     private final TransactionRepository transactionRepository;
     private final LlmMatchingClient llmMatchingClient;
-
-    @Value("${fastapi.base-url}")
-    private String fastapiBaseUrl;
-
-    @Value("${fastapi.internal-secret}")
-    private String internalSecret;
-
-    private final RestTemplate restTemplate = new RestTemplate();
 
     private static final DateTimeFormatter TAKEN_AT_FORMATTER = new DateTimeFormatterBuilder()
             .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
@@ -419,19 +408,5 @@ public class PhotoService {
                 return result;
                 }).collect(Collectors.toList());
         }
-
-    public Map<String, Object> getAiSummary(Long userId, String date) {
-        String url = fastapiBaseUrl + "/internal/daily-summary?user_id=" + userId + "&date=" + date;
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("X-Internal-Secret", internalSecret);
-            HttpEntity<Void> entity = new HttpEntity<>(headers);
-            ResponseEntity<Map> res = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
-            if (res.getBody() != null) return new java.util.HashMap<>(res.getBody());
-        } catch (Exception e) {
-            log.warn("AI summary 요청 실패: {}", e.getMessage());
-        }
-        return java.util.Collections.singletonMap("summary", null);
-    }
 
 }
