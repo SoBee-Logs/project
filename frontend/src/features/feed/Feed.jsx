@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import RoomTabs from '../../common/components/RoomTabs'
-import StatusBar from '../../common/components/StatusBar'
 import beeImage from '../../assets/image 61.png'
 import calendarIcon from '../../assets/calendar_icon.png'
 
@@ -230,7 +229,6 @@ export default function Feed() {
   return (
     <main className="min-h-full bg-[#F5F7FB]">
       <div className="sticky top-0 z-10 bg-white">
-        <StatusBar />
         <RoomTabs activeRoom={activeRoom} onChange={setActiveRoom} showAdd />
       </div>
 

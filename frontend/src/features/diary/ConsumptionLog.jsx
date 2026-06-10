@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
-import StatusBar from '../../common/components/StatusBar'
 import { jwtDecode } from 'jwt-decode'
 import calendarIcon from '../../assets/calendar_icon.png'
 
@@ -121,20 +120,22 @@ export default function ConsumptionLog() {
 
   return (
     <main className="flex flex-col min-h-full bg-white">
-      <StatusBar />
-
-      <header className="px-5 pt-1 pb-3 text-left shrink-0">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center w-8 h-8 -ml-2 mb-2 text-gray-800"
-          aria-label="뒤로가기"
-        >
-          <span className="text-[22px] leading-none">‹</span>
-        </button>
-        <p className="text-[13px] font-semibold text-gray-900 m-0 leading-snug">
-          나의 소비 로그
-        </p>
+      <header className="px-5 pt-1 pb-3 shrink-0">
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="flex items-center justify-center w-8 h-8 -ml-2 text-gray-800"
+            aria-label="뒤로가기"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <p className="text-[13px] font-semibold text-gray-900 m-0 leading-snug">
+            나의 소비 로그
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => {
@@ -570,11 +571,12 @@ export default function ConsumptionLog() {
       )}
 
       <div className="flex-1 overflow-y-auto px-5 pb-[140px] relative">
-        {/* 수정: 타임라인 세로선 left 위치 조정 */}
-        <span
-          className="absolute left-[108px] top-2 bottom-4 w-[1.5px] bg-gray-200 rounded-full"
-          aria-hidden
-        />
+        {photos.length > 0 && (
+          <span
+            className="absolute left-[108px] top-2 bottom-4 w-[1.5px] bg-gray-200 rounded-full"
+            aria-hidden
+          />
+        )}
 
         {isLoading ? (
           <p className="text-center text-gray-400 text-[13px] mt-10">불러오는 중...</p>
