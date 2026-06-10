@@ -191,6 +191,7 @@ async def _call_gemini_classify(items: list[dict]) -> list[dict]:
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             temperature=0,
+            thinking_config=types.ThinkingConfig(thinking_budget=128),
         ),
     )
     return json.loads(response.text).get("results", [])
