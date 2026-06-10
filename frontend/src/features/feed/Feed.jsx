@@ -228,7 +228,7 @@ export default function Feed() {
 
   return (
     <main className="min-h-full bg-[#F5F7FB]">
-      <div className="sticky top-0 z-10 bg-white">
+      <div className="sticky top-0 z-20 bg-white">
         <RoomTabs activeRoom={activeRoom} onChange={setActiveRoom} showAdd />
       </div>
 

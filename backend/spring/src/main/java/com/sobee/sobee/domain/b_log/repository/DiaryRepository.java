@@ -30,7 +30,6 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             "WHERE d.userId = :userId " +
             "AND d.groupId = :groupId " +
             "AND d.createdAt BETWEEN :startDate AND :endDate")
-
     Long countByUserIdAndGroupIdAndDateRange(
             @Param("userId") Long userId,
             @Param("groupId") Long groupId,
