@@ -812,7 +812,7 @@ export default function Report() {
         })()}
 
         {/* 페르소나 기준 주간 TOP 카테고리 */}
-        {txData?.weekly_avatar && Object.keys(txData.weekly_avatar).length > 0 && (() => {
+        {txData?.week_order?.length > 0 && (() => {
           const weekOrder = (txData.week_order ?? []).filter(w => {
             if (!isCurrentMonth) return true
             const fw = (new Date(selectedYear, selectedMonth - 1, 1).getDay() + 6) % 7
@@ -820,8 +820,7 @@ export default function Report() {
             const weekStart = new Date(selectedYear, selectedMonth - 1, (wNum - 1) * 7 - fw + 1)
             return weekStart <= today
           })
-          const avatarWeeks = weekOrder.filter(w => txData.weekly_avatar[w])
-          if (avatarWeeks.length === 0) return null
+          if (weekOrder.length === 0) return null
 
           // 마지막 페르소나 주차 계산
           const lastPersonaWeek = (() => {
@@ -835,7 +834,9 @@ export default function Report() {
             return txData.week_order?.includes(candidate) ? candidate : null
           })()
 
-          const activeWeek = personaWeek ?? lastPersonaWeek ?? avatarWeeks[avatarWeeks.length - 1]
+          const avatarWeeks = weekOrder.filter(w => txData.weekly_avatar?.[w])
+          const activeWeek = personaWeek ?? lastPersonaWeek ?? avatarWeeks[avatarWeeks.length - 1] ?? weekOrder[weekOrder.length - 1]
+          const hasAvatar = !!txData.weekly_avatar?.[activeWeek]
 
           let changeReason = null
           try {
@@ -862,28 +863,37 @@ export default function Report() {
                 <p className="text-xs text-gray-500 font-semibold">🧬 페르소나 기준</p>
               </div>
 
-              {/* 주차 탭 */}
-              {avatarWeeks.length > 1 && (
+              {/* 주차 탭 — 전체 주차 표시 */}
+              {weekOrder.length > 1 && (
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
-                  {avatarWeeks.map(w => (
-                    <button
-                      key={w}
-                      onClick={() => setPersonaWeek(w)}
-                      className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
-                        activeWeek === w
-                          ? 'bg-[#1e73be] text-white'
-                          : 'bg-white text-gray-500 border border-gray-200'
-                      }`}
-                    >
-                      {w}
-                    </button>
-                  ))}
+                  {weekOrder.map(w => {
+                    const hasAvatarForWeek = !!txData.weekly_avatar?.[w]
+                    return (
+                      <button
+                        key={w}
+                        onClick={() => setPersonaWeek(w)}
+                        className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                          activeWeek === w
+                            ? 'bg-[#1e73be] text-white'
+                            : hasAvatarForWeek
+                              ? 'bg-white text-gray-500 border border-gray-200'
+                              : 'bg-white text-gray-300 border border-gray-100'
+                        }`}
+                      >
+                        {w}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
 
+              {!hasAvatar ? (
+                <p className="text-[11px] text-gray-300 text-center py-4">이 주에 생성된 페르소나가 없어요</p>
+              ) : (
+              <>
               <p className="text-[11px] text-gray-400">{selectedMonth}월 {activeWeek}차 페르소나 기준</p>
 
-              {/* 사진 TOP 카테고리 — 마지막 페르소나 주차만 */}
+              {/* 사진 TOP 카테고리 */}
               {topPhotoCat && totalVlm > 0 && (
                 <div className="flex flex-col gap-1">
                   <p className="text-[10px] text-gray-400 font-medium">📸 사진 TOP 카테고리</p>
@@ -917,6 +927,8 @@ export default function Report() {
                     </>
                   )}
                 </div>
+              )}
+              </>
               )}
             </div>
           )
