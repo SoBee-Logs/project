@@ -1,0 +1,64 @@
+services:
+  elasticsearch:
+    build: ./elasticsearch
+    container_name: sobee-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - sobee-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  spring:
+    build:
+      context: ./backend/spring
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - backend/spring/.env
+    environment:
+      # 팀원 피드백 반영: 실제 값 대신 환경변수(${...}) 처리
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - FASTAPI_BASE_URL=${FASTAPI_BASE_URL}
+      - ES_URI=${ES_URI}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      # 시간대 설정은 민감 정보가 아니므로 그대로 유지
+      - TZ=Asia/Seoul
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - sobee-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - spring
+    networks:
+      - sobee-net
+
+networks:
+  sobee-net:
+    driver: bridge
+
+volumes:
+  es_data:
+    driver: local

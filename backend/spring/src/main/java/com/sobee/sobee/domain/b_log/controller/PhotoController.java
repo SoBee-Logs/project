@@ -131,5 +131,4 @@ public ResponseEntity<List<Map<String, Object>>> getMappingResult(
         photoService.performMatchingForPhoto(photoId, userId);
         return ResponseEntity.ok().build();
     }
-
 }

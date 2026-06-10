@@ -176,6 +176,7 @@ export default function Home() {
                 boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
               }}
             >
+              {/* 텍스트 */}
               <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
                 <p style={{ margin: '0 0 1px', fontSize: '12px', fontWeight: 700, color: '#9AA6B2' }}>
                   {userName ? `${userName}님의 소비 페르소나` : '나의 소비 페르소나'}
