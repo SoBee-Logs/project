@@ -31,6 +31,7 @@ public class GroupService {
                 .category(dto.getCategory())
                 .targetBudget(dto.getTargetBudget())
                 .targetDiaryCount(dto.getTargetDiaryCount())
+                .spendingCategoryId(dto.getSpendingCategoryId())
                 .build();
         Group saved = groupRepository.save(group);
 
@@ -83,6 +84,7 @@ public class GroupService {
                 .category(group.getCategory())
                 .targetBudget(group.getTargetBudget())
                 .targetDiaryCount(group.getTargetDiaryCount())
+                .spendingCategoryId(group.getSpendingCategoryId())
                 .build();
     }
 

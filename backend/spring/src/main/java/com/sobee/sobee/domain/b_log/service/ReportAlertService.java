@@ -45,8 +45,8 @@ public class ReportAlertService {
         LocalDateTime startDateTime = weekStart.atStartOfDay();
         LocalDateTime endDateTime   = weekEnd.plusDays(1).atStartOfDay();
 
-        // 이번 주 소비 합계 — 유저 전체 기준 (transactions는 방 구분 없음)
-        long weeklySpend = transactionRepository
+        // 유저 전체 주간 소비 합계 (카테고리 미설정 방에서 사용)
+        long totalWeeklySpend = transactionRepository
                 .sumOutgoingByUserIdAndDateRange(userId, startDateStr, endDateStr);
 
         // 유저가 속한 모든 그룹 조회
@@ -61,6 +61,12 @@ public class ReportAlertService {
                 // 목표값이 하나라도 설정된 방만 AlertBoard 생성
                 .filter(g -> g.getTargetBudget() != null || g.getTargetDiaryCount() != null)
                 .map(g -> {
+                    // spendingCategoryId가 있으면 해당 카테고리 지출만, 없으면 전체 지출
+                    long weeklySpend = (g.getSpendingCategoryId() != null)
+                            ? transactionRepository.sumOutgoingByUserIdAndDateRangeAndCategory(
+                                    userId, startDateStr, endDateStr, g.getSpendingCategoryId())
+                            : totalWeeklySpend;
+
                     // 일기 카운트는 방(group_id)별로 따로 계산
                     long groupDiaryCount = diaryRepository
                             .countByUserIdAndGroupIdAndDateRange(userId, g.getGroupId(), startDt, endDt);

@@ -40,4 +40,8 @@ public class Group {
     // 주간 일기 작성 목표 횟수 (미설정 시 null)
     @Column(name = "group_target_diary_count")
     private Integer targetDiaryCount;
+
+    // 절약 목표 결제 카테고리 ID (category_master.payment_category_id, 미설정 시 null)
+    @Column(name = "group_spending_category_id")
+    private Integer spendingCategoryId;
 }

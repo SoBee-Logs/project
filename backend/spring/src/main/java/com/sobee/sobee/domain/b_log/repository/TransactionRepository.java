@@ -35,4 +35,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, Transa
     // 추가
     @Query("SELECT t FROM Transaction t WHERE t.id.paymentId = :paymentId")
     Optional<Transaction> findByPaymentId(@Param("paymentId") Long paymentId);
+
+    // 특정 유저의 날짜 범위 + 카테고리 필터 지출 합계 (절약방 카테고리 한도 계산용)
+    @Query("SELECT COALESCE(SUM(t.paymentOut), 0) FROM Transaction t " +
+            "WHERE t.id.userId = :userId " +
+            "AND t.paymentDate BETWEEN :startDate AND :endDate " +
+            "AND t.paymentOut > 0 " +
+            "AND t.paymentCategoryId = :categoryId")
+    Long sumOutgoingByUserIdAndDateRangeAndCategory(
+            @Param("userId") Long userId,
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate,
+            @Param("categoryId") Integer categoryId
+    );
 }
