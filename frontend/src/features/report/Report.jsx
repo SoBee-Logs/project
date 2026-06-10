@@ -647,7 +647,7 @@ export default function Report() {
         })()}
 
         {/* 주간 목표 달성 현황 AlertBoard */}
-        <AlertBoard />
+        <AlertBoard year={selectedYear} month={selectedMonth} />
 
         {/* AI 상품 추천 */}
         <div ref={aiRecommendRef} className="flex flex-col gap-2">

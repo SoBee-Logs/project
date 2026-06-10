@@ -27,10 +27,12 @@ public class ReportAlertController {
 
     @GetMapping("/alert")
     public ResponseEntity<List<AlertBoardResponse>> getAlertBoards(
-            @RequestHeader("Authorization") String authHeader
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month
     ) {
         Long userId = extractUserId(authHeader);
-        List<AlertBoardResponse> result = reportAlertService.getAlertBoards(userId);
+        List<AlertBoardResponse> result = reportAlertService.getAlertBoards(userId, year, month);
         return ResponseEntity.ok(result);
     }
 }
