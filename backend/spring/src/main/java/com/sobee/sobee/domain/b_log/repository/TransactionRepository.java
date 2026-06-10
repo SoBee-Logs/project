@@ -35,4 +35,21 @@ public interface TransactionRepository extends JpaRepository<Transaction, Transa
     // 추가
     @Query("SELECT t FROM Transaction t WHERE t.id.paymentId = :paymentId")
     Optional<Transaction> findByPaymentId(@Param("paymentId") Long paymentId);
+
+    @Query(value = """
+    SELECT cm.category_name
+    FROM transactions t
+    JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+    WHERE t.user_id = :userId
+    AND t.payment_date BETWEEN :startDate AND :endDate
+    AND t.payment_out > 0
+    GROUP BY cm.category_name
+    ORDER BY COUNT(*) DESC
+    LIMIT 1
+    """, nativeQuery = true)
+String findTopCategoryNameByUserId(
+    @Param("userId") Long userId,
+    @Param("startDate") String startDate,
+    @Param("endDate") String endDate
+);
 }
