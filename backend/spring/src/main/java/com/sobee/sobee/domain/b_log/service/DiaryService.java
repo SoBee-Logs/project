@@ -20,7 +20,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -311,11 +314,18 @@ public class DiaryService {
     }
 
     @Transactional(readOnly = true)
-    public DiaryPreviewResponse getDiaryPreview(Long groupId) {
+        public DiaryPreviewResponse getDiaryPreview(Long groupId, Long userId) {
         long count = diaryRepository.countByGroupId(groupId);
+
+        // 이번 주 월요일 ~ 오늘
+        LocalDateTime startOfWeek = LocalDate.now(ZoneId.of("Asia/Seoul"))
+                .with(DayOfWeek.MONDAY).atStartOfDay();
+        LocalDateTime endOfWeek = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        long myCount = diaryRepository.countByUserIdAndDateRange(userId, startOfWeek, endOfWeek);
+
         String imageUrl = diaryRepository.findFirstImageUrlByGroupId(groupId).orElse(null);
-        return new DiaryPreviewResponse(count, imageUrl);
-    }
+        return new DiaryPreviewResponse(count, myCount, imageUrl);
+        }
 
     @Transactional
     public void toggleLike(Long diaryId) {

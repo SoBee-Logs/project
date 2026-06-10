@@ -87,16 +87,17 @@ export default function Home() {
             )
           )
 
-          let count = 0
           const previews = groups.map((g, i) => {
-            count += previewResults[i].count
             return {
               groupId: g.groupId,
               groupName: g.groupName,
               imageUrl: previewResults[i].imageUrl ?? null,
             }
           })
-          setDiaryCount(count)
+          
+          // myCount는 첫 번째 결과에서 한 번만 가져오기
+          const myCount = previewResults.length > 0 ? (previewResults[0].myCount ?? 0) : 0
+          setDiaryCount(myCount)
           setFeedPreviews(previews)
         }
       } catch (err) {
@@ -189,7 +190,7 @@ export default function Home() {
                     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
                     background: '#F0F6FF', borderRadius: '10px', padding: '1px 0',
                   }}>
-                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>📸 기록한 순간</span>
+                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>📸 이번 주 기록</span>
                     <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{diaryCount}</strong>
                   </div>
                   <div style={{

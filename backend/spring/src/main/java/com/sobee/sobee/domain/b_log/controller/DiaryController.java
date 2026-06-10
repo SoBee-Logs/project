@@ -53,15 +53,6 @@ public class DiaryController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-    @GetMapping("/preview")
-    public ResponseEntity<DiaryPreviewResponse> getDiaryPreview(
-            @RequestHeader("Authorization") String authHeader,
-            @RequestParam Long groupId
-    ) {
-        extractUserId(authHeader);
-        return ResponseEntity.ok(diaryService.getDiaryPreview(groupId));
-    }
-
     @GetMapping("/list")
     public ResponseEntity<List<DiaryFeedItemResponse>> getDiaryList(
             @RequestHeader("Authorization") String authHeader,
@@ -90,4 +81,12 @@ public class DiaryController {
             diaryService.syncTransactions(userId);
             return ResponseEntity.ok().build();
         }
+    @GetMapping("/preview")
+    public ResponseEntity<DiaryPreviewResponse> getDiaryPreview(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam Long groupId
+    ) {
+        Long userId = extractUserId(authHeader);  // extractUserId 결과 변수에 담기
+        return ResponseEntity.ok(diaryService.getDiaryPreview(groupId, userId));  // userId 전달
+    }
 }
