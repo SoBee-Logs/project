@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getUserId } from '../../common/hooks/useAuth'
-import AppBar from '../../common/components/AppBar'
 
 const CATEGORY_PALETTE = [
   '#1e73be', '#38BDF8', '#60a5fa', '#93c5fd', '#0ea5e9',
@@ -105,8 +104,17 @@ export default function ReportDetail() {
  
   return (
     <div className="flex flex-col h-full">
-      <AppBar title="리포트 상세" onBack={() => navigate('/report/monthly', { state: { year, month } })} />
-      <div className="flex flex-col gap-4 pt-4 px-4 pb-24 overflow-y-auto flex-1">
+      <div className="px-5 pt-1 pb-3 shrink-0">
+        <button
+          onClick={() => navigate('/report/monthly', { state: { year, month } })}
+          className="flex items-center justify-center w-8 h-8 -ml-2 text-gray-800"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+      </div>
+      <div className="flex flex-col gap-4 pt-2 px-4 pb-24 overflow-y-auto flex-1">
 
       <div className="flex items-center gap-2">
         <span className="text-sm font-bold text-gray-700">{year}년 {month}월 상세 리포트</span>
