@@ -8,6 +8,121 @@ import receiptHalo from '../../assets/log.png'
 import productBag from '../../assets/recommend.png'
 import beeImage from '../../assets/image 61.png'
 
+const CATEGORY_MESSAGES = {
+  '식비': [
+    '밥심으로 사는 중 ㅋㅋ 🥢',
+    '오늘도 든든하게 🍚',
+    '먹는 게 남는 거죠 😋',
+    '식비 탕진 중 ㅠㅠ',
+    '맛있으면 0칼로리 ✨',
+  ],
+  '카페간식': [
+    '카페인 없인 못 살아 ☕',
+    '아아 한 잔이면 충분 🧊',
+    '카페 단골 등극 중 ㅋㅋ',
+    '커피값은 아깝지 않아 💙',
+    '오늘도 스벅 가셨군요 😏',
+  ],
+  '패션쇼핑': [
+    '입을 옷이 없어서요 ㅋㅋ 👗',
+    '지갑 털렸지만 스타일 살았다 💅',
+    '패션피플 등극 중 ✨',
+    '새 옷 사면 기분 업 🛍️',
+    '옷장이 또 터질 것 같아요 😅',
+  ],
+  '교통': [
+    '오늘도 열심히 이동 중 🚇',
+    '대중교통 만세 ✊',
+    '교통비도 소비예요 ㅋㅋ 🚌',
+    '어디까지 가셨어요? 🗺️',
+    '이동하는 것도 기록이 돼요 📍',
+  ],
+  '여행숙박': [
+    '여행 중이신가요? 부럽다 ✈️',
+    '여행은 돈으로 사는 행복 🏖️',
+    '지갑 얇아지는 여행길 ㅠㅠ',
+    '저도 데려가요 🧳',
+    '여행 사진 보여주세요 📸',
+  ],
+  '문화여가': [
+    '문화생활 즐기는 중 🎬',
+    '취미에 투자하는 건 필수 🎮',
+    '힐링 타임 ✨',
+    '여가시간도 소중한 소비 🎵',
+    '재미있었나요? 🎭',
+  ],
+  '술유흥': [
+    '오늘 한잔 하셨군요 🍺',
+    '술자리도 추억이죠 🥂',
+    '적당히 마셔요 ㅋㅋ 💛',
+    '내일 숙취 없길 바라요 ㅠㅠ',
+    '함께한 사람이 중요하죠 🍻',
+  ],
+  '의료건강': [
+    '건강이 최고예요 💊',
+    '몸 챙기는 현명한 소비 💙',
+    '빨리 나으세요 🤒',
+    '건강 투자 응원해요 💪',
+    '몸 챙기는 거 잊지 마요 🏥',
+  ],
+  '뷰티미용': [
+    '아름다움에 투자 중 💄',
+    '예뻐지는 건 아깝지 않아요 💅',
+    '뷰티 지출은 자기 투자 🪞',
+    '예쁘면 다 용서돼요 ㅋㅋ 💕',
+    '오늘도 꾸미기 성공 ✨',
+  ],
+  '교육학습': [
+    '배움에 투자하는 당신 멋져요 📚',
+    '열공 중이군요 ✏️',
+    '미래를 위한 투자 중 🌱',
+    '지식도 소비예요 📖',
+    '공부하는 당신 응원해요 💪',
+  ],
+  '금융': [
+    '재테크 중이군요 💰',
+    '돈이 돈을 버는 중 📈',
+    '현명한 금융 소비 👍',
+    '투자는 신중하게 ⚠️',
+    '미래 준비하는 당신 멋져요 💼',
+  ],
+  '경조선물': [
+    '마음을 전했군요 🎁',
+    '선물하는 사람이 더 행복하죠 💝',
+    '정성이 담긴 소비예요 💛',
+    '받는 사람이 좋아하겠어요 🥰',
+    '소중한 사람에게 선물 중 🌸',
+  ],
+  '생활': [
+    '살림 잘 하시는군요 ✨',
+    '집이 편안해지는 소비 🛋️',
+    '생활의 달인 등극 중 ㅋㅋ',
+    '소소하지만 필요한 소비 💙',
+    '생활용품도 소비예요 🏠',
+  ],
+  '온라인쇼핑': [
+    '택배 올 생각에 설레죠? 📦',
+    '새벽 장바구니 결제 맞죠? 😏',
+    '언박싱 기대 중 ✨',
+    '클릭 한 번에 지갑이 🛒',
+    '택배 기다리는 중 ㅋㅋ',
+  ],
+  '주거통신': [
+    '생활 인프라 유지 중 📱',
+    '통신비도 고정지출이죠 💸',
+    '월세 납부 완료 ✅',
+    '꼬박꼬박 잘 내고 있어요 👍',
+    '안정적인 생활을 위한 소비 🏡',
+  ],
+  '기타': [
+    '다양한 소비를 하셨군요 🌈',
+    '소비도 삶의 일부예요 💙',
+    '오늘 하루도 수고했어요 🌟',
+    '어떤 소비였나요? ✨',
+    '모든 소비엔 이유가 있죠 😊',
+  ],
+}
+
 export default function Home() {
   const navigate = useNavigate()
 
@@ -29,8 +144,8 @@ export default function Home() {
   const [userName, setUserName] = useState(null)
   const [feedPreviews, setFeedPreviews] = useState([])
   const [currentTime, setCurrentTime] = useState('')
-  const [totalLikes, setTotalLikes] = useState(0)
   const [diaryCount, setDiaryCount] = useState(0)
+  const [categoryMessage, setCategoryMessage] = useState('')
 
   useEffect(() => {
     const update = () => {
@@ -50,10 +165,10 @@ export default function Home() {
 
     const fetchAll = async () => {
       try {
-        const [personaRes, likesRes, groupsRes] = await Promise.all([
+        const [personaRes, groupsRes, topCategoryRes] = await Promise.all([
           fetch(`/api/users/${userId}/persona`),
-          fetch(`/api/users/${userId}/likes`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch('/api/groups', { headers: { Authorization: `Bearer ${token}` } }),
+          fetch('/api/transactions/top-category', { headers: { Authorization: `Bearer ${token}` } }),
         ])
 
         if (personaRes.ok) {
@@ -61,9 +176,13 @@ export default function Home() {
           if (data) { setPersona(data); if (data.name) setUserName(data.name) }
         }
 
-        if (likesRes.ok) {
-          const data = await likesRes.json()
-          if (data) setTotalLikes(data.totalLikes)
+        if (topCategoryRes.ok) {
+          const data = await topCategoryRes.json()
+          const categoryName = data.categoryName ?? '기타'
+          const normalized = categoryName.replace('/', '')
+          const messages = CATEGORY_MESSAGES[normalized] ?? CATEGORY_MESSAGES['기타']
+          const randomMsg = messages[Math.floor(Math.random() * messages.length)]
+          setCategoryMessage(randomMsg)
         }
 
         if (groupsRes.ok) {
@@ -98,8 +217,7 @@ export default function Home() {
 
   return (
     <main className="min-h-full text-left pb-2 home-no-scrollbar" style={{ background: '#FFFFFF' }}>
-      <section style={{ background: '#FFFFFF'}}>
-        {/* 페르소나 이미지 */}
+      <section style={{ background: '#FFFFFF' }}>
         <figure className="relative w-full m-0 p-0" style={{ marginTop: '-1px' }}>
           {persona?.avatarImgUrl ? (
             <>
@@ -110,8 +228,7 @@ export default function Home() {
                 style={{ objectFit: 'contain', objectPosition: 'center top' }}
               />
               <div style={{
-                position: 'absolute',
-                bottom: 0, left: 0, right: 0,
+                position: 'absolute', bottom: 0, left: 0, right: 0,
                 height: '60px',
                 background: 'linear-gradient(to bottom, transparent, #FFFFFF)',
               }} />
@@ -171,7 +288,6 @@ export default function Home() {
                   {persona.avatarName}
                 </p>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  {/* 이번 주 기록 — 클릭 시 /my-diary로 이동 */}
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); navigate('/my-diary') }}
@@ -185,11 +301,15 @@ export default function Home() {
                     <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{diaryCount}</strong>
                   </button>
                   <div style={{
-                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    background: '#F0F6FF', borderRadius: '10px', padding: '4px 0',
+                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    background: '#F0F6FF', borderRadius: '10px', padding: '4px 8px',
                   }}>
-                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>❤️ 받은 좋아요</span>
-                    <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{totalLikes}</strong>
+                    <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '2px' }}>
+                      💳 어제 소비 요약
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#0073BC', fontWeight: 600, textAlign: 'center', lineHeight: 1.4 }}>
+                      {categoryMessage || '오늘도 소비 기록 중 ✨'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -205,13 +325,7 @@ export default function Home() {
             type="button"
             onClick={() => navigate('/camera', { state: { myGroups: feedPreviews } })}
             className="rounded-[18px] flex flex-col cursor-pointer border-0 text-left relative"
-            style={{
-              background: '#2F7DF6',
-              border: 'none',
-              boxShadow: '0 8px 18px rgba(47,125,246,0.18)',
-              minHeight: '85px',
-              overflow: 'visible',
-            }}
+            style={{ background: '#2F7DF6', border: 'none', boxShadow: '0 8px 18px rgba(47,125,246,0.18)', minHeight: '85px', overflow: 'visible' }}
           >
             <div className="px-4 pt-4">
               <span className="block text-[15px] font-bold leading-tight" style={{ color: '#FFFFFF' }}>카메라</span>
