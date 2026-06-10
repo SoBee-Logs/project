@@ -28,39 +28,39 @@ export function buildAlertFingerprint(alerts) {
     .join('|')
 }
 
-// 주차별 소비 progress bar
-function WeekRow({ w }) {
+function statusChip(status) {
+  if (status === 'DANGER')  return { label: '초과', bg: '#fef2f2', color: '#ef4444' }
+  if (status === 'WARNING') return { label: '임박', bg: '#fffbeb', color: '#f59e0b' }
+  return { label: '안전', bg: '#f0fdf4', color: '#22c55e' }
+}
+
+function WeekDetail({ w }) {
   const hasBudget = w.targetBudget != null && w.targetBudget > 0
   const hasDiary  = w.targetDiaryCount != null && w.targetDiaryCount > 0
-
   const budgetRaw = hasBudget ? Math.round((w.weeklySpend / w.targetBudget) * 100) : 0
-  const budgetPct = Math.min(100, budgetRaw) // bar는 100%까지만
   const budgetColor = w.budgetStatus === 'DANGER' ? '#ef4444' : w.budgetStatus === 'WARNING' ? '#f59e0b' : '#22c55e'
   const diaryColor  = w.diaryStatus  === 'DANGER' ? '#ef4444' : w.diaryStatus  === 'WARNING' ? '#f59e0b' : '#22c55e'
 
   return (
-    <div style={{ marginBottom: '10px' }}>
-      <p style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '5px' }}>{w.week}차</p>
-
+    <div className="rounded-xl bg-blue-50 px-3 py-2.5">
       {hasBudget && (
-        <div style={{ marginBottom: '4px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-            <span style={{ fontSize: '10px', color: '#9ca3af' }}>💸 소비한도</span>
-            <span style={{ fontSize: '10px', fontWeight: '700', color: budgetColor }}>
-              {w.weeklySpend.toLocaleString()} / {w.targetBudget.toLocaleString()}원 ({budgetRaw}%)
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasDiary ? '8px' : '0' }}>
+          <span style={{ fontSize: '10px', color: '#9ca3af' }}>💸 소비한도</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <span style={{ fontSize: '10px', color: '#374151' }}>
+              {w.weeklySpend.toLocaleString()}원 / {w.targetBudget.toLocaleString()}원
             </span>
-          </div>
-          <div style={{ height: '5px', borderRadius: '99px', background: '#f3f4f6', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${budgetPct}%`, background: budgetColor, borderRadius: '99px', transition: 'width 0.4s' }} />
+            <span style={{ fontSize: '9px', fontWeight: '700', color: budgetColor }}>
+              {budgetRaw >= 100 ? `+${budgetRaw - 100}%` : `${budgetRaw}%`}
+            </span>
           </div>
         </div>
       )}
-
       {hasDiary && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '10px', color: '#9ca3af' }}>✍️ 일기 목표</span>
-          <span style={{ fontSize: '10px', fontWeight: '700', color: diaryColor }}>
-            {w.weeklyDiaryCount} / {w.targetDiaryCount}회
+          <span style={{ fontSize: '10px', color: diaryColor, fontWeight: '700' }}>
+            {w.weeklyDiaryCount}회 / {w.targetDiaryCount}회 목표
           </span>
         </div>
       )}
@@ -71,13 +71,26 @@ function WeekRow({ w }) {
 // 방별 아코디언
 function GroupAlert({ alert }) {
   const [open, setOpen] = useState(false)
+  const [selectedWeek, setSelectedWeek] = useState(null)
   const hasIssue = alert.budgetStatus !== 'SAFE' || alert.diaryStatus !== 'SAFE'
+
+  const weeks = alert.weeklyData ?? []
+
+  const handleOpen = () => {
+    if (!open && weeks.length > 0) setSelectedWeek(weeks[weeks.length - 1].week)
+    setOpen(prev => !prev)
+  }
+
+  const activeWeek = weeks.find(w => w.week === selectedWeek)
+  const worstStatus = (activeWeek?.budgetStatus === 'DANGER' || activeWeek?.diaryStatus === 'DANGER') ? 'DANGER'
+    : (activeWeek?.budgetStatus === 'WARNING' || activeWeek?.diaryStatus === 'WARNING') ? 'WARNING' : 'SAFE'
+  const chip = statusChip(worstStatus)
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', paddingBottom: '8px' }}>
       <button
         type="button"
-        onClick={() => setOpen(prev => !prev)}
+        onClick={handleOpen}
         style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -88,16 +101,48 @@ function GroupAlert({ alert }) {
       </button>
 
       {open && (
-        <div style={{ marginTop: '8px', paddingLeft: '4px' }}>
-          {alert.spendingCategoryId && (
-            <p style={{ fontSize: '10px', color: '#6366f1', fontWeight: '600', marginBottom: '8px' }}>
-              절약 카테고리: {CATEGORY_MAP[alert.spendingCategoryId] ?? `카테고리 ${alert.spendingCategoryId}`}
-            </p>
+        <div style={{ marginTop: '8px' }}>
+          {/* 카테고리 표시 */}
+          <p style={{ fontSize: '10px', marginBottom: '8px', color: alert.spendingCategoryId ? '#6366f1' : '#9ca3af', fontWeight: alert.spendingCategoryId ? '600' : '400' }}>
+            {alert.spendingCategoryId
+              ? `절약 카테고리: ${CATEGORY_MAP[alert.spendingCategoryId] ?? `카테고리 ${alert.spendingCategoryId}`}`
+              : '전체 지출 기준'}
+          </p>
+
+          {/* 주차 탭 */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2">
+            {weeks.map(w => {
+              const wWorst = (w.budgetStatus === 'DANGER' || w.diaryStatus === 'DANGER') ? 'DANGER'
+                : (w.budgetStatus === 'WARNING' || w.diaryStatus === 'WARNING') ? 'WARNING' : 'SAFE'
+              const isActive = selectedWeek === w.week
+              return (
+                <button
+                  key={w.week}
+                  type="button"
+                  onClick={() => setSelectedWeek(w.week)}
+                  className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                    isActive ? 'bg-[#1e73be] text-white' : 'bg-white text-gray-500 border border-gray-200'
+                  }`}
+                >
+                  {w.week}
+                  {wWorst !== 'SAFE' && (
+                    <span style={{ marginLeft: '3px', fontSize: '7px', verticalAlign: 'middle', color: isActive ? 'white' : wWorst === 'DANGER' ? '#ef4444' : '#f59e0b' }}>●</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* 선택된 주차 상태 칩 + 날짜 */}
+          {activeWeek && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <span style={{ fontSize: '9px', color: '#9ca3af' }}>{activeWeek.startDate} ~ {activeWeek.endDate}</span>
+              <span style={{ fontSize: '9px', fontWeight: '700', padding: '1px 6px', borderRadius: '99px', background: chip.bg, color: chip.color }}>{chip.label}</span>
+            </div>
           )}
-          {!alert.spendingCategoryId && (
-            <p style={{ fontSize: '10px', color: '#9ca3af', marginBottom: '8px' }}>전체 지출 기준</p>
-          )}
-          {alert.weeklyData?.map(w => <WeekRow key={w.week} w={w} />)}
+
+          {/* 선택된 주차 상세 */}
+          {activeWeek && <WeekDetail w={activeWeek} />}
         </div>
       )}
     </div>
