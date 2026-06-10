@@ -17,6 +17,7 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
   const [newRoomCategory, setNewRoomCategory] = useState('')
   const [newTargetBudget, setNewTargetBudget] = useState('')
   const [newTargetDiaryCount, setNewTargetDiaryCount] = useState('')
+  const [noBudgetLimit, setNoBudgetLimit] = useState(false)
   const [joinCode, setJoinCode] = useState('')
   const [currentCode, setCurrentCode] = useState('')
   const [currentRoomId, setCurrentRoomId] = useState(null)
@@ -74,9 +75,8 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
         body: JSON.stringify({
           groupName: newRoomName,
           groupDescription: newRoomDesc,
-          // 카테고리 및 목표값 (미입력 시 null로 전송)
           category: newRoomCategory || null,
-          targetBudget: newTargetBudget ? parseInt(newTargetBudget) : null,
+          targetBudget: noBudgetLimit ? null : (newTargetBudget ? parseInt(newTargetBudget) : null),
           targetDiaryCount: newTargetDiaryCount ? parseInt(newTargetDiaryCount) : null,
         }),
       })
@@ -95,6 +95,7 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
       setNewRoomCategory('')
       setNewTargetBudget('')
       setNewTargetDiaryCount('')
+      setNoBudgetLimit(false)
       setShowCreatePopup(false)
       setCurrentCode(data.groupCode)
       setShowCodePopup(true)
@@ -322,15 +323,30 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
 
             {/* 주간 목표 입력 */}
             <p style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>주간 목표 (선택)</p>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
               <div style={{ flex: 1 }}>
-                <input
-                  type="number"
-                  placeholder="예산 (원)"
-                  value={newTargetBudget}
-                  onChange={(e) => setNewTargetBudget(e.target.value)}
-                  style={{ ...inputStyle, marginTop: 0, marginBottom: 0 }}
-                />
+                {noBudgetLimit ? (
+                  <div style={{
+                    ...inputStyle, marginTop: 0, marginBottom: 0,
+                    background: '#f3f4f6', color: '#9ca3af',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '12px',
+                  }}>
+                    한도 없음
+                  </div>
+                ) : (
+                  <input
+                    type="number"
+                    placeholder="예산 (원)"
+                    value={newTargetBudget}
+                    min="0"
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (val === '' || parseInt(val) >= 0) setNewTargetBudget(val)
+                    }}
+                    style={{ ...inputStyle, marginTop: 0, marginBottom: 0 }}
+                  />
+                )}
                 <p style={{ fontSize: '10px', color: '#9ca3af', marginTop: '3px' }}>💸 소비 한도</p>
               </div>
               <div style={{ flex: 1 }}>
@@ -338,12 +354,42 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
                   type="number"
                   placeholder="횟수"
                   value={newTargetDiaryCount}
-                  onChange={(e) => setNewTargetDiaryCount(e.target.value)}
+                  min="0"
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val === '' || parseInt(val) >= 0) setNewTargetDiaryCount(val)
+                  }}
                   style={{ ...inputStyle, marginTop: 0, marginBottom: 0 }}
                 />
                 <p style={{ fontSize: '10px', color: '#9ca3af', marginTop: '3px' }}>✍️ 일기 목표</p>
               </div>
             </div>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                marginBottom: '16px',
+                padding: '8px 10px',
+                borderRadius: '8px',
+                border: noBudgetLimit ? '2px solid #0083CA' : '1.5px solid #e5e7eb',
+                background: noBudgetLimit ? '#E8F4FD' : 'white',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={noBudgetLimit}
+                onChange={(e) => {
+                  setNoBudgetLimit(e.target.checked)
+                  if (e.target.checked) setNewTargetBudget('')
+                }}
+                style={{ width: '16px', height: '16px', accentColor: '#0083CA', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '12px', color: noBudgetLimit ? '#0083CA' : '#6b7280', fontWeight: noBudgetLimit ? '700' : '400' }}>
+                소비한도 없음 (일기만 올리기)
+              </span>
+            </label>
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
@@ -354,6 +400,7 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
                   setNewRoomCategory('')
                   setNewTargetBudget('')
                   setNewTargetDiaryCount('')
+                  setNoBudgetLimit(false)
                 }}
                 style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: '14px' }}
               >취소</button>
