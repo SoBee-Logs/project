@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import BottomNav from './common/components/BottomNav'
 import AppBar from './common/components/AppBar'
-import StatusBar from './common/components/StatusBar'
 import Home from './features/home/HomePage'
 import HomeDetail from './features/diary/HomeDetail'
 import AvaterRoom from './features/report/AvaterRoom'
@@ -22,8 +21,8 @@ const routeConfig = [
   { path: '/login',          element: <Login />,        bottomNav: false, floatingNav: false, appBar: false },
   { path: '/home',           element: <Home />,         bottomNav: true,  floatingNav: true,  appBar: false },
   { path: '/home/detail',    element: <HomeDetail />,   bottomNav: false, floatingNav: false, appBar: true, title: '홈 상세' },
-  { path: '/report',         element: <AvaterRoom />,   bottomNav: true,  floatingNav: false, appBar: false, noScroll: true, statusBar: true },
-  { path: '/report/monthly', element: <Report />,       bottomNav: true,  floatingNav: false, appBar: false, statusBar: true },
+  { path: '/report',         element: <AvaterRoom />,   bottomNav: true,  floatingNav: false, appBar: false, noScroll: true },
+  { path: '/report/monthly', element: <Report />,       bottomNav: true,  floatingNav: false, appBar: false },
   { path: '/report/detail',  element: <ReportDetail />, bottomNav: false, floatingNav: false, appBar: false },
   { path: '/feed',           element: <Feed />,         bottomNav: true,  floatingNav: false, appBar: false },
   { path: '/camera',         element: <CameraPage />,   bottomNav: false, floatingNav: false, appBar: false },
@@ -46,8 +45,7 @@ function Layout() {
 
   return (
     <div className="flex flex-col w-[375px] h-[100dvh] mx-auto bg-white overflow-hidden shadow-xl relative">
-      {config.statusBar && <StatusBar />}
-      {config.appBar && <AppBar title={config.title} onBack={config.backTo ? () => navigate(config.backTo) : undefined} />}
+{config.appBar && <AppBar title={config.title} onBack={config.backTo ? () => navigate(config.backTo) : undefined} />}
       <div className={`flex-1 min-h-0 ${config.noScroll ? 'overflow-hidden' : 'overflow-y-auto'} ${config.floatingNav ? 'pb-0' : ''}`}>
         <Routes>
           {routeConfig.map(({ path, element }) => (

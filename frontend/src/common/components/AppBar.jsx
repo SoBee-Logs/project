@@ -19,8 +19,8 @@ export default function AppBar({ title, onBack }) {
         onClick={handleBack}
         className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M19 12H5M12 19l-7-7 7-7" />
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 18l-6-6 6-6" />
         </svg>
       </button>
       <span className="flex-1 text-center text-base font-semibold text-gray-800 -ml-8 pointer-events-none">
