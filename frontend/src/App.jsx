@@ -15,6 +15,7 @@ import Login from './features/auth/Login'
 import Register from './features/auth/Register'
 import ProductSearch from './features/search/ProductSearch'
 import ProductDetail from './features/search/ProductDetail'
+import MyDiary from './features/feed/MyDiary'  // 추가
 
 const routeConfig = [
   { path: '/',               element: <Login />,        bottomNav: false, floatingNav: false, appBar: false },
@@ -32,6 +33,7 @@ const routeConfig = [
   { path: '/register',       element: <Register />,     bottomNav: false, floatingNav: false, appBar: false },
   { path: '/search',         element: <ProductSearch />,bottomNav: true,  floatingNav: false, appBar: false },
   { path: '/product/detail', element: <ProductDetail />,bottomNav: false, floatingNav: false, appBar: false },
+  { path: '/my-diary',       element: <MyDiary />,      bottomNav: false, floatingNav: false, appBar: false },  // 추가
 ]
 
 function Layout() {
@@ -45,7 +47,7 @@ function Layout() {
 
   return (
     <div className="flex flex-col w-[375px] h-[100dvh] mx-auto bg-white overflow-hidden shadow-xl relative">
-{config.appBar && <AppBar title={config.title} onBack={config.backTo ? () => navigate(config.backTo) : undefined} />}
+      {config.appBar && <AppBar title={config.title} onBack={config.backTo ? () => navigate(config.backTo) : undefined} />}
       <div className={`flex-1 min-h-0 ${config.noScroll ? 'overflow-hidden' : 'overflow-y-auto'} ${config.floatingNav ? 'pb-0' : ''}`}>
         <Routes>
           {routeConfig.map(({ path, element }) => (

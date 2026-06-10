@@ -89,4 +89,12 @@ public class DiaryController {
         Long userId = extractUserId(authHeader);  // extractUserId 결과 변수에 담기
         return ResponseEntity.ok(diaryService.getDiaryPreview(groupId, userId));  // userId 전달
     }
+
+    @GetMapping("/my-list")
+    public ResponseEntity<List<DiaryFeedItemResponse>> getMyDiaryList(
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        Long userId = extractUserId(authHeader);
+        return ResponseEntity.ok(diaryService.getMyDiaryList(userId));
+    }
 }

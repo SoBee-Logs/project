@@ -29,7 +29,6 @@ export default function Home() {
   const [userName, setUserName] = useState(null)
   const [feedPreviews, setFeedPreviews] = useState([])
   const [currentTime, setCurrentTime] = useState('')
-
   const [totalLikes, setTotalLikes] = useState(0)
   const [diaryCount, setDiaryCount] = useState(0)
 
@@ -45,14 +44,6 @@ export default function Home() {
     const timer = setInterval(update, 1000)
     return () => clearInterval(timer)
   }, [])
-
-  const fetchPersona = () => {
-    if (!userId) return
-    fetch(`/api/users/${userId}/persona`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) { setPersona(data); if (data.name) setUserName(data.name) } })
-      .catch(() => {})
-  }
 
   useEffect(() => {
     if (!userId) return
@@ -82,20 +73,17 @@ export default function Home() {
           const previewResults = await Promise.all(
             groups.map(g =>
               fetch(`/api/diary/preview?groupId=${g.groupId}`, { headers: { Authorization: `Bearer ${token}` } })
-                .then(r => r.ok ? r.json() : { count: 0, imageUrl: null })
-                .catch(() => ({ count: 0, imageUrl: null }))
+                .then(r => r.ok ? r.json() : { count: 0, myCount: 0, imageUrl: null })
+                .catch(() => ({ count: 0, myCount: 0, imageUrl: null }))
             )
           )
 
-          const previews = groups.map((g, i) => {
-            return {
-              groupId: g.groupId,
-              groupName: g.groupName,
-              imageUrl: previewResults[i].imageUrl ?? null,
-            }
-          })
-          
-          // myCount는 첫 번째 결과에서 한 번만 가져오기
+          const previews = groups.map((g, i) => ({
+            groupId: g.groupId,
+            groupName: g.groupName,
+            imageUrl: previewResults[i].imageUrl ?? null,
+          }))
+
           const myCount = previewResults.length > 0 ? (previewResults[0].myCount ?? 0) : 0
           setDiaryCount(myCount)
           setFeedPreviews(previews)
@@ -121,15 +109,12 @@ export default function Home() {
                 className="w-full block"
                 style={{ objectFit: 'contain', objectPosition: 'center top' }}
               />
-              {/* 하단 페이드 */}
               <div style={{
                 position: 'absolute',
                 bottom: 0, left: 0, right: 0,
                 height: '60px',
                 background: 'linear-gradient(to bottom, transparent, #FFFFFF)',
               }} />
-              
-              {/* 검색바 오버레이 */}
               <div className="absolute top-3 left-0 right-0 z-20 px-3 flex items-center gap-2">
                 <button
                   type="button"
@@ -159,6 +144,7 @@ export default function Home() {
             </div>
           )}
         </figure>
+
         {/* 페르소나 카드 */}
         {persona?.avatarImgUrl && (
           <div className="px-3 -mt-3 relative z-10">
@@ -177,7 +163,6 @@ export default function Home() {
                 boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
               }}
             >
-              {/* 텍스트 */}
               <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
                 <p style={{ margin: '0 0 1px', fontSize: '12px', fontWeight: 700, color: '#9AA6B2' }}>
                   {userName ? `${userName}님의 소비 페르소나` : '나의 소비 페르소나'}
@@ -186,16 +171,22 @@ export default function Home() {
                   {persona.avatarName}
                 </p>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{
-                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    background: '#F0F6FF', borderRadius: '10px', padding: '1px 0',
-                  }}>
+                  {/* 이번 주 기록 — 클릭 시 /my-diary로 이동 */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); navigate('/my-diary') }}
+                    style={{
+                      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      background: '#F0F6FF', borderRadius: '10px', padding: '4px 0',
+                      border: 'none', cursor: 'pointer',
+                    }}
+                  >
                     <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>📸 이번 주 기록</span>
                     <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{diaryCount}</strong>
-                  </div>
+                  </button>
                   <div style={{
                     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    background: '#F0F6FF', borderRadius: '10px', padding: '1px 0',
+                    background: '#F0F6FF', borderRadius: '10px', padding: '4px 0',
                   }}>
                     <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>❤️ 받은 좋아요</span>
                     <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{totalLikes}</strong>
@@ -210,8 +201,6 @@ export default function Home() {
       {/* 기능 카드 */}
       <section className="px-3 mt-2">
         <div className="grid grid-cols-2 gap-3">
-
-          {/* 카메라 카드 */}
           <button
             type="button"
             onClick={() => navigate('/camera', { state: { myGroups: feedPreviews } })}
@@ -225,27 +214,16 @@ export default function Home() {
             }}
           >
             <div className="px-4 pt-4">
-              <span className="block text-[15px] font-bold leading-tight" style={{ color: '#FFFFFF' }}>
-                카메라
-              </span>
-              <span className="block text-[11px] font-bold leading-tight mt-2" style={{ color: '#FFFFFF' }}>
-                소비 사진을 찍어주세요!
-              </span>
+              <span className="block text-[15px] font-bold leading-tight" style={{ color: '#FFFFFF' }}>카메라</span>
+              <span className="block text-[11px] font-bold leading-tight mt-2" style={{ color: '#FFFFFF' }}>소비 사진을 찍어주세요!</span>
             </div>
             <div className="flex-1 flex items-end justify-end">
-              <img
-                src={cameraHalo}
-                alt="camera"
-                className="object-contain block"
-                style={{ width: '100px', height: '100px', marginBottom: '-5px', marginRight: '8px' }}
-              />
+              <img src={cameraHalo} alt="camera" className="object-contain block"
+                style={{ width: '100px', height: '100px', marginBottom: '-5px', marginRight: '8px' }} />
             </div>
           </button>
 
-          {/* 오른쪽 2단 카드 */}
           <div className="grid grid-rows-2 gap-3">
-
-            {/* 소비 로그 카드 */}
             <button
               type="button"
               onClick={() => {
@@ -253,27 +231,13 @@ export default function Home() {
                 navigate('/consumption-log', { state: { selectedRooms: roomIds, myGroups: feedPreviews } })
               }}
               className="rounded-[18px] flex items-end justify-between cursor-pointer border-0 text-left relative"
-              style={{
-                background: '#EBF5FF',
-                border: 'none',
-                boxShadow: 'none',
-                minHeight: '40px',
-                padding: '5px 12px',
-                overflow: 'visible',
-              }}
+              style={{ background: '#EBF5FF', border: 'none', boxShadow: 'none', minHeight: '40px', padding: '5px 12px', overflow: 'visible' }}
             >
-              <span className="block text-[13px] font-bold leading-tight self-start pt-2" style={{ color: '#003B72' }}>
-                소비 로그
-              </span>
-              <img
-                src={receiptHalo}
-                alt="receipt"
-                className="object-contain block"
-                style={{ width: '68px', height: '68px', marginBottom: '-10px', marginRight: '-6px' }}
-              />
+              <span className="block text-[13px] font-bold leading-tight self-start pt-2" style={{ color: '#003B72' }}>소비 로그</span>
+              <img src={receiptHalo} alt="receipt" className="object-contain block"
+                style={{ width: '68px', height: '68px', marginBottom: '-10px', marginRight: '-6px' }} />
             </button>
 
-            {/* 상품 추천 카드 */}
             <button
               type="button"
               onClick={() => {
@@ -281,24 +245,11 @@ export default function Home() {
                 navigate('/report/monthly', { state: { scrollTo: 'aiRecommend', year: now.getFullYear(), month: now.getMonth() + 1 } })
               }}
               className="rounded-[18px] flex items-end justify-between cursor-pointer border-0 text-left relative"
-              style={{
-                background: '#EBF5FF',
-                border: 'none',
-                boxShadow: 'none',
-                minHeight: '40px',
-                padding: '5px 12px',
-                overflow: 'visible',
-              }}
+              style={{ background: '#EBF5FF', border: 'none', boxShadow: 'none', minHeight: '40px', padding: '5px 12px', overflow: 'visible' }}
             >
-              <span className="block text-[13px] font-bold leading-tight self-start pt-2" style={{ color: '#003B72' }}>
-                상품 추천
-              </span>
-              <img
-                src={productBag}
-                alt="product recommendation"
-                className="object-contain block"
-                style={{ width: '75px', height: '75px', marginBottom: '-10px', marginRight: '-6px' }}
-              />
+              <span className="block text-[13px] font-bold leading-tight self-start pt-2" style={{ color: '#003B72' }}>상품 추천</span>
+              <img src={productBag} alt="product recommendation" className="object-contain block"
+                style={{ width: '75px', height: '75px', marginBottom: '-10px', marginRight: '-6px' }} />
             </button>
           </div>
         </div>
@@ -308,9 +259,7 @@ export default function Home() {
       <section className="px-3 pt-3 pb-22">
         <h2 className="text-[14px] font-bold mb-0.5" style={{ color: '#003B72', paddingLeft: '2px' }}>피드 하이라이트</h2>
         {feedPreviews.length === 0 ? (
-          <p className="text-[13px] text-gray-400 text-center py-6">
-            아직 모임방이 없어요. 모임을 만들어보세요!
-          </p>
+          <p className="text-[13px] text-gray-400 text-center py-6">아직 모임방이 없어요. 모임을 만들어보세요!</p>
         ) : (
           <div
             ref={feedRef}
@@ -348,7 +297,6 @@ export default function Home() {
         )}
       </section>
 
-      {/* 설정 드로어 */}
       <SettingsDrawer isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </main>
   )
