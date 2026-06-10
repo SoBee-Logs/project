@@ -100,23 +100,17 @@ services:
   fastapi:
     build:
       context: ./backend/fastapi
-      dockerfile: Dockerfile.dev
-    volumes:
-      - ./backend/fastapi/app:/app/app
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     env_file:
-      - .env                  # 공통 (RDS, SSH)
       - backend/fastapi/.env  # FastAPI 전용 (AI, Codef)
     environment:
-      - DB_HOST=ssh-tunnel
+      - DB_HOST=sobee-prd-db-mysql.cboqcmk4y5y9.ap-northeast-2.rds.amazonaws.com
       - DB_PORT=3306
-      - ENV=dev
+      - ENV=prod                      # dev → prod (--reload 제거)
       - TZ=Asia/Seoul
-    restart: on-failure
-    depends_on:
-      ssh-tunnel:
-        condition: service_healthy
+    restart: unless-stopped
     networks:
       - sobee-net
 
@@ -125,7 +119,7 @@ services:
     container_name: sobee-postgres-airflow
     environment:
       POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
+      POSTGRES_PASSWORD: fisa-ai5-airflow
       POSTGRES_DB: airflow
     volumes:
       - postgres_airflow_data:/var/lib/postgresql/data
