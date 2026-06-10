@@ -1,0 +1,62 @@
+services:
+  elasticsearch:
+    build: ./elasticsearch
+    container_name: sobee-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - sobee-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  spring:
+    build:
+      context: ./backend/spring
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - backend/spring/.env
+    environment:
+      - DB_HOST=sobee-prd-db-mysql.cboqcmk4y5y9.ap-northeast-2.rds.amazonaws.com
+      - DB_PORT=3306
+      - FASTAPI_BASE_URL=http://10.250.1.252:8000
+      - ES_URI=http://elasticsearch:9200
+      - CORS_ALLOWED_ORIGINS=http://SOBEE-PRD-ALB-1231879444.ap-northeast-2.elb.amazonaws.com,http://localhost:3000
+      - TZ=Asia/Seoul
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - sobee-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - spring
+    networks:
+      - sobee-net
+
+networks:
+  sobee-net:
+    driver: bridge
+
+volumes:
+  es_data:
+    driver: local
