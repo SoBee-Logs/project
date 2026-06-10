@@ -18,6 +18,15 @@ MOOD_NAME_TO_EMOJI: Final[dict[str, str]] = {
     "ANGRY":     "😡",
 }
 
+# emoji → 한국어 감정 설명 (LLM change_reason 생성용)
+MOOD_KO: Final[dict[str, str]] = {
+    "☺️": "행복/만족",
+    "😭": "슬픔/눈물",
+    "😮": "놀람/당황",
+    "😍": "설렘/사랑",
+    "😡": "화남/분노",
+}
+
 # emoji → 이미지 생성용 명시적 영어 표현 (아바타 표정 일관성)
 MOOD_EXPRESSION_EN: Final[dict[str, str]] = {
     "☺️": "big warm satisfied smile, relaxed happy eyes, contentedly cheerful",
