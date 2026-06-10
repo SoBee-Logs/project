@@ -6,6 +6,7 @@ import logging
 from typing import Optional
 from google import genai
 from google.genai import types
+from langsmith import traceable
 
 from app.db import category_mapping_repository as repo
 from app.models.schemas import CategoryResolveResponse
@@ -182,21 +183,33 @@ JSON으로만 응답하세요:
   ]
 }}"""
 
+@traceable(
+    name="Gemini 카테고리 분류",
+    project_name="sobee-category-mapping",
+    metadata={"model": "gemini-3.5-flash"},
+)
 async def _call_gemini_classify(items: list[dict]) -> list[dict]:
-    """Gemini 2.5 flash로 일괄 분류 요청."""
+    """Gemini 3.5 flash로 일괄 분류 요청."""
     client = _get_gemini_client()
+    prompt = _build_llm_prompt(items)
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=_build_llm_prompt(items),
+        model="gemini-3.5-flash",
+        contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             temperature=0,
-            thinking_config=types.ThinkingConfig(thinking_budget=128),
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         ),
     )
-    return json.loads(response.text).get("results", [])
+    results = json.loads(response.text).get("results", [])
+    logger.info(f"Gemini 분류 완료: {len(items)}건 입력 → {len(results)}건 결과")
+    return results
 
 
+@traceable(
+    name="LLM 카테고리 매핑 파이프라인",
+    project_name="sobee-category-mapping",
+)
 async def process_llm_for_etc_transactions(batch_size: int = 50) -> dict:
     """transactions에서 payment_category_id=16인 페어 추출 → OpenAI 분류 → 백필."""
     pairs = await repo.get_pending_llm_pairs(limit=batch_size)
