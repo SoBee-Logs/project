@@ -120,7 +120,7 @@ export default function ConsumptionLog() {
 
   return (
     <main className="flex flex-col min-h-full bg-white">
-      <header className="px-5 pt-1 pb-3 shrink-0">
+      <header className="px-5 pt-2 pb-3 shrink-0">
         <div className="flex items-center gap-2 mb-2">
           <button
             type="button"
@@ -132,7 +132,7 @@ export default function ConsumptionLog() {
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <p className="text-[13px] font-semibold text-gray-900 m-0 leading-snug">
+          <p className="text-[14px] font-semibold text-gray-900 m-0 mt-0.5 leading-snug">
             나의 소비 로그
           </p>
         </div>
@@ -145,7 +145,7 @@ export default function ConsumptionLog() {
           className="mt-2 flex items-center rounded-full border"
           style={{
             width: 'fit-content',
-            padding: '8px 14px 8px 10px',
+            padding: '5px 14px 5px 10px',
             gap: '10px',
             background: '#F3F8FF',
             borderColor: '#DCEBFF',
