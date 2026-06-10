@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import StatusBar from '../../common/components/StatusBar'
 import heic2any from 'heic2any'
 import exifr from 'exifr'
 
@@ -227,16 +226,16 @@ export default function CameraPage() {
 
   return (
     <main className="flex flex-col min-h-full bg-white">
-      <StatusBar />
-
-      <header className="px-5 py-2">
+      <header className="px-5 pt-1 pb-3 shrink-0">
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="text-2xl text-gray-800 leading-none w-8 h-8 flex items-center"
-          aria-label="뒤로"
+          className="flex items-center justify-center w-8 h-8 -ml-2 text-gray-800"
+          aria-label="뒤로가기"
         >
-          ‹
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
         </button>
       </header>
 

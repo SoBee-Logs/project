@@ -285,14 +285,14 @@ export default function ProductDetail() {
         <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#F4F7FB", fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif" }}>
             <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
 
-            <div style={{ padding: "12px 20px", background: "#fff", borderBottom: "1px solid #EEF1F5", flexShrink: 0 }}>
+            <div className="px-5 pt-1 pb-3 shrink-0" style={{ background: "#fff", borderBottom: "1px solid #EEF1F5" }}>
                 <button
                     onClick={() => navigate(-1)}
-                    className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+                    className="flex items-center justify-center w-8 h-8 -ml-2 text-gray-800"
                     style={{ border: "none", cursor: "pointer", background: "none" }}
                 >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M19 12H5M12 19l-7-7 7-7" />
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15 18l-6-6 6-6" />
                     </svg>
                 </button>
             </div>

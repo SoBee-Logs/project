@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDragScroll } from '../../common/hooks/useDragScroll'
-import StatusBar from '../../common/components/StatusBar'
 import SettingsDrawer from './SettingsDrawer'
 import { jwtDecode } from 'jwt-decode'
 import cameraHalo from '../../assets/camera.png'
@@ -111,8 +110,6 @@ export default function Home() {
   return (
     <main className="min-h-full text-left pb-2 home-no-scrollbar" style={{ background: '#FFFFFF' }}>
       <section style={{ background: '#FFFFFF'}}>
-        <StatusBar />
-
         {/* 페르소나 이미지 */}
         <figure className="relative w-full m-0 p-0" style={{ marginTop: '-1px' }}>
           {persona?.avatarImgUrl ? (

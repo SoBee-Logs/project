@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import StatusBar from '../../common/components/StatusBar'
 import { ROOMS, SKY_BLUE } from '../../common/utils/rooms'
 import { useDragScroll } from '../../common/hooks/useDragScroll'
 
@@ -138,7 +137,6 @@ export default function DiaryResult() {
   if (diaries.length === 0) {
     return (
       <main className="flex flex-col items-center justify-center min-h-full bg-[#FAFAFA] gap-6 px-6">
-        <StatusBar />
         <span className="text-5xl">😢</span>
         <h2 className="text-[18px] font-bold text-gray-800 text-center m-0">일기 생성에 실패했어요</h2>
         <p className="text-[13px] text-gray-500 text-center leading-relaxed m-0">
@@ -166,16 +164,16 @@ export default function DiaryResult() {
 
   return (
     <main className="flex flex-col min-h-full bg-[#FAFAFA] relative">
-      <StatusBar />
-
-      <header className="px-5 pt-1 pb-2 bg-[#FAFAFA] shrink-0">
+      <header className="px-5 pt-1 pb-3 bg-[#FAFAFA] shrink-0">
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="flex items-center justify-center w-8 h-8 -ml-1 text-gray-800"
+          className="flex items-center justify-center w-8 h-8 -ml-2 text-gray-800"
           aria-label="뒤로가기"
         >
-          <span className="text-[22px] leading-none">‹</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
         </button>
       </header>
 
