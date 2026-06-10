@@ -106,7 +106,7 @@ services:
     env_file:
       - backend/fastapi/.env  # FastAPI 전용 (AI, Codef)
     environment:
-      - DB_HOST=REDACTED_RDS_HOST
+      - DB_HOST=${DB_HOST}
       - DB_PORT=3306
       - ENV=prod                      # dev → prod (--reload 제거)
       - TZ=Asia/Seoul
@@ -119,7 +119,7 @@ services:
     container_name: sobee-postgres-airflow
     environment:
       POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: fisa-ai5-airflow
+      POSTGRES_PASSWORD: ${AIRFLOW_POSTGRES_PASSWORD}
       POSTGRES_DB: airflow
     volumes:
       - postgres_airflow_data:/var/lib/postgresql/data
@@ -136,7 +136,7 @@ services:
     env_file: airflow/.env
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_POSTGRES_PASSWORD}@postgres-airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       SOBEE_FASTAPI_URL: http://fastapi:8000
       TZ: Asia/Seoul
@@ -154,7 +154,7 @@ services:
     env_file: airflow/.env
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_POSTGRES_PASSWORD}@postgres-airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: 'true'
@@ -181,7 +181,7 @@ services:
     env_file: airflow/.env
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_POSTGRES_PASSWORD}@postgres-airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: 'true'
