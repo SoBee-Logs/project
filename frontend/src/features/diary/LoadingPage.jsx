@@ -19,6 +19,7 @@ export default function LoadingPage() {
   const location = useLocation()
   const [messageIndex, setMessageIndex] = useState(0)
   const [userPhotos, setUserPhotos] = useState([])
+  const [userEmojis, setUserEmojis] = useState([])
   const [personaImage, setPersonaImage] = useState(CURRENT_USER.personaImage)
   const hasRun = useRef(false) // 추가: StrictMode 중복 실행 방지
 
@@ -59,6 +60,8 @@ export default function LoadingPage() {
         const photoList = data.photos ?? data
         const urls = photoList.map((p) => p.imageUrl ?? p.url).filter(Boolean)
         if (urls.length > 0) setUserPhotos(urls)
+        const emojis = photoList.map((p) => p.emoji).filter(Boolean)
+        if (emojis.length > 0) setUserEmojis(emojis)
       } catch {
         // 실패해도 fallback으로 진행
       }
@@ -193,9 +196,7 @@ export default function LoadingPage() {
 
   const marqueePhotos = userPhotos.length > 0
     ? [...userPhotos, ...userPhotos]
-    : imageUrl
-      ? [imageUrl, imageUrl, imageUrl, imageUrl]
-      : []
+    : []
 
   return (
     <main className="relative flex flex-col items-center justify-center min-h-full bg-gradient-to-b from-indigo-50 via-white to-indigo-50 overflow-hidden px-6">
@@ -216,24 +217,22 @@ export default function LoadingPage() {
 
       <div className="absolute bottom-[22%] left-0 right-0 h-16 overflow-hidden pointer-events-none">
         <div className="flex items-center gap-6 animate-avatar-drift">
-          {[CURRENT_USER.personaEmoji, '🌃', '🍜', '✨', CURRENT_USER.personaEmoji, '🌃'].map(
-            (emoji, i) => (
+          {(() => {
+            const base = userEmojis.length > 0 ? userEmojis : ['🌃', '🍜', '✨']
+            const slots = [0, 1, 2].map(i => base[i % base.length])
+            return [null, slots[0], null, slots[1], null, slots[2]].map((item, i) => (
               <span
                 key={i}
                 className="text-4xl shrink-0 w-14 h-14 flex items-center justify-center bg-white rounded-full shadow-lg overflow-hidden"
               >
                 {i % 2 === 0 ? (
-                  <img
-                    src={personaImage}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={personaImage} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  emoji
+                  item
                 )}
               </span>
-            ),
-          )}
+            ))
+          })()}
         </div>
       </div>
 
