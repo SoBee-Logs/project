@@ -296,7 +296,7 @@ export default function Home() {
                     onKeyDown={(e) => e.key === 'Enter' && navigate('/my-diary')}
                     style={{
                       flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                      background: '#F0F6FF', borderRadius: '10px', padding: '4px 0',
+                      background: '#EBF5FF', borderRadius: '10px', padding: '4px 0',
                       cursor: 'pointer',
                     }}
                   >

@@ -226,10 +226,10 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
                     : 'bg-gray-100 text-gray-400 border-transparent'
                 }`}
                 style={active ? {
-                  background: '#F3F8FF',
-                  borderColor: '#DCEBFF',
-                  color: '#1F5FAE',
-                  boxShadow: '0 3px 10px rgba(31, 122, 224, 0.05)',
+                  background: '#2F7DF6',
+                  borderColor: '#2F7DF6',
+                  color: '#FFFFFF',
+                  boxShadow: '0 4px 12px rgba(47, 125, 246, 0.25)',
                 } : {}}
               >
                 {room.label}

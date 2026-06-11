@@ -17,11 +17,6 @@ const getTodayKST = () =>
 export default function LoadingPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [messageIndex, setMessageIndex] = useState(0)
-  const [userPhotos, setUserPhotos] = useState([])
-  const [personaImage, setPersonaImage] = useState(CURRENT_USER.personaImage)
-  const hasRun = useRef(false) // 추가: StrictMode 중복 실행 방지
-
   const imageUrl = location.state?.imageUrl ?? null
   const selectedRooms =
     location.state?.selectedRooms?.length > 0
@@ -31,34 +26,38 @@ export default function LoadingPage() {
   const photoId   = location.state?.photoId   ?? null
   const mood      = location.state?.mood       ?? null
 
+  const [messageIndex, setMessageIndex] = useState(0)
+  const [userPhotos, setUserPhotos] = useState(imageUrl ? [imageUrl] : [])
+  const [userEmojis, setUserEmojis] = useState(mood ? [mood] : [])
+  const [personaImage, setPersonaImage] = useState(CURRENT_USER.personaImage)
+  const hasRun = useRef(false) // 추가: StrictMode 중복 실행 방지
+
   useEffect(() => {
     const fetchUserPhotos = async () => {
       try {
         const token = localStorage.getItem('token')
         const today = getTodayKST()
+        const decoded = JSON.parse(atob(token.split('.')[1]))
+        const userId = decoded.sub
 
-        try {
-          const decoded = JSON.parse(atob(token.split('.')[1]))
-          const userId = decoded.sub
-          const avatarRes = await fetch(`/api/avatar/${userId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          if (avatarRes.ok) {
-            const avatarData = await avatarRes.json()
-            if (avatarData.avatarImgUrl) setPersonaImage(avatarData.avatarImgUrl)
-          }
-        } catch {
-          // 실패 시 기본 이미지 유지
+        const [avatarRes, photosRes] = await Promise.all([
+          fetch(`/api/avatar/${userId}`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`/api/photos?date=${today}`, { headers: { Authorization: `Bearer ${token}` } }),
+        ])
+
+        if (avatarRes.ok) {
+          const avatarData = await avatarRes.json()
+          if (avatarData.avatarImgUrl) setPersonaImage(avatarData.avatarImgUrl)
         }
 
-        const res = await fetch(`/api/photos?date=${today}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) return
-        const data = await res.json()
-        const photoList = data.photos ?? data
-        const urls = photoList.map((p) => p.imageUrl ?? p.url).filter(Boolean)
-        if (urls.length > 0) setUserPhotos(urls)
+        if (photosRes.ok) {
+          const data = await photosRes.json()
+          const photoList = data.photos ?? data
+          const urls = photoList.map((p) => p.imageUrl ?? p.url).filter(Boolean)
+          if (urls.length > 0) setUserPhotos(urls)
+          const emojis = photoList.map((p) => p.emoji).filter(Boolean)
+          if (emojis.length > 0) setUserEmojis(emojis)
+        }
       } catch {
         // 실패해도 fallback으로 진행
       }
@@ -192,10 +191,8 @@ export default function LoadingPage() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const marqueePhotos = userPhotos.length > 0
-    ? [...userPhotos, ...userPhotos]
-    : imageUrl
-      ? [imageUrl, imageUrl, imageUrl, imageUrl]
-      : []
+    ? [...userPhotos, ...userPhotos, ...userPhotos]
+    : []
 
   return (
     <main className="relative flex flex-col items-center justify-center min-h-full bg-gradient-to-b from-indigo-50 via-white to-indigo-50 overflow-hidden px-6">
@@ -216,24 +213,23 @@ export default function LoadingPage() {
 
       <div className="absolute bottom-[22%] left-0 right-0 h-16 overflow-hidden pointer-events-none">
         <div className="flex items-center gap-6 animate-avatar-drift">
-          {[CURRENT_USER.personaEmoji, '🌃', '🍜', '✨', CURRENT_USER.personaEmoji, '🌃'].map(
-            (emoji, i) => (
+          {(() => {
+            const base = userEmojis.length > 0 ? userEmojis : ['🌃', '🍜', '✨']
+            const slots = [0, 1, 2].map(i => base[i % base.length])
+            const single = [null, slots[0], null, slots[1], null, slots[2]]
+            return [...single, ...single].map((item, i) => (
               <span
                 key={i}
                 className="text-4xl shrink-0 w-14 h-14 flex items-center justify-center bg-white rounded-full shadow-lg overflow-hidden"
               >
                 {i % 2 === 0 ? (
-                  <img
-                    src={personaImage}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={personaImage} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  emoji
+                  item
                 )}
               </span>
-            ),
-          )}
+            ))
+          })()}
         </div>
       </div>
 

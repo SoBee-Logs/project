@@ -146,7 +146,7 @@ export default function DiaryResult() {
           type="button"
           onClick={() => navigate('/camera', { replace: true })}
           className="px-8 py-3.5 rounded-2xl text-white text-[14px] font-bold"
-          style={{ backgroundColor: '#38BDF8' }}
+          style={{ backgroundColor: '#2F7DF6' }}
         >
           다시 시도하기
         </button>
@@ -206,7 +206,7 @@ export default function DiaryResult() {
               <span
                 className={`w-12 h-12 rounded-full border-[3px] flex items-center justify-center font-bold ${
                   active
-                    ? 'border-[#38BDF8] text-[#38BDF8] bg-sky-50'
+                    ? 'border-[#2F7DF6] text-[#2F7DF6] bg-sky-50'
                     : done
                       ? included
                         ? 'border-green-400 text-green-500 bg-green-50'

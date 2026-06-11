@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import heic2any from 'heic2any'
 import exifr from 'exifr'
+import cameraPageImg from '../../assets/camerapage.png'
 
 const MOOD_EMOJIS = ['☺️', '😭', '😮', '😍', '😡']
 const MOOD_TYPES = ['HAPPY', 'SAD', 'SURPRISED', 'LOVE', 'ANGRY']
@@ -241,42 +242,88 @@ export default function CameraPage() {
 
       <section className="flex-1 overflow-y-auto px-5 pb-8 space-y-6">
         <figure
-          className={`w-full h-70 rounded-3xl bg-white m-0 relative flex flex-col justify-center items-center gap-3.5 pb-1 overflow-hidden ${
-            previewUrl
-              ? 'border-0'
-              : 'border-2 border-dashed border-gray-200'
+          className={`w-full rounded-[28px] m-0 relative overflow-hidden ${
+            previewUrl ? 'bg-gray-100' : ''
           }`}
+          style={{
+            height: '300px',
+            background: previewUrl
+              ? '#F3F4F6'
+              : 'linear-gradient(180deg, #F3F8FF 0%, #EAF3FF 100%)',
+            border: previewUrl ? '0' : '1.5px solid #DCEBFF',
+            boxShadow: previewUrl
+              ? 'none'
+              : '0 8px 22px rgba(31, 122, 224, 0.08)',
+          }}
         >
           {previewUrl ? (
             <img
               src={previewUrl}
               alt="선택한 사진"
-              className="absolute inset-0 w-full h-full object-cover rounded-3xl"
+              className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
-            <>
-              <svg className="mt-4" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#93C5FD" strokeWidth="1.5">
-                <polyline points="16 16 12 12 8 16" />
-                <line x1="12" y1="12" x2="12" y2="21" />
-                <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
-              </svg>
-              <p className="text-[15px] font-bold text-gray-800">사진 업로드</p>
-              <p className="text-[13px] text-gray-400">사진을 업로드 해주세요.</p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleImageChange}
+              />
 
-              <div className="flex gap-3 mt-6">
-                <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageChange} />
-                <button type="button" onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center gap-1.5 px-4 py-2 rounded-2xl bg-gray-100 text-[10px] text-gray-600 font-medium">
-                  <span className="text-sm">📷 카메라</span>
-                </button>
+              <img
+                src={cameraPageImg}
+                alt="카메라"
+                className="w-[118px] h-auto object-contain mb-1"
+              />
 
-                <input ref={albumInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
-                <button type="button" onClick={() => albumInputRef.current?.click()}
-                  className="flex flex-col items-center gap-1.5 px-4 py-2 rounded-2xl bg-gray-100 text-[10px] text-gray-600 font-medium">
-                  <span className="text-sm">🖼️ 앨범</span>
-                </button>
-              </div>
-            </>
+              <p
+                className="m-0 text-[17px] font-extrabold tracking-[-0.4px]"
+                style={{ color: '#0F2A4D' }}
+              >
+                소비 사진 찍기
+              </p>
+
+              <p
+                className="mt-2 mb-5 text-[12px] font-medium text-center leading-snug tracking-[-0.3px]"
+                style={{ color: '#7B8BA3' }}
+              >
+                오늘의 소비 순간을<br />
+                카메라로 기록해보세요
+              </p>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="h-[44px] px-7 rounded-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                style={{
+                  minWidth: '220px',
+                  background: '#2F7DF6',
+                  color: '#FFFFFF',
+                  boxShadow: '0 8px 18px rgba(47, 125, 246, 0.25)',
+                }}
+              >
+                <svg
+                  width="19"
+                  height="19"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H8l1.4-1.8A2 2 0 0 1 11 3.5h2a2 2 0 0 1 1.6.7L16 6h1.5A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8Z" />
+                  <circle cx="12" cy="12.5" r="3.2" />
+                </svg>
+
+                <span className="text-[14px] font-extrabold tracking-[-0.3px]">
+                  카메라 열기
+                </span>
+              </button>
+            </div>
           )}
         </figure>
 
@@ -294,29 +341,21 @@ export default function CameraPage() {
         )}
 
         {(vlmLoading || vlmData) && (
-          <div style={{ marginTop: 0 }}>
-            <div className="flex justify-between px-3">
-              <span style={{ display: 'block', width: '2px', height: '10px', borderLeft: '2px dashed #93C5FD' }} />
-              <span style={{ display: 'block', width: '2px', height: '10px', borderLeft: '2px dashed #93C5FD' }} />
-            </div>
-          <div className="relative">
-            <span className="absolute top-2 left-3 w-2.5 h-2.5 rounded-full bg-white border-2 border-sky-200 z-10" style={{ transform: 'translateX(-50%)' }} />
-            <span className="absolute top-2 right-3 w-2.5 h-2.5 rounded-full bg-white border-2 border-sky-200 z-10" style={{ transform: 'translateX(50%)' }} />
+          <div className="mt-2">
+            <div className="relative">
           <div
-            className="rounded-2xl bg-[#F0F7FF] border border-sky-100 px-4 pt-0.5 pb-3 overflow-hidden"
+            className="rounded-2xl bg-[#F0F7FF] border border-sky-100 px-4 pt-2 pb-3 overflow-hidden"
             style={{
               maxHeight: vlmLoading ? '44px' : '400px',
               transition: 'max-height 0.5s ease-out',
             }}
           >
-            <div className="flex items-center gap-2.5 text-sky-500 pt-1 pl-2" style={{ height: '24px' }}>
-              {vlmLoading && (
-                <>
-                  <span className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin shrink-0" />
-                  <span className="text-[12px] font-medium translate-y-px">AI가 사진 분석 중...</span>
-                </>
-              )}
-            </div>
+            {vlmLoading && (
+              <div className="flex items-center gap-2.5 text-sky-500 pl-2">
+                <span className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                <span className="text-[12px] font-medium translate-y-px">AI가 사진 분석 중...</span>
+              </div>
+            )}
             {vlmData && (
               <>
                 <p className="text-[11px] font-bold text-sky-600 mb-2 mt-1">🤖 AI가 분석한 소비 항목</p>
@@ -427,7 +466,7 @@ export default function CameraPage() {
           type="button"
           onClick={handleNext}
           disabled={selectedRooms.length === 0 || !imageFile || isLoading || vlmLoading}
-          className="w-full py-3.5 rounded-2xl bg-[#38BDF8] text-white font-bold text-[15px] disabled:opacity-40 mt-2"
+          className="w-full py-3.5 rounded-2xl bg-[#2F7DF6] text-white font-bold text-[15px] disabled:opacity-40 mt-2"
         >
           {isLoading
             ? (loadingStep === 'analyze' ? '분석 중...' : '업로드 중...')

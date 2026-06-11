@@ -52,7 +52,7 @@ function WeekDetail({ w }) {
   const diaryColor  = w.diaryStatus  === 'DANGER' ? '#ef4444' : w.diaryStatus  === 'WARNING' ? '#f59e0b' : '#22c55e'
 
   return (
-    <div className="rounded-xl bg-blue-50 px-3 py-2.5">
+    <div className="rounded-xl px-3 py-2.5" style={{ background: '#EBF5FF' }}>
       {hasBudget && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasDiary ? '8px' : '0' }}>
           <span style={{ fontSize: '10px', color: '#9ca3af' }}>💸 소비한도</span>
@@ -134,13 +134,13 @@ function GroupAlert({ alert, isCurrentMonth }) {
                   key={w.week}
                   type="button"
                   onClick={() => setSelectedWeek(w.week)}
-                  className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
-                    isActive ? 'bg-[#1e73be] text-white' : 'bg-white text-gray-500 border border-gray-200'
+                  className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors inline-flex items-center gap-0.5 ${
+                    isActive ? 'bg-[#2F7DF6] text-white' : 'bg-white text-gray-500 border border-gray-200'
                   }`}
                 >
                   {w.week}
                   {isCurrentWeek && wWorst !== 'SAFE' && (
-                    <span style={{ marginLeft: '3px', fontSize: '7px', verticalAlign: 'middle', color: isActive ? 'white' : wWorst === 'DANGER' ? '#ef4444' : '#f59e0b' }}>●</span>
+                    <span style={{ fontSize: '7px', color: isActive ? 'white' : wWorst === 'DANGER' ? '#ef4444' : '#f59e0b', lineHeight: 1 }}>●</span>
                   )}
                 </button>
               )

@@ -15,5 +15,5 @@ export const CURRENT_USER = {
   personaImage: personaBeeImg,
 }
 
-export const SKY_BLUE = '#38BDF8'
+export const SKY_BLUE = '#2F7DF6'
 export const PRIMARY_BLUE = '#1e73be'
