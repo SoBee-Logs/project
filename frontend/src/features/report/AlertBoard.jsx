@@ -28,6 +28,16 @@ export function buildAlertFingerprint(alerts) {
     .join('|')
 }
 
+// 이번 주(weeklyData 마지막 항목) DANGER인 방이 하나라도 있으면 true
+export function hasCurrentWeekDanger(alerts) {
+  return alerts.some(a => {
+    const weeks = a.weeklyData ?? []
+    if (weeks.length === 0) return false
+    const current = weeks[weeks.length - 1]
+    return current.budgetStatus === 'DANGER' || current.diaryStatus === 'DANGER'
+  })
+}
+
 function statusChip(status) {
   if (status === 'DANGER')  return { label: '초과', bg: '#fef2f2', color: '#ef4444' }
   if (status === 'WARNING') return { label: '임박', bg: '#fffbeb', color: '#f59e0b' }
@@ -69,12 +79,15 @@ function WeekDetail({ w }) {
 }
 
 // 방별 아코디언
-function GroupAlert({ alert }) {
+function GroupAlert({ alert, isCurrentMonth }) {
   const [open, setOpen] = useState(false)
   const [selectedWeek, setSelectedWeek] = useState(null)
-  const hasIssue = alert.budgetStatus !== 'SAFE' || alert.diaryStatus !== 'SAFE'
-
   const weeks = alert.weeklyData ?? []
+  const currentWeek = weeks[weeks.length - 1]
+  const currentWeekWorst = !isCurrentMonth ? 'SAFE'
+    : (currentWeek?.budgetStatus === 'DANGER' || currentWeek?.diaryStatus === 'DANGER') ? 'DANGER'
+    : (currentWeek?.budgetStatus === 'WARNING' || currentWeek?.diaryStatus === 'WARNING') ? 'WARNING' : 'SAFE'
+  const hasIssue = currentWeekWorst !== 'SAFE'
 
   const handleOpen = () => {
     if (!open && weeks.length > 0) setSelectedWeek(weeks[weeks.length - 1].week)
@@ -95,7 +108,7 @@ function GroupAlert({ alert }) {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '11px', fontWeight: '700', color: '#374151' }}>{alert.groupName}</span>
-          {hasIssue && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: alert.budgetStatus === 'DANGER' || alert.diaryStatus === 'DANGER' ? '#ef4444' : '#f59e0b', display: 'inline-block' }} />}
+          {hasIssue && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: currentWeekWorst === 'DANGER' ? '#ef4444' : '#f59e0b', display: 'inline-block' }} />}
         </div>
         <span style={{ fontSize: '10px', color: '#d1d5db' }}>{open ? '∧' : '∨'}</span>
       </button>
@@ -111,7 +124,8 @@ function GroupAlert({ alert }) {
 
           {/* 주차 탭 */}
           <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2">
-            {weeks.map(w => {
+            {weeks.map((w, idx) => {
+              const isCurrentWeek = isCurrentMonth && idx === weeks.length - 1
               const wWorst = (w.budgetStatus === 'DANGER' || w.diaryStatus === 'DANGER') ? 'DANGER'
                 : (w.budgetStatus === 'WARNING' || w.diaryStatus === 'WARNING') ? 'WARNING' : 'SAFE'
               const isActive = selectedWeek === w.week
@@ -125,7 +139,7 @@ function GroupAlert({ alert }) {
                   }`}
                 >
                   {w.week}
-                  {wWorst !== 'SAFE' && (
+                  {isCurrentWeek && wWorst !== 'SAFE' && (
                     <span style={{ marginLeft: '3px', fontSize: '7px', verticalAlign: 'middle', color: isActive ? 'white' : wWorst === 'DANGER' ? '#ef4444' : '#f59e0b' }}>●</span>
                   )}
                 </button>
@@ -166,7 +180,6 @@ export default function AlertBoard({ year, month }) {
         if (!res.ok) return
         const data = await res.json()
         setAlerts(data)
-        localStorage.setItem('alertSeenKey', buildAlertFingerprint(data))
       } catch (err) {
         console.error('AlertBoard 조회 실패', err)
       }
@@ -176,18 +189,41 @@ export default function AlertBoard({ year, month }) {
 
   const activeAlerts = alerts.filter(a => a.budgetStatus !== 'SAFE' || a.diaryStatus !== 'SAFE')
   const summary = buildSummary(activeAlerts)
+  const now = new Date()
+  const isCurrentMonth = (!year || year === now.getFullYear()) && (!month || month === now.getMonth() + 1)
+  const currentWeekHeaderStatus = !isCurrentMonth ? 'SAFE' : (() => {
+    let worst = 'SAFE'
+    for (const a of alerts) {
+      const weeks = a.weeklyData ?? []
+      if (weeks.length === 0) continue
+      const cur = weeks[weeks.length - 1]
+      if (cur.budgetStatus === 'DANGER' || cur.diaryStatus === 'DANGER') return 'DANGER'
+      if (cur.budgetStatus === 'WARNING' || cur.diaryStatus === 'WARNING') worst = 'WARNING'
+    }
+    return worst
+  })()
 
   return (
     <section className="rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <button
         type="button"
-        onClick={() => setIsOpen(prev => !prev)}
+        onClick={() => {
+          setIsOpen(prev => {
+            if (!prev) {
+              localStorage.setItem('alertSeenKey', buildAlertFingerprint(alerts))
+              setTimeout(() => window.dispatchEvent(new Event('alertSeen')), 0)
+            }
+            return !prev
+          })
+        }}
         className="w-full flex flex-col px-4 py-3 bg-white active:bg-gray-50 text-left"
       >
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-semibold text-gray-700">🎯 이번 달 목표 현황</span>
-            {summary && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />}
+            {currentWeekHeaderStatus !== 'SAFE' && (
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${currentWeekHeaderStatus === 'DANGER' ? 'bg-red-500' : 'bg-yellow-400'}`} />
+            )}
           </div>
           <span className="text-gray-300 text-xs">{isOpen ? '∧' : '∨'}</span>
         </div>
@@ -201,7 +237,7 @@ export default function AlertBoard({ year, month }) {
           {alerts.length === 0 ? (
             <p className="text-xs text-gray-400 text-center py-1">아직 목표가 설정된 방이 없어요 🎯</p>
           ) : (
-            alerts.map(alert => <GroupAlert key={alert.groupId} alert={alert} />)
+            alerts.map(alert => <GroupAlert key={alert.groupId} alert={alert} isCurrentMonth={isCurrentMonth} />)
           )}
         </div>
       )}
