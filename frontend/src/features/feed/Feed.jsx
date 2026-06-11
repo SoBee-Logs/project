@@ -33,7 +33,7 @@ const formatFeedDate = (dateStr) => {
   return `${year}년 ${month}월 ${day}일`
 }
 
-function FeedPost({ post, onToggleLike, personaImage }) {
+function FeedPost({ post, onToggleLike, personaImage, personaName, onProfileClick }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const images = post.imageUrls || []
 
@@ -43,11 +43,12 @@ function FeedPost({ post, onToggleLike, personaImage }) {
         <img
           src={personaImage ?? beeImage}
           alt={post.authorNickname}
-          className="w-9 h-9 rounded-full object-cover bg-white overflow-hidden"
+          className="w-9 h-9 rounded-full object-cover bg-white overflow-hidden cursor-pointer"
+          onClick={() => onProfileClick({ image: personaImage ?? beeImage, nickname: personaName ?? null })}
         />
         <span className="flex-1 min-w-0 text-left">
           <span className="block text-sm font-bold text-gray-900">{post.authorNickname}</span>
-          <span className="block text-xs text-gray-500 truncate">{post.personaTitle}</span>
+          <span className="block text-xs text-gray-500 truncate">{personaName}</span>
         </span>
       </header>
 
@@ -155,6 +156,8 @@ export default function Feed() {
   const [isLoading, setIsLoading] = useState(false)
   // 작성자 userId → 아바타 이미지 URL 캐시 (타 사용자 페르소나 버그 수정)
   const [personaImages, setPersonaImages] = useState({})
+  const [personaNames, setPersonaNames] = useState({})
+  const [selectedProfile, setSelectedProfile] = useState(null)
 
   useEffect(() => {
     if (!activeRoom || !activeRoom.startsWith('room_')) return
@@ -182,10 +185,13 @@ export default function Feed() {
           )
         )
         const images = {}
+        const names = {}
         uniqueAuthorIds.forEach((authorId, i) => {
           if (avatarResults[i]?.avatarImgUrl) images[authorId] = avatarResults[i].avatarImgUrl
+          if (avatarResults[i]?.avatarName) names[authorId] = avatarResults[i].avatarName
         })
         setPersonaImages(images)
+        setPersonaNames(names)
       } catch (err) {
         console.error('일기 목록 조회 실패', err)
       } finally {
@@ -288,12 +294,32 @@ export default function Feed() {
                   post={post}
                   onToggleLike={handleToggleLike}
                   personaImage={personaImages[post.authorId] ?? null}
+                  personaName={personaNames[post.authorId] ?? null}
+                  onProfileClick={setSelectedProfile}
                 />
               ))}
             </div>
           ))
         )}
       </section>
+
+      {selectedProfile && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setSelectedProfile(null)}
+        >
+          <div className="flex flex-col items-center gap-3">
+            <img
+              src={selectedProfile.image}
+              alt={selectedProfile.nickname}
+              className="w-64 h-64 rounded-2xl object-cover shadow-2xl"
+            />
+            {selectedProfile.nickname && (
+              <p className="text-white font-bold text-base drop-shadow">{selectedProfile.nickname}</p>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   )
 }
