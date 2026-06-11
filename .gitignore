@@ -8,6 +8,10 @@
 .env.local
 .env.*.local
 
+# Spring 설정 (DB 비밀번호, JWT, AWS 키 포함)
+application.yml
+application.yaml
+
 # OS
 .DS_Store
 Thumbs.db

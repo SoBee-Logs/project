@@ -15,6 +15,7 @@ import Login from './features/auth/Login'
 import Register from './features/auth/Register'
 import ProductSearch from './features/search/ProductSearch'
 import ProductDetail from './features/search/ProductDetail'
+import MyDiary from './features/feed/MyDiary'  // 추가
 
 const routeConfig = [
   { path: '/',               element: <Login />,        bottomNav: false, floatingNav: false, appBar: false },
@@ -32,6 +33,7 @@ const routeConfig = [
   { path: '/register',       element: <Register />,     bottomNav: false, floatingNav: false, appBar: false },
   { path: '/search',         element: <ProductSearch />,bottomNav: true,  floatingNav: false, appBar: false },
   { path: '/product/detail', element: <ProductDetail />,bottomNav: false, floatingNav: false, appBar: false },
+  { path: '/my-diary',       element: <MyDiary />,      bottomNav: false, floatingNav: false, appBar: false },  // 추가
 ]
 
 function Layout() {
