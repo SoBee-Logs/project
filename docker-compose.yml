@@ -100,7 +100,9 @@ services:
   fastapi:
     build:
       context: ./backend/fastapi
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./backend/fastapi/app:/app/app
     ports:
       - "8000:8000"
     env_file:

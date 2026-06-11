@@ -5,14 +5,11 @@ import com.sobee.sobee.domain.b_log.entity.TransactionId;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-
 import java.util.List;
 import java.util.Optional;
 
 public interface TransactionRepository extends JpaRepository<Transaction, TransactionId> {
 
-    // 특정 유저의 특정 날짜 지출 내역 조회 (매핑 후보 탐색용)
-    // paymentDate 컬럼이 VARCHAR이므로 String 파라미터 사용
     @Query("SELECT t FROM Transaction t WHERE t.id.userId = :userId " +
             "AND t.paymentDate = :date AND t.paymentOut > 0")
     List<Transaction> findOutgoingByUserIdAndDate(
@@ -20,8 +17,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Transa
             @Param("date") String date
     );
 
-    // 특정 유저의 날짜 범위 내 지출 합계 조회 (주간 AlertBoard 계산용)
-    // paymentDate가 VARCHAR이므로 문자열 BETWEEN 비교 사용
     @Query("SELECT COALESCE(SUM(t.paymentOut), 0) FROM Transaction t " +
             "WHERE t.id.userId = :userId " +
             "AND t.paymentDate BETWEEN :startDate AND :endDate " +
@@ -32,7 +27,23 @@ public interface TransactionRepository extends JpaRepository<Transaction, Transa
             @Param("endDate") String endDate
     );
 
-    // 추가
     @Query("SELECT t FROM Transaction t WHERE t.id.paymentId = :paymentId")
     Optional<Transaction> findByPaymentId(@Param("paymentId") Long paymentId);
+
+    @Query(value = """
+            SELECT cm.category_name
+            FROM transactions t
+            JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+            WHERE t.user_id = :userId
+            AND t.payment_date BETWEEN :startDate AND :endDate
+            AND t.payment_out > 0
+            GROUP BY cm.category_name
+            ORDER BY COUNT(*) DESC
+            LIMIT 1
+            """, nativeQuery = true)
+    String findTopCategoryNameByUserId(
+            @Param("userId") Long userId,
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate
+    );
 }

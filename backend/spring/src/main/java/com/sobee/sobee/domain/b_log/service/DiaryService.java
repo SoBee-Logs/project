@@ -20,7 +20,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -311,11 +314,18 @@ public class DiaryService {
     }
 
     @Transactional(readOnly = true)
-    public DiaryPreviewResponse getDiaryPreview(Long groupId) {
+        public DiaryPreviewResponse getDiaryPreview(Long groupId, Long userId) {
         long count = diaryRepository.countByGroupId(groupId);
+
+        // 이번 주 월요일 ~ 오늘
+        LocalDateTime startOfWeek = LocalDate.now(ZoneId.of("Asia/Seoul"))
+                .with(DayOfWeek.MONDAY).atStartOfDay();
+        LocalDateTime endOfWeek = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        long myCount = diaryRepository.countByUserIdAndDateRange(userId, startOfWeek, endOfWeek);
+
         String imageUrl = diaryRepository.findFirstImageUrlByGroupId(groupId).orElse(null);
-        return new DiaryPreviewResponse(count, imageUrl);
-    }
+        return new DiaryPreviewResponse(count, myCount, imageUrl);
+        }
 
     @Transactional
     public void toggleLike(Long diaryId) {
@@ -383,5 +393,94 @@ public class DiaryService {
     } catch (Exception ignored) {
         // sync 실패해도 계속 진행
     }
+}
+        
+@Transactional(readOnly = true)
+public List<DiaryFeedItemResponse> getMyDiaryList(Long userId) {
+    List<Diary> diaries = diaryRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    if (diaries.isEmpty()) return Collections.emptyList();
+
+    // 1. 유저 배치 조회
+    Set<Long> userIds = diaries.stream().map(Diary::getUserId).collect(Collectors.toSet());
+    Map<Long, User> userMap = userRepository.findAllById(userIds).stream()
+            .collect(Collectors.toMap(User::getUserId, u -> u));
+
+    // 2. 그룹 배치 조회 (groupId별로)
+    Set<Long> groupIds = diaries.stream().map(Diary::getGroupId).collect(Collectors.toSet());
+    Map<Long, Group> groupMap = groupRepository.findAllById(groupIds).stream()
+            .collect(Collectors.toMap(Group::getGroupId, g -> g));
+
+    // 3. diary_photos 배치 조회
+    List<Long> diaryIds = diaries.stream().map(Diary::getDiaryId).collect(Collectors.toList());
+    Map<Long, List<DiaryPhoto>> diaryPhotosMap = diaryPhotoRepository.findByIdDiaryIdIn(diaryIds)
+            .stream().collect(Collectors.groupingBy(dp -> dp.getId().getDiaryId()));
+
+    // 4. photos 배치 조회
+    Set<Long> allPhotoIds = diaryPhotosMap.values().stream()
+            .flatMap(List::stream)
+            .map(dp -> dp.getId().getPhotoId())
+            .collect(Collectors.toSet());
+    Map<Long, Photo> photoMap = photoRepository.findAllById(allPhotoIds).stream()
+            .collect(Collectors.toMap(Photo::getPhotoId, p -> p));
+
+    // 5. persona_transaction 배치 조회
+    Set<Long> matchedPhotoIds = allPhotoIds.isEmpty()
+            ? Collections.emptySet()
+            : personaTransactionRepository.findMatchedPhotoIds(allPhotoIds);
+
+    return diaries.stream().map(diary -> {
+        String authorName = Optional.ofNullable(userMap.get(diary.getUserId()))
+                .map(User::getName).orElse("익명");
+
+        Group group = groupMap.get(diary.getGroupId());  // 일기별 그룹 조회
+
+        List<Long> dpPhotoIds = diaryPhotosMap.getOrDefault(diary.getDiaryId(), Collections.emptyList())
+                .stream().map(dp -> dp.getId().getPhotoId()).collect(Collectors.toList());
+        List<String> imageUrls = dpPhotoIds.stream()
+                .map(photoMap::get).filter(Objects::nonNull)
+                .map(Photo::getImageUrl).filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        List<Long> dpMatchedPhotoIds = dpPhotoIds.stream()
+                .filter(matchedPhotoIds::contains).collect(Collectors.toList());
+
+        String title = "";
+        String subtitle = "";
+        List<String> lines = Collections.emptyList();
+        if (diary.getDiaryContent() != null) {
+            try {
+                JsonNode node = objectMapper.readTree(diary.getDiaryContent());
+                title = node.path("title").asText("");
+                subtitle = node.path("subtitle").asText("");
+                JsonNode linesNode = node.path("lines");
+                if (linesNode.isArray()) {
+                    lines = new ArrayList<>();
+                    for (JsonNode ln : linesNode) lines.add(ln.asText());
+                }
+            } catch (Exception ignored) {}
+        }
+
+        return DiaryFeedItemResponse.builder()
+                .diaryId(diary.getDiaryId())
+                .title(title)
+                .subtitle(subtitle)
+                .diaryLines(lines)
+                .date(diary.getCreatedAt() != null ? diary.getCreatedAt().toLocalDate().toString() : "")
+                .time(diary.getCreatedAt() != null
+                        ? diary.getCreatedAt()
+                            .atZone(java.time.ZoneOffset.UTC)
+                            .withZoneSameInstant(java.time.ZoneId.of("Asia/Seoul"))
+                            .toLocalTime()
+                            .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) : "")
+                .authorName(authorName)
+                .authorId(diary.getUserId())
+                .imageUrls(imageUrls)
+                .imageUrl(imageUrls.isEmpty() ? null : imageUrls.get(0))
+                .roomId(diary.getGroupId())
+                .roomLabel(group != null ? group.getGroupName() : "")
+                .likes(diary.getLikes() != null ? diary.getLikes() : 0)
+                .photoIds(dpPhotoIds)
+                .matchedPhotoIds(dpMatchedPhotoIds)
+                .build();
+    }).collect(Collectors.toList());
 }
 }
