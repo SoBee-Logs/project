@@ -43,6 +43,11 @@ import java.util.stream.Collectors;
 import java.util.Map;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.web.client.RestTemplate;
 
 @Slf4j
 @Service
@@ -58,6 +63,14 @@ public class PhotoService {
     private final PersonaTransactionRepository personaTransactionRepository;
     private final TransactionRepository transactionRepository;
     private final LlmMatchingClient llmMatchingClient;
+
+    @Value("${fastapi.base-url}")
+    private String fastapiBaseUrl;
+
+    @Value("${fastapi.internal-secret}")
+    private String internalSecret;
+
+    private final RestTemplate restTemplate = new RestTemplate();
 
     private static final DateTimeFormatter TAKEN_AT_FORMATTER = new DateTimeFormatterBuilder()
             .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
@@ -408,5 +421,22 @@ public class PhotoService {
                 return result;
                 }).collect(Collectors.toList());
         }
+
+    public String getAiSummary(Long userId, LocalDate date) {
+        try {
+            String url = fastapiBaseUrl + "/internal/daily-summary?user_id=" + userId + "&date=" + date;
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-Internal-Secret", internalSecret);
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            var response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Object summary = response.getBody().get("summary");
+                return summary != null ? summary.toString() : "";
+            }
+        } catch (Exception e) {
+            log.warn("[ai-summary] FastAPI 호출 실패: {}", e.getMessage());
+        }
+        return "";
+    }
 
 }
