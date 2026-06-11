@@ -210,9 +210,8 @@ export default function AlertBoard({ year, month }) {
         onClick={() => {
           setIsOpen(prev => {
             if (!prev) {
-              // 처음 열 때 읽음 처리
               localStorage.setItem('alertSeenKey', buildAlertFingerprint(alerts))
-              window.dispatchEvent(new Event('alertSeen'))
+              setTimeout(() => window.dispatchEvent(new Event('alertSeen')), 0)
             }
             return !prev
           })
