@@ -827,6 +827,16 @@ export default function Report() {
           const spendAmount = txData.persona_top_category_amount
           const spendColor  = categoryColorMap[spendName] ?? '#2F7DF6'
 
+          const weekOrder = Object.keys(txData.weekly_avatar ?? {}).sort()
+          const lastPersonaWeek = weekOrder[weekOrder.length - 1] ?? null
+          const activeWeek = personaWeek ?? lastPersonaWeek
+          const hasAvatar = !!txData.weekly_avatar?.[activeWeek]
+          const changeReasonRaw = txData.weekly_avatar?.[activeWeek]?.avatar_change_reason ?? null
+          const changeReason = (() => {
+            try { return typeof changeReasonRaw === 'string' ? JSON.parse(changeReasonRaw) : changeReasonRaw }
+            catch { return null }
+          })()
+
           // 선택된 주차의 vlm_scene 사용 (없으면 마지막 페르소나 주차 fallback)
           const scene = txData.weekly_avatar[activeWeek]?.vlm_scene
             ?? (activeWeek === lastPersonaWeek ? txData.persona_vlm_scene : null)

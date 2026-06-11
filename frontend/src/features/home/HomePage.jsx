@@ -288,18 +288,20 @@ export default function Home() {
                   {persona.avatarName}
                 </p>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => { e.stopPropagation(); navigate('/my-diary') }}
+                    onKeyDown={(e) => e.key === 'Enter' && navigate('/my-diary')}
                     style={{
                       flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
                       background: '#F0F6FF', borderRadius: '10px', padding: '4px 0',
-                      border: 'none', cursor: 'pointer',
+                      cursor: 'pointer',
                     }}
                   >
                     <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '-5px' }}>📸 이번 주 기록</span>
                     <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{diaryCount}</strong>
-                  </button>
+                  </div>
                   <div style={{
                     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
                     background: '#EBF5FF', borderRadius: '10px', padding: '1px 0',

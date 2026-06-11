@@ -79,7 +79,7 @@ async def update_user_avatar(
                 """
                 UPDATE users
                 SET avatar_name = %s,
-                    avatar_explane = %s,
+                    avatar_explain = %s,
                     avatar_img_url = %s
                 WHERE user_id = %s
                 """,

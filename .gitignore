@@ -29,6 +29,9 @@ logs/
 venv/
 tmp/
 
+# 로컬 도커 오버라이드 (AWS 배포에 포함되면 안 됨)
+docker-compose.override.yml
+
 # Python
 __pycache__/
 *.pyc
