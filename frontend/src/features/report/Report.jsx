@@ -298,6 +298,8 @@ export default function Report() {
   const [catWeek,       setCatWeek]       = useState('전체')
   const [timeWeek,      setTimeWeek]      = useState('전체')
   const [txData,        setTxData]        = useState(null)
+  const [selectedEmotionWeek, setSelectedEmotionWeek] = useState(null)
+  const [personaWeek,        setPersonaWeek]        = useState(null)
   const [recommendData, setRecommendData] = useState(null)
   const [recommendRefreshing, setRecommendRefreshing] = useState(false)
   const [loading,       setLoading]       = useState(true)
@@ -376,6 +378,8 @@ export default function Report() {
         setTimeWeek('전체')
         setSelectedCat(null)
         setCatDeselected(false)
+        setSelectedEmotionWeek(null)
+        setPersonaWeek(null)
 
         const txRes = await fetch(
           `/api/report/mydata/transaction?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`
@@ -389,6 +393,19 @@ export default function Report() {
             setIsEmptyMonth(true)
           } else {
             setTxData(txRes)
+            // 감정 섹션 default: 변경사유 있는 주차 중 마지막
+            const weeklyEmotion = txRes.weekly_top_emotion ?? {}
+            const weeklyAvatar  = txRes.weekly_avatar ?? {}
+            const emotionWeeks  = (txRes.week_order ?? []).filter(w => weeklyEmotion[w])
+            const defaultEmotionWeek = [...emotionWeeks].reverse().find(w => {
+              try {
+                const cr = weeklyAvatar[w]?.avatar_change_reason
+                if (!cr) return false
+                const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
+                return !!parsed?.emoji?.context
+              } catch { return false }
+            }) ?? emotionWeeks[emotionWeeks.length - 1] ?? null
+            setSelectedEmotionWeek(defaultEmotionWeek)
           }
         }
 
@@ -810,7 +827,10 @@ export default function Report() {
           const spendAmount = txData.persona_top_category_amount
           const spendColor  = categoryColorMap[spendName] ?? '#2F7DF6'
 
-          const scene = txData.persona_vlm_scene ?? {}
+          // 선택된 주차의 vlm_scene 사용 (없으면 마지막 페르소나 주차 fallback)
+          const scene = txData.weekly_avatar[activeWeek]?.vlm_scene
+            ?? (activeWeek === lastPersonaWeek ? txData.persona_vlm_scene : null)
+            ?? {}
           const totalVlm = scene.total_count ?? 0
           const categoryCounts = scene.category_counts ?? {}
           const topPhotoCat = Object.keys(categoryCounts).sort((a, b) => categoryCounts[b] - categoryCounts[a])[0] ?? null
@@ -819,28 +839,41 @@ export default function Report() {
           const topPhotoColor = topPhotoCat ? (categoryColorMap[topPhotoCat] ?? '#2F7DF6') : '#2F7DF6'
           const topPhotoItems = topPhotoCat ? (scene.category_items?.[topPhotoCat] ?? []) : []
 
-          let changeReason = null
-          try {
-            const cr = txData.avatar_change_reason
-            const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
-            const personaMonth = txData.persona_week_start ? new Date(`${txData.persona_week_start}T00:00:00`).getMonth() + 1 : null
-            if (personaMonth === selectedMonth) changeReason = parsed ?? null
-          } catch {}
-
-          const weekLabel = (() => {
-            if (!txData.persona_week_start) return `${selectedMonth}월`
-            const s = new Date(`${txData.persona_week_start}T00:00:00`)
-            const adjustedFirst = (new Date(selectedYear, selectedMonth - 1, 1).getDay() + 6) % 7
-            const day = s.getMonth() + 1 === selectedMonth ? s.getDate() : null
-            if (!day) return `${selectedMonth}월`
-            const w = Math.floor((day + adjustedFirst - 1) / 7) + 1
-            const candidate = `${w}주`
-            return txData.week_order?.includes(candidate) ? `${selectedMonth}월 ${candidate}차` : `${selectedMonth}월`
-          })()
-
           return (
-            <div className="rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-4">
-              <p className="text-[11px] text-gray-400">{weekLabel} 페르소나 기준</p>
+            <div className="rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500 font-semibold">🧬 페르소나 기준</p>
+              </div>
+
+              {/* 주차 탭 — 전체 주차 표시 */}
+              {weekOrder.length > 1 && (
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  {weekOrder.map(w => {
+                    const hasAvatarForWeek = !!txData.weekly_avatar?.[w]
+                    return (
+                      <button
+                        key={w}
+                        onClick={() => setPersonaWeek(w)}
+                        className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                          activeWeek === w
+                            ? 'bg-[#1e73be] text-white'
+                            : hasAvatarForWeek
+                              ? 'bg-white text-gray-500 border border-gray-200'
+                              : 'bg-white text-gray-300 border border-gray-100'
+                        }`}
+                      >
+                        {w}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {!hasAvatar ? (
+                <p className="text-[11px] text-gray-300 text-center py-4">이 주에 생성된 페르소나가 없어요</p>
+              ) : (
+              <>
+              <p className="text-[11px] text-gray-400">{selectedMonth}월 {activeWeek}차 페르소나 기준</p>
 
               {/* 사진 TOP 카테고리 */}
               {topPhotoCat && totalVlm > 0 && (
@@ -861,8 +894,8 @@ export default function Report() {
 
               {/* 아바타 생성 이유 */}
               {changeReason && (changeReason.item || changeReason.background) && (
-                <div className="rounded-xl bg-[#EBF5FF] px-3 py-2.5 flex flex-col gap-1">
-                  <p className="text-[9px] text-[#2F7DF6]/60">{weekLabel} 아바타 생성 이유</p>
+                <div className="rounded-xl bg-blue-50 px-3 py-2.5 flex flex-col gap-1">
+                  <p className="text-[9px] text-blue-300">{selectedMonth}월 {activeWeek}차 아바타 생성 이유</p>
                   {changeReason.item && (
                     <>
                       <p className="text-[10px] font-semibold text-[#2F7DF6]">{changeReason.item.header}</p>
@@ -877,6 +910,8 @@ export default function Report() {
                   )}
                 </div>
               )}
+              </>
+              )}
             </div>
           )
         })()}
@@ -888,15 +923,18 @@ export default function Report() {
           const weeks = txData.week_order.filter(w => weeklyEmotion[w])
           if (weeks.length === 0) return null
 
-          let emojiContext = null
-          try {
-            const cr = txData.avatar_change_reason
-            const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
-            const personaMonth = txData.persona_week_start ? new Date(`${txData.persona_week_start}T00:00:00`).getMonth() + 1 : null
-            if (personaMonth === selectedMonth) {
-              emojiContext = parsed?.emoji?.context ?? null
-            }
-          } catch {}
+          const getEmojiReason = (w) => {
+            try {
+              const cr = txData.weekly_avatar?.[w]?.avatar_change_reason ?? null
+              if (!cr) return null
+              const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
+              const emoji = parsed?.emoji
+              if (!emoji?.context) return null
+              return { header: emoji.header ?? null, context: emoji.context }
+            } catch { return null }
+          }
+
+          const activeEmojiReason = selectedEmotionWeek ? getEmojiReason(selectedEmotionWeek) : null
 
           return (
             <div className="rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-3">
@@ -907,21 +945,28 @@ export default function Report() {
                   const emoji = em?.emoji ?? em
                   const topCount = em?.top_count
                   const totalCount = em?.total_count
+                  const hasContext = !!getEmojiReason(w)
+                  const isSelected = selectedEmotionWeek === w
                   return (
-                    <div key={w} className="flex flex-col items-center gap-0.5">
+                    <div
+                      key={w}
+                      onClick={() => hasContext && setSelectedEmotionWeek(isSelected ? null : w)}
+                      className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 transition-colors ${hasContext ? 'cursor-pointer active:bg-gray-50' : ''} ${isSelected ? 'bg-blue-50' : ''}`}
+                    >
                       <span className="text-2xl">{emoji}</span>
-                      <span className="text-[10px] font-semibold text-gray-400">{w}</span>
+                      <span className={`text-[10px] font-semibold ${isSelected ? 'text-[#1e73be]' : 'text-gray-400'}`}>{w}</span>
                       {topCount != null && <span className="text-[9px] text-gray-500">{topCount}/{totalCount}건</span>}
                     </div>
                   )
                 })}
               </div>
-              {emojiContext && (
-                <div className="rounded-xl bg-[#EBF5FF] px-3 py-2">
-                  {txData.persona_week_start && (
-                    <p className="text-[9px] text-[#2F7DF6]/60 mb-0.5">아바타 생성 이유</p>
+              {activeEmojiReason && (
+                <div className="rounded-xl bg-blue-50 px-3 py-2">
+                  <p className="text-[9px] text-blue-300 mb-0.5">{selectedEmotionWeek} 아바타 생성 이유</p>
+                  {activeEmojiReason.header && (
+                    <p className="text-[10px] font-semibold text-[#1e73be] mb-0.5">{activeEmojiReason.header}</p>
                   )}
-                  <p className="text-[11px] text-gray-500 leading-relaxed">{emojiContext}</p>
+                  <p className="text-[11px] text-gray-500 leading-relaxed">{activeEmojiReason.context}</p>
                 </div>
               )}
             </div>
@@ -932,10 +977,12 @@ export default function Report() {
         {timeList.length > 0 && (() => {
           let timeContext = null
           try {
-            const cr = txData?.avatar_change_reason
-            const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
-            const personaMonth = txData?.persona_week_start ? new Date(`${txData.persona_week_start}T00:00:00`).getMonth() + 1 : null
-            if (personaMonth === selectedMonth) {
+            const activeWeek = timeWeek === '전체' ? null : timeWeek
+            const cr = activeWeek
+              ? txData?.weekly_avatar?.[activeWeek]?.avatar_change_reason ?? null
+              : null
+            if (cr) {
+              const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
               timeContext = parsed?.time ?? null
             }
           } catch {}
@@ -1048,11 +1095,9 @@ export default function Report() {
                 </p>
               )}
               {timeContext && (
-                <div className="rounded-xl bg-[#EBF5FF] px-3 py-2 mt-1">
-                  {txData?.persona_week_start && (
-                    <p className="text-[9px] text-[#2F7DF6]/60 mb-0.5">아바타 생성 이유</p>
-                  )}
-                  <p className="text-[10px] font-semibold text-[#2F7DF6] mb-0.5">{timeContext.header}</p>
+                <div className="rounded-xl bg-blue-50 px-3 py-2 mt-1">
+                  <p className="text-[9px] text-blue-300 mb-0.5">{timeWeek} 아바타 생성 이유</p>
+                  <p className="text-[10px] font-semibold text-[#1e73be] mb-0.5">{timeContext.header}</p>
                   <p className="text-[11px] text-gray-500 leading-relaxed">{timeContext.context}</p>
                 </div>
               )}
