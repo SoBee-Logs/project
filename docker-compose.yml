@@ -106,17 +106,13 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env                  # 공통 (RDS, SSH)
       - backend/fastapi/.env  # FastAPI 전용 (AI, Codef)
     environment:
-      - DB_HOST=ssh-tunnel
+      - DB_HOST=${DB_HOST}
       - DB_PORT=3306
-      - ENV=dev
+      - ENV=prod                      # dev → prod (--reload 제거)
       - TZ=Asia/Seoul
-    restart: on-failure
-    depends_on:
-      ssh-tunnel:
-        condition: service_healthy
+    restart: unless-stopped
     networks:
       - sobee-net
 
@@ -125,7 +121,7 @@ services:
     container_name: sobee-postgres-airflow
     environment:
       POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
+      POSTGRES_PASSWORD: ${AIRFLOW_POSTGRES_PASSWORD}
       POSTGRES_DB: airflow
     volumes:
       - postgres_airflow_data:/var/lib/postgresql/data
@@ -142,7 +138,7 @@ services:
     env_file: airflow/.env
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_POSTGRES_PASSWORD}@postgres-airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       SOBEE_FASTAPI_URL: http://fastapi:8000
       TZ: Asia/Seoul
@@ -160,7 +156,7 @@ services:
     env_file: airflow/.env
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_POSTGRES_PASSWORD}@postgres-airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: 'true'
@@ -187,7 +183,7 @@ services:
     env_file: airflow/.env
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_POSTGRES_PASSWORD}@postgres-airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: 'true'

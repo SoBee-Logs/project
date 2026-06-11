@@ -15,6 +15,7 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
     List<Diary> findByGroupIdOrderByCreatedAtDesc(Long groupId);
 
     long countByGroupId(Long groupId);
+    long countByGroupIdAndUserId(Long groupId, Long userId);
 
     // 홈 피드 썸네일용 — 단일 JOIN 쿼리로 N+1 없이 첫 번째 이미지 URL 조회
     @Query(value = "SELECT p.image_url FROM diary d " +
@@ -36,6 +37,15 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             @Param("endDate") LocalDateTime endDate
     );
 
+    @Query("SELECT COUNT(d) FROM Diary d WHERE d.userId = :userId AND d.createdAt BETWEEN :startDate AND :endDate")
+        long countByUserIdAndDateRange(
+        @Param("userId") Long userId,
+        @Param("startDate") LocalDateTime startDate,
+        @Param("endDate") LocalDateTime endDate
+        );
+
     @Query("SELECT COALESCE(SUM(d.likes), 0) FROM Diary d WHERE d.userId = :userId")
         int sumLikesByUserId(@Param("userId") Long userId);
+
+         List<Diary> findByUserIdOrderByCreatedAtDesc(Long userId);    
 }

@@ -7,5 +7,6 @@ import lombok.Getter;
 @AllArgsConstructor
 public class DiaryPreviewResponse {
     private long count;
+    private long myCount;  
     private String imageUrl;
 }

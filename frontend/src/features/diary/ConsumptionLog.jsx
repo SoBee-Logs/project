@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
-import StatusBar from '../../common/components/StatusBar'
 import { jwtDecode } from 'jwt-decode'
 import calendarIcon from '../../assets/calendar_icon.png'
 
@@ -121,20 +120,22 @@ export default function ConsumptionLog() {
 
   return (
     <main className="flex flex-col min-h-full bg-white">
-      <StatusBar />
-
-      <header className="px-5 pt-1 pb-3 text-left shrink-0">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center w-8 h-8 -ml-2 mb-2 text-gray-800"
-          aria-label="뒤로가기"
-        >
-          <span className="text-[22px] leading-none">‹</span>
-        </button>
-        <p className="text-[13px] font-semibold text-gray-900 m-0 leading-snug">
-          나의 소비 로그
-        </p>
+      <header className="px-5 pt-1 pb-3 shrink-0">
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="flex items-center justify-center w-8 h-8 -ml-2 text-gray-800"
+            aria-label="뒤로가기"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <p className="text-[14px] font-semibold text-gray-900 m-0.5 leading-snug translate-y-0.5">
+            나의 소비 로그
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => {
@@ -144,7 +145,7 @@ export default function ConsumptionLog() {
           className="mt-2 flex items-center rounded-full border"
           style={{
             width: 'fit-content',
-            padding: '8px 14px 8px 10px',
+            padding: '4px 12px 4px 8px',
             gap: '10px',
             background: '#F3F8FF',
             borderColor: '#DCEBFF',
@@ -570,11 +571,12 @@ export default function ConsumptionLog() {
       )}
 
       <div className="flex-1 overflow-y-auto px-5 pb-[140px] relative">
-        {/* 수정: 타임라인 세로선 left 위치 조정 */}
-        <span
-          className="absolute left-[108px] top-2 bottom-4 w-[1.5px] bg-gray-200 rounded-full"
-          aria-hidden
-        />
+        {photos.length > 0 && (
+          <span
+            className="absolute left-[108px] top-2 bottom-4 w-[1.5px] bg-gray-200 rounded-full"
+            aria-hidden
+          />
+        )}
 
         {isLoading ? (
           <p className="text-center text-gray-400 text-[13px] mt-10">불러오는 중...</p>
@@ -762,6 +764,21 @@ export default function ConsumptionLog() {
             })}
           </ul>
         )}
+      </div>
+
+      <div className="fixed bottom-[100px] left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 flex justify-end pointer-events-none z-20">
+        <button
+          type="button"
+          onClick={() => navigate('/camera', { state: { myGroups } })}
+          className="rounded-full flex items-center justify-center pointer-events-auto active:scale-95 transition-transform border"
+          style={{ width: '52px', height: '52px', background: '#EBF5FF', borderColor: '#C3DCFF', color: '#2F7DF6', boxShadow: '0 10px 28px rgba(47, 125, 246, 0.18)' }}
+          aria-label="사진 추가"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+        </button>
       </div>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 py-3 bg-white border-t border-gray-100 z-10">
