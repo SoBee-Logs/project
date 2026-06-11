@@ -56,50 +56,50 @@ CHILD_KEYWORDS = '키즈|아이|어린이|주니어|청소년|영유아|태아|b
 
 # 카드 추천 이유 템플릿 — {cat}: 카테고리, {amt}: 지출액, {title}: 혜택 제목
 _CARD_T_RELATED = [
-    "{cat}와 연관있는 {matched_cate} 혜택 카드는 어때요? '{title}' 혜택도 있어요!",
-    "{cat} 지출이 있으셨네요. 연관 있는 {matched_cate} 혜택, 이 카드로 챙겨봐요!",
-    "{cat}에 {amt}원 쓰셨네요. {matched_cate} 관련 혜택 카드, '{title}' 혜택도 있답니다!",
-    "{cat}와 관련 있는 {matched_cate} 혜택 카드예요. '{title}' 받을 수 있어요!",
-    "{cat} 소비가 {amt}원이셨군요. 연관 있는 {matched_cate} 혜택으로 조금씩 돌려받아봐요!",
+    "{cat}에 쓰신 만큼, {matched_cate} 혜택으로 '{title}'까지 돌려받을 수 있어요.",
+    "{cat} 소비가 있으셨군요. {matched_cate} 혜택은 물론 '{title}'도 챙길 수 있는 카드예요.",
+    "{cat}에 {amt}원 쓰셨는데, {matched_cate} 혜택과 '{title}'까지 한 번에 받을 수 있어요.",
+    "{cat} 지출이 있으시다면, {matched_cate} 혜택으로 '{title}'까지 알뜰하게 챙겨보세요.",
+    "{cat}에 {amt}원 쓰신 만큼 {matched_cate} 혜택으로 돌려받고, '{title}'도 덤으로 누릴 수 있어요.",
 ]
 
 _CARD_T_RELATED_NO_TITLE = [
-    "{cat}와 연관있는 {matched_cate} 혜택 카드는 어때요?",
-    "{cat} 지출이 있으셨네요. 연관 있는 {matched_cate} 혜택 카드를 추천해요!",
-    "{cat}에 {amt}원 쓰셨네요. {matched_cate} 관련 혜택 카드 어떠세요?",
-    "{cat}와 관련 있는 {matched_cate} 혜택 카드예요. 한번 살펴봐요!",
+    "{cat}에 쓰신 만큼 {matched_cate} 혜택으로 조금씩 돌려받을 수 있어요.",
+    "{cat} 소비가 있으셨군요. {matched_cate} 혜택이 잘 맞는 카드예요.",
+    "{cat}에 {amt}원 쓰셨는데, {matched_cate} 관련 혜택 카드 어떠세요?",
+    "{cat} 지출이 있으시다면 {matched_cate} 혜택을 한번 살펴보세요.",
 ]
 
 _CARD_T = {
     "amt_title": [
-        "{cat}에 {amt}원 썼네요. 어차피 쓸 거라면 이 카드로 '{title}' 혜택 챙겨봐요!",
-        "{cat} 지출이 {amt}원이나 됐네요! '{title}' 혜택 있는 이 카드, 딱 맞을 것 같아요.",
-        "이번 달 {cat}에 {amt}원 쓰셨군요. 이 카드 쓰면 '{title}' 혜택이 바로 들어와요!",
-        "{amt}원이면 꽤 됐네요. 이 카드 하나면 '{title}' 혜택으로 조금씩 돌려받을 수 있어요.",
-        "{cat}에 {amt}원 썼는데, '{title}' 혜택 있는 이 카드랑 잘 맞더라고요. 한번 봐봐요!",
-        "매달 {cat} 지출 있으시죠? {amt}원 쓸 때마다 '{title}' 혜택 챙기면 진짜 이득이에요!",
+        "{cat}에 {amt}원 쓰셨는데, '{title}' 혜택으로 조금씩 돌려받을 수 있어요.",
+        "{cat} 지출이 {amt}원이나 됐군요. '{title}' 혜택으로 실속을 챙겨보세요.",
+        "이번 달 {cat}에 {amt}원 쓰셨다면, '{title}' 혜택이 있는 이 카드가 딱이에요.",
+        "{cat}에 {amt}원 쓰신 만큼, '{title}' 혜택으로 알뜰하게 되돌려 받을 수 있어요.",
+        "{cat}에 {amt}원 쓰셨는데, '{title}' 혜택까지 챙길 수 있는 카드예요.",
+        "매달 {cat}에 {amt}원 정도 쓰신다면, '{title}' 혜택으로 꽤 쏠쏠하게 돌아올 거예요.",
     ],
     "title_only": [
-        "{cat} 자주 쓰세요? '{title}' 혜택 있는 이 카드, 진짜 잘 맞을 것 같아요!",
-        "'{title}' 혜택이 있어서 {cat} 쓸 때마다 이득이에요. 한번 써봐요!",
-        "{cat} 관련 혜택 찾고 계셨다면 이 카드 딱이에요. '{title}' 혜택 있거든요!",
-        "이 카드 '{title}' 혜택이 진짜 실용적이에요. {cat} 많이 쓰시는 분한테 강추해요!",
-        "{cat} 쓸 때 혜택 못 받고 있었다면 이제 바꿔봐요. '{title}' 혜택 기다리고 있어요!",
-        "'{title}' 혜택이 있는데, {cat} 소비랑 완전 찰떡이에요!",
+        "{cat} 지출이 있으시다면, '{title}' 혜택으로 쓸 때마다 실속을 챙길 수 있어요.",
+        "{cat} 쓸 때마다 '{title}' 혜택이 돌아오는 카드예요.",
+        "{cat} 혜택을 찾고 계셨다면, '{title}'까지 챙길 수 있는 이 카드를 추천해요.",
+        "{cat}에 쓸 때마다 '{title}' 혜택이 자동으로 적용돼요.",
+        "{cat} 소비에 '{title}' 혜택이 딱 맞는 카드예요.",
+        "{cat} 자주 쓰신다면, '{title}' 혜택으로 매번 실속을 챙길 수 있어요.",
     ],
     "amt_only": [
-        "{cat}에 {amt}원 썼네요. 이 카드로 바꾸면 쓸 때마다 혜택 바로 돌아와요!",
-        "{amt}원어치 {cat} 지출에 혜택 못 받으면 아깝잖아요. 이 카드 진짜 강추해요!",
-        "이번 달 {cat}에 {amt}원 쓰셨군요. 이 카드 있으면 다음 달엔 좀 더 알뜰해져요!",
-        "{cat} 지출이 {amt}원이네요. 관련 혜택 빵빵한 이 카드, 타이밍 딱이에요!",
-        "어차피 {cat} 계속 쓸 거라면, 이 카드로 혜택이라도 챙겨봐요. {amt}원이면 쏠쏠해요!",
+        "{cat}에 {amt}원 쓰셨는데, 이 카드로 바꾸면 쓸 때마다 혜택이 돌아와요.",
+        "{cat}에 {amt}원이나 쓰셨군요. 혜택 없이 그냥 쓰기엔 아까운 금액이에요.",
+        "이번 달 {cat}에 {amt}원 쓰셨다면, 다음 달엔 이 카드로 좀 더 알뜰하게 쓸 수 있어요.",
+        "{cat} 지출이 {amt}원이네요. 관련 혜택이 쏠쏠한 카드예요.",
+        "어차피 계속 쓸 {cat}이라면, {amt}원 쓸 때마다 혜택을 챙기는 게 낫지 않을까요?",
     ],
     "none": [
-        "{cat} 소비가 있으시군요. 관련 혜택이 딱 맞는 카드, 한번 써봐요!",
-        "{cat} 쪽 혜택이 정말 좋은 카드예요. 놓치기 아까워요!",
-        "{cat} 자주 쓰신다면 이 카드가 진짜 잘 맞아요. 한번 살펴봐요!",
-        "이 카드 하나면 {cat} 지출이 훨씬 알뜰해질 거예요!",
-        "{cat} 쓸 때마다 혜택 챙기고 싶다면, 이 카드가 정답이에요!",
+        "{cat} 지출이 있으시다면, 관련 혜택으로 쓸 때마다 조금씩 돌려받을 수 있어요.",
+        "{cat} 쪽 혜택이 잘 갖춰진 카드예요.",
+        "{cat} 자주 쓰신다면 이 카드 하나로 꽤 알뜰해질 수 있어요.",
+        "{cat} 지출에 맞는 혜택이 있어서, 쓸수록 더 이득인 카드예요.",
+        "{cat} 쓸 때마다 혜택을 챙기고 싶다면 한번 써보세요.",
     ],
 }
 
@@ -289,7 +289,7 @@ def _query_card(cate_names: list[str], top_category: str, top_amount: int = 0) -
 
     # 상위 카테고리(사용자 지출)와 하위 카테고리(카드 혜택)가 다를 때 연결 문구 사용
     if matched_cate and matched_cate != top_category:
-        if top_title:
+        if top_title and top_title != matched_cate:
             reason = random.choice(_CARD_T_RELATED).format(
                 cat=top_category, matched_cate=matched_cate,
                 amt=f"{top_amount:,}", title=top_title,
@@ -299,9 +299,15 @@ def _query_card(cate_names: list[str], top_category: str, top_amount: int = 0) -
                 cat=top_category, matched_cate=matched_cate, amt=f"{top_amount:,}",
             )
     elif top_amount > 0 and top_title:
-        reason = random.choice(_CARD_T["amt_title"]).format(cat=top_category, amt=f"{top_amount:,}", title=top_title)
+        if top_title == top_category:
+            reason = random.choice(_CARD_T["amt_only"]).format(cat=top_category, amt=f"{top_amount:,}")
+        else:
+            reason = random.choice(_CARD_T["amt_title"]).format(cat=top_category, amt=f"{top_amount:,}", title=top_title)
     elif top_title:
-        reason = random.choice(_CARD_T["title_only"]).format(cat=top_category, title=top_title)
+        if top_title == top_category:
+            reason = random.choice(_CARD_T["none"]).format(cat=top_category)
+        else:
+            reason = random.choice(_CARD_T["title_only"]).format(cat=top_category, title=top_title)
     elif top_amount > 0:
         reason = random.choice(_CARD_T["amt_only"]).format(cat=top_category, amt=f"{top_amount:,}")
     else:
