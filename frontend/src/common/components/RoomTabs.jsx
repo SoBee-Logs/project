@@ -17,6 +17,10 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
   const [newRoomCategory, setNewRoomCategory] = useState('')
   const [newTargetBudget, setNewTargetBudget] = useState('')
   const [newTargetDiaryCount, setNewTargetDiaryCount] = useState('')
+  const [noBudgetLimit, setNoBudgetLimit] = useState(false)
+  const [newSpendingCategoryId, setNewSpendingCategoryId] = useState(null)
+  const [openSection, setOpenSection] = useState(null) // 'roomCategory' | 'spendingCategory' | 'weeklyGoal'
+  const toggleSection = (section) => setOpenSection(prev => prev === section ? null : section)
   const [joinCode, setJoinCode] = useState('')
   const [currentCode, setCurrentCode] = useState('')
   const [currentRoomId, setCurrentRoomId] = useState(null)
@@ -74,10 +78,10 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
         body: JSON.stringify({
           groupName: newRoomName,
           groupDescription: newRoomDesc,
-          // 카테고리 및 목표값 (미입력 시 null로 전송)
           category: newRoomCategory || null,
-          targetBudget: newTargetBudget ? parseInt(newTargetBudget) : null,
+          targetBudget: noBudgetLimit ? null : (newTargetBudget ? parseInt(newTargetBudget) : null),
           targetDiaryCount: newTargetDiaryCount ? parseInt(newTargetDiaryCount) : null,
+          spendingCategoryId: newSpendingCategoryId,
         }),
       })
       const data = await res.json()
@@ -95,6 +99,8 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
       setNewRoomCategory('')
       setNewTargetBudget('')
       setNewTargetDiaryCount('')
+      setNoBudgetLimit(false)
+      setNewSpendingCategoryId(null)
       setShowCreatePopup(false)
       setCurrentCode(data.groupCode)
       setShowCodePopup(true)
@@ -288,62 +294,168 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
               {newRoomDesc.length}/15
             </p>
 
-            {/* 카테고리 선택 */}
-            <p style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>카테고리 (선택)</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: '16px' }}>
-              {[
-                { value: 'EXERCISE', label: '🏃운동' },
-                { value: 'HOBBY',    label: '🎨취미' },
-                { value: 'TRAVEL',   label: '✈️여행' },
-                { value: 'FAMILY',   label: '👨‍👩‍👧가족' },
-                { value: 'DAILY',    label: '☀️일상' },
-                { value: 'FOOD',     label: '🍜음식' },
-                { value: 'PET',      label: '🐾반려' },
-              ].map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setNewRoomCategory(prev => prev === value ? '' : value)}
+            {/* 카테고리 (선택) — 아코디언 */}
+            <button
+              type="button"
+              onClick={() => toggleSection('roomCategory')}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0' }}
+            >
+              <span style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>
+                모임 카테고리 (선택){newRoomCategory && <span style={{ color: '#0083CA', marginLeft: '6px', fontSize: '11px' }}>✓</span>}
+              </span>
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>{openSection === 'roomCategory' ? '▲' : '▼'}</span>
+            </button>
+            {openSection === 'roomCategory' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: '16px' }}>
+                {[
+                  { value: 'EXERCISE', label: '🏃운동' },
+                  { value: 'HOBBY',    label: '🎨취미' },
+                  { value: 'TRAVEL',   label: '✈️여행' },
+                  { value: 'FAMILY',   label: '👨‍👩‍👧가족' },
+                  { value: 'DAILY',    label: '☀️일상' },
+                  { value: 'FOOD',     label: '🍜음식' },
+                  { value: 'PET',      label: '🐾반려' },
+                ].map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setNewRoomCategory(prev => prev === value ? '' : value)}
+                    style={{
+                      padding: '6px 2px', borderRadius: '8px',
+                      border: newRoomCategory === value ? '2px solid #0083CA' : '1.5px solid #e5e7eb',
+                      background: newRoomCategory === value ? '#E8F4FD' : 'white',
+                      color: newRoomCategory === value ? '#0083CA' : '#6b7280',
+                      fontSize: '10px', fontWeight: newRoomCategory === value ? '700' : '400', cursor: 'pointer',
+                    }}
+                  >{label}</button>
+                ))}
+              </div>
+            )}
+            {openSection !== 'roomCategory' && <div style={{ marginBottom: '12px' }} />}
+
+            {/* 절약 카테고리 + 소비한도 (선택) — 아코디언 */}
+            <button
+              type="button"
+              onClick={() => toggleSection('spendingCategory')}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0' }}
+            >
+              <span style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>
+                절약 카테고리 · 소비한도 (선택){(newSpendingCategoryId || noBudgetLimit) && <span style={{ color: '#0083CA', marginLeft: '6px', fontSize: '11px' }}>✓</span>}
+              </span>
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>{openSection === 'spendingCategory' ? '▲' : '▼'}</span>
+            </button>
+            {openSection === 'spendingCategory' && (
+              <div style={{ marginBottom: '16px' }}>
+                {/* 카테고리 선택 */}
+                <select
+                  value={newSpendingCategoryId ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : null
+                    setNewSpendingCategoryId(val)
+                    if (!val) { setNewTargetBudget(''); setNoBudgetLimit(false) }
+                  }}
                   style={{
-                    padding: '6px 2px',
-                    borderRadius: '8px',
-                    border: newRoomCategory === value ? '2px solid #0083CA' : '1.5px solid #e5e7eb',
-                    background: newRoomCategory === value ? '#E8F4FD' : 'white',
-                    color: newRoomCategory === value ? '#0083CA' : '#6b7280',
-                    fontSize: '10px',
-                    fontWeight: newRoomCategory === value ? '700' : '400',
-                    cursor: 'pointer',
+                    width: '100%', padding: '10px 12px', borderRadius: '8px',
+                    border: newSpendingCategoryId ? '2px solid #0083CA' : '1.5px solid #e5e7eb',
+                    background: newSpendingCategoryId ? '#E8F4FD' : 'white',
+                    color: newSpendingCategoryId ? '#0083CA' : '#9ca3af',
+                    fontSize: '14px', fontWeight: newSpendingCategoryId ? '700' : '400',
+                    outline: 'none', cursor: 'pointer', appearance: 'auto',
+                    marginBottom: '12px',
                   }}
                 >
-                  {label}
-                </button>
-              ))}
-            </div>
+                  <option value="">카테고리 선택</option>
+                  {[
+                    { id: 1,  label: '🍚 식비' },
+                    { id: 2,  label: '☕ 카페간식' },
+                    { id: 3,  label: '🛒 온라인쇼핑' },
+                    { id: 4,  label: '👗 패션쇼핑' },
+                    { id: 5,  label: '🚌 교통' },
+                    { id: 6,  label: '✈️ 여행숙박' },
+                    { id: 7,  label: '🎬 문화여가' },
+                    { id: 8,  label: '🍺 술유흥' },
+                    { id: 9,  label: '🏥 의료건강' },
+                    { id: 10, label: '💄 뷰티미용' },
+                    { id: 11, label: '🏠 주거통신' },
+                    { id: 12, label: '📚 교육학습' },
+                    { id: 13, label: '💳 금융' },
+                    { id: 14, label: '🎁 경조선물' },
+                    { id: 15, label: '🛍️ 생활' },
+                    { id: 16, label: '📦 기타' },
+                  ].map(({ id, label }) => (
+                    <option key={id} value={id}>{label}</option>
+                  ))}
+                </select>
 
-            {/* 주간 목표 입력 */}
-            <p style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>주간 목표 (선택)</p>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-              <div style={{ flex: 1 }}>
-                <input
-                  type="number"
-                  placeholder="예산 (원)"
-                  value={newTargetBudget}
-                  onChange={(e) => setNewTargetBudget(e.target.value)}
-                  style={{ ...inputStyle, marginTop: 0, marginBottom: 0 }}
-                />
-                <p style={{ fontSize: '10px', color: '#9ca3af', marginTop: '3px' }}>💸 소비 한도</p>
+                {/* 소비한도 입력 */}
+                {noBudgetLimit ? (
+                  <div style={{ ...inputStyle, marginTop: 0, marginBottom: '8px', background: '#f3f4f6', color: '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
+                    한도 없음
+                  </div>
+                ) : (
+                  <input
+                    type="number"
+                    placeholder={newSpendingCategoryId ? '소비 한도 (원)' : '카테고리를 먼저 선택해주세요'}
+                    value={newTargetBudget}
+                    min="0"
+                    disabled={!newSpendingCategoryId}
+                    onChange={(e) => { const val = e.target.value; if (val === '' || parseInt(val) >= 0) setNewTargetBudget(val) }}
+                    style={{ ...inputStyle, marginTop: 0, marginBottom: '8px', background: !newSpendingCategoryId ? '#f3f4f6' : 'white', color: !newSpendingCategoryId ? '#9ca3af' : 'inherit', cursor: !newSpendingCategoryId ? 'not-allowed' : 'text' }}
+                  />
+                )}
+                <p style={{ fontSize: '10px', color: '#9ca3af', marginBottom: '8px' }}>💸 주간 소비 한도</p>
+
+                {/* 소비한도 없음 체크박스 */}
+                <label
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    cursor: newSpendingCategoryId ? 'pointer' : 'not-allowed',
+                    padding: '8px 10px', borderRadius: '8px',
+                    border: noBudgetLimit ? '2px solid #0083CA' : '1.5px solid #e5e7eb',
+                    background: noBudgetLimit ? '#E8F4FD' : (!newSpendingCategoryId ? '#f3f4f6' : 'white'),
+                    opacity: newSpendingCategoryId ? 1 : 0.5,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={noBudgetLimit}
+                    disabled={!newSpendingCategoryId}
+                    onChange={(e) => { setNoBudgetLimit(e.target.checked); if (e.target.checked) setNewTargetBudget('') }}
+                    style={{ width: '16px', height: '16px', accentColor: '#0083CA', cursor: newSpendingCategoryId ? 'pointer' : 'not-allowed' }}
+                  />
+                  <span style={{ fontSize: '12px', color: noBudgetLimit ? '#0083CA' : '#6b7280', fontWeight: noBudgetLimit ? '700' : '400' }}>
+                    소비한도 없음 (일기만 올리기)
+                  </span>
+                </label>
               </div>
-              <div style={{ flex: 1 }}>
+            )}
+            {openSection !== 'spendingCategory' && <div style={{ marginBottom: '12px' }} />}
+
+            {/* 주간 일기 목표 (선택) — 아코디언 */}
+            <button
+              type="button"
+              onClick={() => toggleSection('weeklyGoal')}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0' }}
+            >
+              <span style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>
+                주간 일기 목표 (선택){newTargetDiaryCount && <span style={{ color: '#0083CA', marginLeft: '6px', fontSize: '11px' }}>✓</span>}
+              </span>
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>{openSection === 'weeklyGoal' ? '▲' : '▼'}</span>
+            </button>
+            {openSection === 'weeklyGoal' && (
+              <div style={{ marginBottom: '16px' }}>
                 <input
                   type="number"
                   placeholder="횟수"
                   value={newTargetDiaryCount}
-                  onChange={(e) => setNewTargetDiaryCount(e.target.value)}
-                  style={{ ...inputStyle, marginTop: 0, marginBottom: 0 }}
+                  min="0"
+                  onChange={(e) => { const val = e.target.value; if (val === '' || parseInt(val) >= 0) setNewTargetDiaryCount(val) }}
+                  style={{ ...inputStyle, marginTop: 0, marginBottom: '4px' }}
                 />
-                <p style={{ fontSize: '10px', color: '#9ca3af', marginTop: '3px' }}>✍️ 일기 목표</p>
+                <p style={{ fontSize: '10px', color: '#9ca3af' }}>✍️ 이번 주 일기 작성 목표 횟수</p>
               </div>
-            </div>
+            )}
+            {openSection !== 'weeklyGoal' && <div style={{ marginBottom: '12px' }} />}
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
@@ -354,6 +466,8 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
                   setNewRoomCategory('')
                   setNewTargetBudget('')
                   setNewTargetDiaryCount('')
+                  setNoBudgetLimit(false)
+                  setNewSpendingCategoryId(null)
                 }}
                 style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: '14px' }}
               >취소</button>

@@ -33,4 +33,6 @@ public class Transaction {
     @Column(name = "payment_address", length = 500)
     private String paymentAddress;
 
+    @Column(name = "payment_category_id")
+    private Integer paymentCategoryId;
 }
