@@ -100,9 +100,7 @@ services:
   fastapi:
     build:
       context: ./backend/fastapi
-      dockerfile: Dockerfile.dev
-    volumes:
-      - ./backend/fastapi/app:/app/app
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     env_file:
@@ -110,7 +108,7 @@ services:
     environment:
       - DB_HOST=${DB_HOST}
       - DB_PORT=3306
-      - ENV=prod                      # dev → prod (--reload 제거)
+      - ENV=prod
       - TZ=Asia/Seoul
     restart: unless-stopped
     networks:
