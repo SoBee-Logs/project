@@ -591,7 +591,7 @@ async def _merge_to_transactions(pool, user_id: int, start_date: str, end_date: 
 # 메인 동기화
 # ════════════════════════════════════════
 
-DAILY_SYNC_DAYS = 3
+DAILY_SYNC_DAYS = 1
 INITIAL_SYNC_DAYS = 30
 
 
@@ -794,12 +794,13 @@ async def sync_transactions(
     merged = await _merge_to_transactions(pool, user_id, start_date, end_date)
 
     # 카테고리 매핑 — 룰베이스 → 기타 남은 건 LLM 자동 체이닝
+    # 카테고리 매핑 — 백그라운드로 분리
     mapping_result = {}
     try:
-        mapping_result = await resolve_and_update_all_unmapped()
-        log.info(f"카테고리 매핑 완료: {mapping_result}")
+        asyncio.create_task(resolve_and_update_all_unmapped())
+        log.info("카테고리 매핑 백그라운드 실행 시작")
     except Exception as e:
-        log.error(f"카테고리 매핑 실패 (sync는 정상 완료): {e}")
+        log.error(f"카테고리 매핑 태스크 생성 실패: {e}")
 
     # 생애주기 예측 — 초기 sync(30일)일 때만 실행
     lifecycle_result = {}
