@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import RoomTabs from '../../common/components/RoomTabs'
+import { useNavigate } from 'react-router-dom'
 import beeImage from '../../assets/image 61.png'
 import calendarIcon from '../../assets/calendar_icon.png'
 
@@ -13,7 +12,6 @@ const mapDiaryToPost = (item) => ({
   date: item.date || '',
   time: item.time || '',
   authorNickname: item.authorName || '익명',
-  // 작성자 userId — 타 사용자 페르소나 이미지 조회에 사용
   authorId: item.authorId ?? null,
   personaTitle: item.roomLabel || '',
   imageUrls: item.imageUrls?.length > 0 ? item.imageUrls : [item.imageUrl].filter(Boolean),
@@ -26,10 +24,8 @@ const mapDiaryToPost = (item) => ({
 
 const formatFeedDate = (dateStr) => {
   if (!dateStr || dateStr === '날짜 없음') return dateStr
-
   const [year, month, day] = dateStr.split('-').map(Number)
   if (!year || !month || !day) return dateStr
-
   return `${year}년 ${month}월 ${day}일`
 }
 
@@ -53,39 +49,26 @@ function FeedPost({ post, onToggleLike, personaImage }) {
 
       <figure className="m-0 w-full aspect-square bg-gray-100 relative group overflow-hidden">
         {images.length > 0 && (
-          <img
-            src={images[currentIndex]}
-            alt=""
-            className="w-full h-full object-cover"
-          />
+          <img src={images[currentIndex]} alt="" className="w-full h-full object-cover" />
         )}
 
         {images.length > 1 && (
           <>
             <button
               type="button"
-              onClick={() =>
-                setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)
-              }
+              onClick={() => setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)}
               className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 flex items-center justify-center shadow text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
               aria-label="이전 이미지"
             >
-              <span className="text-[24px] leading-none -translate-y-[3px]">
-                ‹
-              </span>
+              <span className="text-[24px] leading-none -translate-y-[3px]">‹</span>
             </button>
-
             <button
               type="button"
-              onClick={() =>
-                setCurrentIndex((prev) => (prev + 1) % images.length)
-              }
+              onClick={() => setCurrentIndex((prev) => (prev + 1) % images.length)}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 flex items-center justify-center shadow text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
               aria-label="다음 이미지"
             >
-              <span className="text-[24px] leading-none -translate-y-[3px]">
-                ›
-              </span>
+              <span className="text-[24px] leading-none -translate-y-[3px]">›</span>
             </button>
           </>
         )}
@@ -96,10 +79,7 @@ function FeedPost({ post, onToggleLike, personaImage }) {
           className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-white/95 shadow flex items-center justify-center"
           aria-label="좋아요"
         >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
+          <svg width="14" height="14" viewBox="0 0 24 24"
             fill={post.liked ? '#ef4444' : 'none'}
             stroke={post.liked ? '#ef4444' : '#374151'}
             strokeWidth="2"
@@ -114,27 +94,18 @@ function FeedPost({ post, onToggleLike, personaImage }) {
           {images.map((_, i) => (
             <span
               key={i}
-              className={`rounded-full transition-all ${
-                i === currentIndex 
-                  ? 'w-4 h-1.5' 
-                  : 'w-1.5 h-1.5'
-              }`}
-              style={{
-                background: i === currentIndex ? '#2F7DF6' : '#DCEBFF'
-              }}
+              className={`rounded-full transition-all ${i === currentIndex ? 'w-4 h-1.5' : 'w-1.5 h-1.5'}`}
+              style={{ background: i === currentIndex ? '#2F7DF6' : '#DCEBFF' }}
             />
           ))}
         </div>
       )}
 
       <section className="px-4 py-3 text-left">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="text-base font-bold text-gray-900 m-0">{post.title}</h3>
-        </div>
+        <h3 className="text-base font-bold text-gray-900 m-0 mb-2">{post.title}</h3>
         <p className="text-sm text-gray-700 leading-relaxed m-0">
           {post.diaryLines.join(' ')}
         </p>
-
         <div className="flex items-center justify-between mt-2">
           <p className="text-xs text-gray-400 m-0">좋아요 {post.likes}개</p>
           <time className="text-[10px] text-gray-400 whitespace-nowrap">{post.date} {post.time}</time>
@@ -144,28 +115,19 @@ function FeedPost({ post, onToggleLike, personaImage }) {
   )
 }
 
-export default function Feed() {
-  const location = useLocation()
-  const initialRoomId = location.state?.roomId
-    ? `room_${location.state.roomId}`
-    : null
-
-  const [activeRoom, setActiveRoom] = useState(initialRoomId)
+export default function MyDiary() {
+  const navigate = useNavigate()
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(false)
-  // 작성자 userId → 아바타 이미지 URL 캐시 (타 사용자 페르소나 버그 수정)
-  const [personaImages, setPersonaImages] = useState({})
+  const [personaImage, setPersonaImage] = useState(null)
+  const [activeRoom, setActiveRoom] = useState('전체')
 
   useEffect(() => {
-    if (!activeRoom || !activeRoom.startsWith('room_')) return
-
-    const groupId = activeRoom.replace('room_', '')
-
-    const fetchDiaries = async () => {
+    const fetchMyDiaries = async () => {
       setIsLoading(true)
       try {
         const token = localStorage.getItem('token')
-        const res = await fetch(`/api/diary/list?groupId=${groupId}`, {
+        const res = await fetch('/api/diary/my-list', {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (!res.ok) return
@@ -173,28 +135,24 @@ export default function Feed() {
         const mapped = data.map(mapDiaryToPost)
         setPosts(mapped)
 
-        const uniqueAuthorIds = [...new Set(mapped.map(p => p.authorId).filter(Boolean))]
-        const avatarResults = await Promise.all(
-          uniqueAuthorIds.map(authorId =>
-            fetch(`/api/avatar/${authorId}`, { headers: { Authorization: `Bearer ${token}` } })
-              .then(r => r.ok ? r.json() : null)
-              .catch(() => null)
-          )
-        )
-        const images = {}
-        uniqueAuthorIds.forEach((authorId, i) => {
-          if (avatarResults[i]?.avatarImgUrl) images[authorId] = avatarResults[i].avatarImgUrl
-        })
-        setPersonaImages(images)
+        if (mapped.length > 0 && mapped[0].authorId) {
+          const avatarRes = await fetch(`/api/avatar/${mapped[0].authorId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (avatarRes.ok) {
+            const avatarData = await avatarRes.json()
+            if (avatarData?.avatarImgUrl) setPersonaImage(avatarData.avatarImgUrl)
+          }
+        }
       } catch (err) {
-        console.error('일기 목록 조회 실패', err)
+        console.error('내 일기 목록 조회 실패', err)
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchDiaries()
-  }, [activeRoom])
+    fetchMyDiaries()
+  }, [])
 
   const handleToggleLike = async (id) => {
     try {
@@ -210,16 +168,18 @@ export default function Feed() {
       prev.map((post) => {
         if (post.id !== id) return post
         const liked = !post.liked
-        return {
-          ...post,
-          liked,
-          likes: liked ? post.likes + 1 : Math.max(0, post.likes - 1),
-        }
-      }),
+        return { ...post, liked, likes: liked ? post.likes + 1 : Math.max(0, post.likes - 1) }
+      })
     )
   }
 
-  const groupedPosts = posts.reduce((acc, post) => {
+  const roomLabels = ['전체', ...new Set(posts.map(p => p.personaTitle).filter(Boolean))]
+
+  const filteredPosts = activeRoom === '전체'
+    ? posts
+    : posts.filter(p => p.personaTitle === activeRoom)
+
+  const groupedPosts = filteredPosts.reduce((acc, post) => {
     const date = post.date || '날짜 없음'
     if (!acc[date]) acc[date] = []
     acc[date].push(post)
@@ -228,66 +188,64 @@ export default function Feed() {
 
   return (
     <main className="min-h-full bg-[#F5F7FB]">
-      <div className="sticky top-0 z-20 bg-white">
-        <RoomTabs activeRoom={activeRoom} onChange={setActiveRoom} showAdd />
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
+        <div className="px-4 py-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="w-8 h-8 flex items-center justify-center text-gray-700"
+            aria-label="뒤로가기"
+          >
+            <span className="text-[22px] leading-none">‹</span>
+          </button>
+          <h1 className="text-[16px] font-bold text-gray-900 m-0">나의 일기</h1>
+        </div>
+
+        <div className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-hide">
+          {roomLabels.map((label) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setActiveRoom(label)}
+              className="shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold border-0"
+              style={{
+                background: activeRoom === label ? '#2F7DF6' : '#EBF5FF',
+                color: activeRoom === label ? '#FFFFFF' : '#0073BC',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <section className="py-1 pb-4">
         {isLoading ? (
           <p className="text-center text-sm text-gray-400 py-12">불러오는 중...</p>
-        ) : posts.length === 0 ? (
-          <p className="text-center text-sm text-gray-400 py-12">
-            이 모임방에 아직 일기가 없어요
-          </p>
+        ) : filteredPosts.length === 0 ? (
+          <p className="text-center text-sm text-gray-400 py-12">아직 작성한 일기가 없어요</p>
         ) : (
           Object.entries(groupedPosts).map(([date, datePosts]) => (
             <div key={date}>
               <div className="flex items-center gap-3 px-4 py-1.5">
-                <div
-                  className="flex-1 h-px"
-                  style={{ background: '#DCEBFF' }}
-                />
-
+                <div className="flex-1 h-px" style={{ background: '#DCEBFF' }} />
                 <div
                   className="flex items-center rounded-full border shrink-0"
-                  style={{
-                    padding: '5px 12px 5px 8px',
-                    gap: '7px',
-                    background: '#F3F8FF',
-                    borderColor: '#DCEBFF',
-                    boxShadow: '0 3px 10px rgba(31, 122, 224, 0.05)',
-                  }}
+                  style={{ padding: '5px 12px 5px 8px', gap: '7px', background: '#F3F8FF', borderColor: '#DCEBFF', boxShadow: '0 3px 10px rgba(31, 122, 224, 0.05)' }}
                 >
-                  <img
-                    src={calendarIcon}
-                    alt=""
-                    className="w-[20px] h-[20px] object-contain shrink-0"
-                  />
-
-                  <span
-                    className="text-[11px] font-bold"
-                    style={{
-                      color: '#1F5FAE',
-                      letterSpacing: '-0.2px',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
+                  <img src={calendarIcon} alt="" className="w-[20px] h-[20px] object-contain shrink-0" />
+                  <span className="text-[11px] font-bold" style={{ color: '#1F5FAE', letterSpacing: '-0.2px', whiteSpace: 'nowrap' }}>
                     {formatFeedDate(date)}
                   </span>
                 </div>
-
-                <div
-                  className="flex-1 h-px"
-                  style={{ background: '#DCEBFF' }}
-                />
+                <div className="flex-1 h-px" style={{ background: '#DCEBFF' }} />
               </div>
-
               {datePosts.map((post) => (
                 <FeedPost
                   key={post.id}
                   post={post}
                   onToggleLike={handleToggleLike}
-                  personaImage={personaImages[post.authorId] ?? null}
+                  personaImage={personaImage}
                 />
               ))}
             </div>

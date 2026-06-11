@@ -491,7 +491,7 @@ export default function AvaterRoom() {
             {/* 확장 상태 페르소나 카드 */}
             {!isEmptyMonth && hasWeekAvatar && (
               <div
-                className="absolute left-6 bottom-[110px] z-20 transition-opacity duration-500"
+                className="absolute left-5.5 bottom-[105px] z-20 transition-opacity duration-500"
                 style={{
                   opacity: isExpanded ? 1 : 0,
                   pointerEvents: 'none',
@@ -500,7 +500,7 @@ export default function AvaterRoom() {
                 <h2
                   className="m-0 font-extrabold leading-tight break-keep"
                   style={{
-                    fontSize: '25px',
+                    fontSize: '24px',
                     color: '#FFFFFF',
                     letterSpacing: '-0.8px',
                     textShadow: '0 2px 8px rgba(11, 1, 7, 0.3)',
@@ -538,7 +538,7 @@ export default function AvaterRoom() {
 
             {/* 확장 상태 하단 소비 리포트 버튼 */}
             <div
-              className="absolute bottom-0 left-0 w-full px-6 pt-24 pb-6 bg-gradient-to-t from-black/55 via-black/15 to-transparent transition-opacity duration-500 z-20"
+              className="absolute bottom-0 left-0 w-full px-4 pt-24 pb-5 bg-gradient-to-t from-black/55 via-black/15 to-transparent transition-opacity duration-500 z-20"
               style={{
                 opacity: isExpanded ? 1 : 0,
                 pointerEvents: isExpanded ? 'auto' : 'none',
@@ -551,7 +551,7 @@ export default function AvaterRoom() {
                 }}
                 className="w-full rounded-[28px] bg-white/95 flex items-center gap-3 active:scale-[0.98] transition-transform"
                 style={{
-                  padding: '11px 13px',
+                  padding: '10px 13px',
                   boxShadow: '0 14px 34px rgba(15, 23, 42, 0.20)',
                   border: '1px solid rgba(220, 235, 255, 0.9)',
                   backdropFilter: 'blur(8px)',
