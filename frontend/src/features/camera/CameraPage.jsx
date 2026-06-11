@@ -466,7 +466,7 @@ export default function CameraPage() {
           type="button"
           onClick={handleNext}
           disabled={selectedRooms.length === 0 || !imageFile || isLoading || vlmLoading}
-          className="w-full py-3.5 rounded-2xl bg-[#38BDF8] text-white font-bold text-[15px] disabled:opacity-40 mt-2"
+          className="w-full py-3.5 rounded-2xl bg-[#2F7DF6] text-white font-bold text-[15px] disabled:opacity-40 mt-2"
         >
           {isLoading
             ? (loadingStep === 'analyze' ? '분석 중...' : '업로드 중...')

@@ -498,9 +498,9 @@ export default function ConsumptionLog() {
             }
 
             .calendar-modal .react-calendar__tile--active abbr {
-              background: #00BFFF !important;
+              background: #2F7DF6 !important;
               color: #FFFFFF !important;
-              border-color: #00BFFF !important;
+              border-color: #2F7DF6 !important;
               box-shadow: 0 8px 18px rgba(0, 191, 255, 0.35);
             }
 
@@ -562,7 +562,7 @@ export default function ConsumptionLog() {
             }
 
             .calendar-confirm {
-              background: #00BFFF;
+              background: #2F7DF6;
               color: #FFFFFF;
               box-shadow: 0 8px 18px rgba(0, 191, 255, 0.3);
             }
@@ -732,7 +732,7 @@ export default function ConsumptionLog() {
                   </div>
 
                   <div className="w-[18px] shrink-0 flex justify-center pt-[5px]">
-                    <span className="w-2 h-2 rounded-full bg-[#00BFFF] border-2 border-white z-10 block" />
+                    <span className="w-2 h-2 rounded-full bg-[#2F7DF6] border-2 border-white z-10 block" />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -794,7 +794,7 @@ export default function ConsumptionLog() {
           onClick={handleGenerate}
           // TODO: 테스트 완료 후 disabled={!isToday} 로 되돌리기
           disabled={false}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white text-[14px] font-bold bg-[#00BFFF]"
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white text-[14px] font-bold bg-[#2F7DF6]"
         >
           <span className="text-[11px]">▶</span> LLM 일기 생성
         </button>

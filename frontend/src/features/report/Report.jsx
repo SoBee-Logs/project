@@ -866,7 +866,7 @@ export default function Report() {
                         onClick={() => setPersonaWeek(w)}
                         className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
                           activeWeek === w
-                            ? 'bg-[#1e73be] text-white'
+                            ? 'bg-[#2F7DF6] text-white'
                             : hasAvatarForWeek
                               ? 'bg-white text-gray-500 border border-gray-200'
                               : 'bg-white text-gray-300 border border-gray-100'
@@ -964,7 +964,7 @@ export default function Report() {
                       className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 transition-colors ${hasContext ? 'cursor-pointer active:bg-gray-50' : ''} ${isSelected ? 'bg-blue-50' : ''}`}
                     >
                       <span className="text-2xl">{emoji}</span>
-                      <span className={`text-[10px] font-semibold ${isSelected ? 'text-[#1e73be]' : 'text-gray-400'}`}>{w}</span>
+                      <span className={`text-[10px] font-semibold ${isSelected ? 'text-[#2F7DF6]' : 'text-gray-400'}`}>{w}</span>
                       {topCount != null && <span className="text-[9px] text-gray-500">{topCount}/{totalCount}건</span>}
                     </div>
                   )
@@ -974,7 +974,7 @@ export default function Report() {
                 <div className="rounded-xl bg-blue-50 px-3 py-2">
                   <p className="text-[9px] text-blue-300 mb-0.5">{selectedEmotionWeek} 아바타 생성 이유</p>
                   {activeEmojiReason.header && (
-                    <p className="text-[10px] font-semibold text-[#1e73be] mb-0.5">{activeEmojiReason.header}</p>
+                    <p className="text-[10px] font-semibold text-[#2F7DF6] mb-0.5">{activeEmojiReason.header}</p>
                   )}
                   <p className="text-[11px] text-gray-500 leading-relaxed">{activeEmojiReason.context}</p>
                 </div>
@@ -1107,7 +1107,7 @@ export default function Report() {
               {timeContext && (
                 <div className="rounded-xl bg-blue-50 px-3 py-2 mt-1">
                   <p className="text-[9px] text-blue-300 mb-0.5">{timeWeek} 아바타 생성 이유</p>
-                  <p className="text-[10px] font-semibold text-[#1e73be] mb-0.5">{timeContext.header}</p>
+                  <p className="text-[10px] font-semibold text-[#2F7DF6] mb-0.5">{timeContext.header}</p>
                   <p className="text-[11px] text-gray-500 leading-relaxed">{timeContext.context}</p>
                 </div>
               )}
