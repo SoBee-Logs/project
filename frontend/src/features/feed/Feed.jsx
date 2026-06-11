@@ -48,7 +48,7 @@ function FeedPost({ post, onToggleLike, personaImage, personaName, onProfileClic
         />
         <span className="flex-1 min-w-0 text-left">
           <span className="block text-sm font-bold text-gray-900">{post.authorNickname}</span>
-          <span className="block text-xs text-gray-500 truncate">{post.personaTitle}</span>
+          <span className="block text-xs text-gray-500 truncate">{personaName}</span>
         </span>
       </header>
 
