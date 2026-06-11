@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { buildAlertFingerprint } from '../../features/report/AlertBoard'
 
-const BLUE = '#3B82F6'
+const BLUE = '#2F7DF6'
 const GRAY = '#6b7280'
 
 export default function BottomNav({ floating = false }) {
@@ -56,7 +56,7 @@ export default function BottomNav({ floating = false }) {
       label: '홈',
       path: '/home',
       icon: (active) => (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? BLUE : GRAY} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? BLUE : GRAY} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" fill={active ? BLUE : 'none'} />
           <path d="M9 21V12h6v9" stroke={active ? 'white' : GRAY} strokeWidth="1.8" />
         </svg>

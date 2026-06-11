@@ -132,7 +132,7 @@ export default function ConsumptionLog() {
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <p className="text-[14px] font-semibold text-gray-900 m-0 mt-0.5 leading-snug">
+          <p className="text-[14px] font-semibold text-gray-900 m-0.5 leading-snug translate-y-0.5">
             나의 소비 로그
           </p>
         </div>
@@ -145,7 +145,7 @@ export default function ConsumptionLog() {
           className="mt-2 flex items-center rounded-full border"
           style={{
             width: 'fit-content',
-            padding: '5px 14px 5px 10px',
+            padding: '4px 12px 4px 8px',
             gap: '10px',
             background: '#F3F8FF',
             borderColor: '#DCEBFF',
@@ -764,6 +764,21 @@ export default function ConsumptionLog() {
             })}
           </ul>
         )}
+      </div>
+
+      <div className="fixed bottom-[100px] left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 flex justify-end pointer-events-none z-20">
+        <button
+          type="button"
+          onClick={() => navigate('/camera', { state: { myGroups } })}
+          className="rounded-full flex items-center justify-center pointer-events-auto active:scale-95 transition-transform border"
+          style={{ width: '52px', height: '52px', background: '#EBF5FF', borderColor: '#C3DCFF', color: '#2F7DF6', boxShadow: '0 10px 28px rgba(47, 125, 246, 0.18)' }}
+          aria-label="사진 추가"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+        </button>
       </div>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 py-3 bg-white border-t border-gray-100 z-10">

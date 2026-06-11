@@ -294,99 +294,49 @@ export default function CameraPage() {
         )}
 
         {(vlmLoading || vlmData) && (
-          <div className="rounded-2xl bg-[#F0F7FF] border border-sky-100 px-4 py-3">
-            {vlmLoading ? (
-              <div className="flex items-center gap-2 text-sky-500">
-                <span className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin shrink-0" />
-                <span className="text-[12px] font-medium">AI가 사진 분석 중...</span>
-              </div>
-            ) : (
+          <div style={{ marginTop: 0 }}>
+            <div className="flex justify-between px-3">
+              <span style={{ display: 'block', width: '2px', height: '10px', borderLeft: '2px dashed #93C5FD' }} />
+              <span style={{ display: 'block', width: '2px', height: '10px', borderLeft: '2px dashed #93C5FD' }} />
+            </div>
+          <div className="relative">
+            <span className="absolute top-2 left-3 w-2.5 h-2.5 rounded-full bg-white border-2 border-sky-200 z-10" style={{ transform: 'translateX(-50%)' }} />
+            <span className="absolute top-2 right-3 w-2.5 h-2.5 rounded-full bg-white border-2 border-sky-200 z-10" style={{ transform: 'translateX(50%)' }} />
+          <div
+            className="rounded-2xl bg-[#F0F7FF] border border-sky-100 px-4 pt-0.5 pb-3 overflow-hidden"
+            style={{
+              maxHeight: vlmLoading ? '44px' : '400px',
+              transition: 'max-height 0.5s ease-out',
+            }}
+          >
+            <div className="flex items-center gap-2.5 text-sky-500 pt-1 pl-2" style={{ height: '24px' }}>
+              {vlmLoading && (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                  <span className="text-[12px] font-medium translate-y-px">AI가 사진 분석 중...</span>
+                </>
+              )}
+            </div>
+            {vlmData && (
               <>
-                <p className="text-[11px] font-bold text-sky-600 mb-2">🤖 AI 분석 결과</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-3">
-                  {vlmData.category && (
-                    <div className="text-[11px] text-gray-600">
-                      <span className="text-gray-400">카테고리</span>
-                      <span className="block font-semibold text-gray-800">{vlmData.category}</span>
-                    </div>
-                  )}
-                  {vlmData.price && (
-                    <div className="text-[11px] text-gray-600">
-                      <span className="text-gray-400">추정 가격</span>
-                      <span className="block font-semibold text-gray-800">{vlmData.price.toLocaleString()}원</span>
-                    </div>
-                  )}
-                  {(vlmData.store_name || vlmData.location_type) && (
-                    <div className="text-[11px] text-gray-600">
-                      <span className="text-gray-400">장소</span>
-                      <span className="block font-semibold text-gray-800">
-                        {[vlmData.location_type, vlmData.store_name].filter(Boolean).join(' · ')}
-                      </span>
-                    </div>
-                  )}
-                  {vlmData.taken_at && (
-                    <div className="text-[11px] text-gray-600">
-                      <span className="text-gray-400">촬영 시각</span>
-                      <span className="block font-semibold text-gray-800">{vlmData.taken_at}</span>
-                    </div>
-                  )}
-                  {vlmData.address && (
-                    <div className="text-[11px] text-gray-600 col-span-2">
-                      <span className="text-gray-400">위치</span>
-                      <span className="block font-semibold text-gray-800 line-clamp-1">{vlmData.address}</span>
-                    </div>
-                  )}
-                  {vlmData.reasoning && (
-                    <div className="text-[11px] text-gray-600 col-span-2">
-                      <span className="text-gray-400">판단 근거</span>
-                      <span className="block font-semibold text-gray-800">{vlmData.reasoning}</span>
-                    </div>
-                  )}
-                  {vlmData._elapsed_ms && (
-                    <div className="text-[11px] text-gray-600 col-span-2">
-                      <span className="text-gray-400">응답 시간</span>
-                      <span className="block font-semibold text-gray-800">{vlmData._elapsed_ms}ms</span>
-                    </div>
-                  )}
-                </div>
-
+                <p className="text-[11px] font-bold text-sky-600 mb-2 mt-1">🤖 AI가 분석한 소비 항목</p>
                 {vlmData.groups && vlmData.groups.length > 0 && (
-                  <div>
-                    <p className="text-[11px] font-bold text-sky-600 mb-1.5">📦 소비 그룹</p>
-                    <div className="flex flex-col gap-2">
-                      {vlmData.groups.map((group, i) => (
-                        <div
-                          key={i}
-                          className="rounded-xl bg-white px-3 py-2 border border-sky-100"
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-bold text-[#0073BC]">
-                              #{group.group_id} {group.store ?? '가게 미상'}
-                            </span>
-                            <span className="text-[10px] font-bold text-gray-500">
-                              {group.category}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-1 mb-1">
-                            {group.items.map((item, j) => (
-                              <span
-                                key={j}
-                                className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#EBF5FF] text-[#0073BC]"
-                              >
-                                {item}
-                              </span>
-                            ))}
-                          </div>
-                          <p className="text-[10px] font-semibold text-gray-700 text-right">
-                            {group.price.toLocaleString()}원
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="flex flex-wrap gap-1">
+                    {(() => {
+                      const counts = vlmData.groups.flatMap(g => g.items)
+                        .reduce((acc, item) => { acc[item] = (acc[item] || 0) + 1; return acc }, {})
+                      return Object.entries(counts).map(([item, count], i) => (
+                        <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-sky-100 text-[#0073BC] font-semibold">
+                          {item}{count > 1 ? `×${count}` : ''}
+                        </span>
+                      ))
+                    })()}
                   </div>
                 )}
               </>
             )}
+          </div>
+          </div>
           </div>
         )}
 

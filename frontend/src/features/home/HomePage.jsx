@@ -301,8 +301,8 @@ export default function Home() {
                     <strong style={{ fontSize: '12px', color: '#111827', fontWeight: 800 }}>{diaryCount}</strong>
                   </button>
                   <div style={{
-                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    background: '#F0F6FF', borderRadius: '10px', padding: '4px 8px',
+                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    background: '#EBF5FF', borderRadius: '10px', padding: '1px 0',
                   }}>
                     <span style={{ display: 'block', fontSize: '10px', color: '#9AA6B2', fontWeight: 600, marginBottom: '2px' }}>
                       💳 어제 소비 요약
@@ -325,15 +325,25 @@ export default function Home() {
             type="button"
             onClick={() => navigate('/camera', { state: { myGroups: feedPreviews } })}
             className="rounded-[18px] flex flex-col cursor-pointer border-0 text-left relative"
-            style={{ background: '#2F7DF6', border: 'none', boxShadow: '0 8px 18px rgba(47,125,246,0.18)', minHeight: '85px', overflow: 'visible' }}
+            style={{
+              background: '#2F7DF6',
+              border: 'none',
+              boxShadow: '0 8px 18px rgba(47,125,246,0.18)',
+              minHeight: '72px',
+              overflow: 'visible',
+            }}
           >
             <div className="px-4 pt-4">
               <span className="block text-[15px] font-bold leading-tight" style={{ color: '#FFFFFF' }}>카메라</span>
               <span className="block text-[11px] font-bold leading-tight mt-2" style={{ color: '#FFFFFF' }}>소비 사진을 찍어주세요!</span>
             </div>
             <div className="flex-1 flex items-end justify-end">
-              <img src={cameraHalo} alt="camera" className="object-contain block"
-                style={{ width: '100px', height: '100px', marginBottom: '-5px', marginRight: '8px' }} />
+              <img
+                src={cameraHalo}
+                alt="camera"
+                className="object-contain block"
+                style={{ width: '82px', height: '82px', marginBottom: '-5px', marginRight: '8px' }}
+              />
             </div>
           </button>
 
@@ -345,11 +355,24 @@ export default function Home() {
                 navigate('/consumption-log', { state: { selectedRooms: roomIds, myGroups: feedPreviews } })
               }}
               className="rounded-[18px] flex items-end justify-between cursor-pointer border-0 text-left relative"
-              style={{ background: '#EBF5FF', border: 'none', boxShadow: 'none', minHeight: '40px', padding: '5px 12px', overflow: 'visible' }}
+              style={{
+                background: '#EBF5FF',
+                border: 'none',
+                boxShadow: 'none',
+                minHeight: '34px',
+                padding: '5px 12px',
+                overflow: 'visible',
+              }}
             >
-              <span className="block text-[13px] font-bold leading-tight self-start pt-2" style={{ color: '#003B72' }}>소비 로그</span>
-              <img src={receiptHalo} alt="receipt" className="object-contain block"
-                style={{ width: '68px', height: '68px', marginBottom: '-10px', marginRight: '-6px' }} />
+              <span className="block text-[13px] font-bold leading-tight self-start pt-2" style={{ color: '#003B72' }}>
+                소비 로그
+              </span>
+              <img
+                src={receiptHalo}
+                alt="receipt"
+                className="object-contain block"
+                style={{ width: '56px', height: '56px', marginBottom: '-10px', marginRight: '-6px' }}
+              />
             </button>
 
             <button
@@ -359,18 +382,31 @@ export default function Home() {
                 navigate('/report/monthly', { state: { scrollTo: 'aiRecommend', year: now.getFullYear(), month: now.getMonth() + 1 } })
               }}
               className="rounded-[18px] flex items-end justify-between cursor-pointer border-0 text-left relative"
-              style={{ background: '#EBF5FF', border: 'none', boxShadow: 'none', minHeight: '40px', padding: '5px 12px', overflow: 'visible' }}
+              style={{
+                background: '#EBF5FF',
+                border: 'none',
+                boxShadow: 'none',
+                minHeight: '34px',
+                padding: '5px 12px',
+                overflow: 'visible',
+              }}
             >
-              <span className="block text-[13px] font-bold leading-tight self-start pt-2" style={{ color: '#003B72' }}>상품 추천</span>
-              <img src={productBag} alt="product recommendation" className="object-contain block"
-                style={{ width: '75px', height: '75px', marginBottom: '-10px', marginRight: '-6px' }} />
+              <span className="block text-[13px] font-bold leading-tight self-start pt-2" style={{ color: '#003B72' }}>
+                상품 추천
+              </span>
+              <img
+                src={productBag}
+                alt="product recommendation"
+                className="object-contain block"
+                style={{ width: '62px', height: '62px', marginBottom: '-10px', marginRight: '-6px' }}
+              />
             </button>
           </div>
         </div>
       </section>
 
       {/* 피드 */}
-      <section className="px-3 pt-3 pb-22">
+      <section className="px-3 pt-3 pb-4">
         <h2 className="text-[14px] font-bold mb-0.5" style={{ color: '#003B72', paddingLeft: '2px' }}>피드 하이라이트</h2>
         {feedPreviews.length === 0 ? (
           <p className="text-[13px] text-gray-400 text-center py-6">아직 모임방이 없어요. 모임을 만들어보세요!</p>
@@ -401,8 +437,13 @@ export default function Home() {
                       <span className="text-[10px] text-gray-400">사진이 없어요</span>
                     </div>
                   )}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent px-2 pb-2 pt-4">
-                    <p className="text-[11px] font-bold text-white m-0 truncate">{item.groupName}</p>
+                  <div className="absolute bottom-0 left-0 right-0 px-2 pb-0">
+                    <p
+                      className="text-[9px] font-bold text-white m-0 truncate inline-block max-w-full px-1.5 py-px rounded-full"
+                      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
+                    >
+                      {item.groupName}
+                    </p>
                   </div>
                 </figure>
               </button>
