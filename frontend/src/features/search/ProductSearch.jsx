@@ -763,12 +763,12 @@ export default function ProductSearch() {
                         onChange={(e) => setQuery(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                         placeholder="궁금한 걸 자유롭게 물어보세요!"
-                        style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 14, color: WOORI_NAVY, fontFamily: "inherit" }}
+                        style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 14, color: WOORI_NAVY, fontFamily: "inherit" }}
                     />
                     {query && (
                         <button
                             onClick={() => handleSearch()}
-                            style={{ background: WOORI_BLUE, border: "none", borderRadius: 8, color: "#fff", fontSize: 11, fontWeight: 700, padding: "5px 10px", cursor: "pointer" }}
+                            style={{ background: WOORI_BLUE, border: "none", borderRadius: 8, color: "#fff", fontSize: 11, fontWeight: 700, padding: "5px 10px", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
                         >
                             검색
                         </button>

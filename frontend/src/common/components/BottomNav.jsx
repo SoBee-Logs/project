@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { buildAlertFingerprint } from '../../features/report/AlertBoard'
+import { buildAlertFingerprint, hasCurrentWeekDanger } from '../../features/report/AlertBoard'
 
 const BLUE = '#2F7DF6'
 const GRAY = '#6b7280'
@@ -10,6 +10,12 @@ export default function BottomNav({ floating = false }) {
 
   // 리포트 탭 Red Dot — 미확인 경고가 있을 때만 표시
   const [hasAlert, setHasAlert] = useState(false)
+
+  useEffect(() => {
+    const onSeen = () => setHasAlert(false)
+    window.addEventListener('alertSeen', onSeen)
+    return () => window.removeEventListener('alertSeen', onSeen)
+  }, [])
 
   useEffect(() => {
     const checkAlerts = async () => {
@@ -24,15 +30,7 @@ export default function BottomNav({ floating = false }) {
 
         const fingerprint = buildAlertFingerprint(data)
         const seenKey = localStorage.getItem('alertSeenKey') ?? ''
-
-        if (location.pathname.startsWith('/report')) {
-          // 리포트 화면 진입 = 확인 처리 → Red Dot 즉시 제거
-          localStorage.setItem('alertSeenKey', fingerprint)
-          setHasAlert(false)
-        } else {
-          // 다른 탭: 새로운(미확인) 경고가 있으면 Red Dot 표시
-          setHasAlert(fingerprint.length > 0 && fingerprint !== seenKey)
-        }
+        setHasAlert(hasCurrentWeekDanger(data) && fingerprint !== seenKey)
       } catch {
         // 조회 실패 시 Red Dot 미표시
       }
