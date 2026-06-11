@@ -27,6 +27,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, Transa
             @Param("endDate") String endDate
     );
 
+    @Query("SELECT COALESCE(SUM(t.paymentOut), 0) FROM Transaction t " +
+            "WHERE t.id.userId = :userId " +
+            "AND t.paymentDate BETWEEN :startDate AND :endDate " +
+            "AND t.paymentOut > 0 " +
+            "AND t.paymentCategoryId = :categoryId")
+    Long sumOutgoingByUserIdAndDateRangeAndCategory(
+            @Param("userId") Long userId,
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate,
+            @Param("categoryId") Integer categoryId
+    );
+
     @Query("SELECT t FROM Transaction t WHERE t.id.paymentId = :paymentId")
     Optional<Transaction> findByPaymentId(@Param("paymentId") Long paymentId);
 
