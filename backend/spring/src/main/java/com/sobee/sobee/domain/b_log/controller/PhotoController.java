@@ -121,6 +121,18 @@ public ResponseEntity<List<Map<String, Object>>> getMappingResult(
     return ResponseEntity.ok(photoService.getMappingResult(photoId, userId));
 }
 
+    @GetMapping("/ai-summary")
+    public ResponseEntity<Map<String, String>> getAiSummary(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam("date") String date
+    ) {
+        Long userId = extractUserId(authHeader);
+        String summary = photoService.getAiSummary(userId, LocalDate.parse(date));
+        Map<String, String> result = new HashMap<>();
+        result.put("summary", summary);
+        return ResponseEntity.ok(result);
+    }
+
     // 추가: 매핑 전용 엔드포인트
     @PostMapping("/{photoId}/mapping")
     public ResponseEntity<Void> matchPhoto(

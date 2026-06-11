@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 import aiohttp
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 
 log = logging.getLogger(__name__)
 
@@ -349,3 +349,55 @@ async def persona_has_photo(user_id: int, start_date: str, end_date: str):
             """, (user_id, start_date, end_date))
             row = await cur.fetchone()
     return {"user_id": user_id, "has_photo": (row[0] > 0) if row else False}
+
+
+@router.get("/daily-summary", summary="어제 소비 AI 한줄 요약")
+async def daily_summary(
+    user_id: int,
+    date: str,
+    x_internal_secret: str = Header(None, alias="X-Internal-Secret"),
+):
+    from fastapi import HTTPException
+    from app.core.config import settings
+    if x_internal_secret != settings.INTERNAL_SECRET_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    from app.db.connection import get_pool
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+                SELECT v.vlm_item_name, v.vlm_category, v.vlm_price_estimate
+                FROM photo_vlm_results v
+                JOIN photos p ON v.photo_id = p.photo_id
+                WHERE p.user_id = %s
+                  AND DATE(p.created_at) = %s
+                  AND v.vlm_category IS NOT NULL
+                  AND v.vlm_category != '기타'
+                  AND v.is_valid = TRUE
+            """, (user_id, date))
+            rows = await cur.fetchall()
+
+    if not rows:
+        return {"summary": "기록 없음"}
+
+    items_text = "\n".join([f"- {r[1]}: {r[0]} ({r[2]}원)" for r in rows])
+
+    try:
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=f"소비 기록:\n{items_text}\n\n위 소비를 한국어 15자 이내로 한 줄 요약해줘. 20대 말투로 이모지 1개 포함. 예: '카페 또 갔네 ☕ㅋㅋ', '쇼핑 신났다~ 🛍️', '식비 탕진 중 🍚', '카페+쇼핑 데이 ✨'. 요약문만 출력.",
+            config=types.GenerateContentConfig(
+                temperature=0.8,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        summary = response.text.strip()
+    except Exception as e:
+        log.warning(f"[daily-summary] Gemini 실패: {e}")
+        summary = "소비 요약 실패"
+
+    return {"summary": summary}

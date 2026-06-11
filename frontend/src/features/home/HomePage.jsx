@@ -165,10 +165,14 @@ export default function Home() {
 
     const fetchAll = async () => {
       try {
-        const [personaRes, groupsRes, topCategoryRes] = await Promise.all([
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yesterdayStr = yesterday.toISOString().split('T')[0]
+
+        const [personaRes, groupsRes, aiSummaryRes] = await Promise.all([
           fetch(`/api/users/${userId}/persona`),
           fetch('/api/groups', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/transactions/top-category', { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`/api/photos/ai-summary?date=${yesterdayStr}`, { headers: { Authorization: `Bearer ${token}` } }),
         ])
 
         if (personaRes.ok) {
@@ -176,13 +180,10 @@ export default function Home() {
           if (data) { setPersona(data); if (data.name) setUserName(data.name) }
         }
 
-        if (topCategoryRes.ok) {
-          const data = await topCategoryRes.json()
-          const categoryName = data.categoryName ?? '기타'
-          const normalized = categoryName.replace('/', '')
-          const messages = CATEGORY_MESSAGES[normalized] ?? CATEGORY_MESSAGES['기타']
-          const randomMsg = messages[Math.floor(Math.random() * messages.length)]
-          setCategoryMessage(randomMsg)
+        if (aiSummaryRes.ok) {
+          const data = await aiSummaryRes.json()
+          const raw = data.summary || ''
+          setCategoryMessage([...raw].slice(0, 15).join(''))
         }
 
         if (groupsRes.ok) {
