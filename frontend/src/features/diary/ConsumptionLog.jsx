@@ -78,7 +78,17 @@ export default function ConsumptionLog() {
         })
         if (!res.ok) throw new Error('조회 실패')
         const data = await res.json()
-        setPhotos([...(data.photos ?? [])].reverse())
+        setPhotos(
+          [...(data.photos ?? [])].sort((a, b) => {
+            const toMs = (t) => {
+              if (!t) return 0
+              if (t.includes('T')) return new Date(t).getTime()
+              const [h, m] = t.split(':').map(Number)
+              return h * 60 + m
+            }
+            return toMs(a.time) - toMs(b.time)
+          })
+        )
       } catch (err) {
         console.error(err)
       } finally {
