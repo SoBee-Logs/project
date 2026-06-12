@@ -32,7 +32,7 @@ HEADERS = {"X-Internal-Secret": SECRET, "Content-Type": "application/json"}
 TIMEOUT = 300
 
 DAILY_SYNC_DAYS = 3
-INITIAL_SYNC_DAYS = 30
+INITIAL_SYNC_DAYS = 90
 
 
 def _get_all_user_ids() -> list[int]:
