@@ -5,7 +5,6 @@ import UserDataStats from './components/UserDataStats.jsx'
 import DiaryMapping from './components/DiaryMapping.jsx'
 import VlmStats from './components/VlmStats.jsx'
 import Lifecycle from './components/Lifecycle.jsx'
-import SpendingTrends from './components/SpendingTrends.jsx'
 import PromptManager from './components/PromptManager.jsx'
 import SystemHealth from './components/SystemHealth.jsx'
 
@@ -16,7 +15,6 @@ const TABS = [
   { id: 'diary', label: '사진·일기 매핑' },
   { id: 'vlm', label: 'VLM 분석' },
   { id: 'lifecycle', label: '생애주기' },
-  { id: 'spending', label: '소비 트렌드' },
   { id: 'prompts', label: '프롬프트 관리' },
   { id: 'health', label: '🩺 시스템' },
 ]
@@ -47,7 +45,7 @@ export default function App() {
         {tab === 'diary' && <DiaryMapping />}
         {tab === 'vlm' && <VlmStats />}
         {tab === 'lifecycle' && <Lifecycle />}
-        {tab === 'spending' && <SpendingTrends />}
+
         {tab === 'prompts' && <PromptManager />}
         {tab === 'health' && <SystemHealth />}
       </main>

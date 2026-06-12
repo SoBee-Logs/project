@@ -237,10 +237,10 @@ async def vlm_stats():
             vlm_missing = max(0, total_photos - total_vlm)
 
             await cur.execute("""
-                SELECT vlm_category, COUNT(*) as cnt
-                FROM photo_vlm_results
-                WHERE vlm_category IS NOT NULL
-                GROUP BY vlm_category ORDER BY cnt DESC LIMIT 10
+                SELECT c.category_name, COUNT(v.photo_id) as cnt
+                FROM category_master c
+                LEFT JOIN photo_vlm_results v ON v.vlm_category COLLATE utf8mb4_0900_ai_ci = c.category_name COLLATE utf8mb4_0900_ai_ci
+                GROUP BY c.payment_category_id, c.category_name ORDER BY cnt DESC
             """)
             categories = [{"category": r[0], "count": r[1]} for r in await cur.fetchall()]
 
@@ -257,13 +257,42 @@ async def vlm_stats():
                 ORDER BY u.age, cnt DESC
             """)
             rows = await cur.fetchall()
-            age_items: dict = {}
+            age_bucket: dict = {}
             for age, item, cnt in rows:
-                age_key = str(age)
-                if age_key not in age_items:
-                    age_items[age_key] = []
-                if len(age_items[age_key]) < 5:
-                    age_items[age_key].append({"item": item, "count": cnt})
+                low = (age // 5) * 5
+                age_key = f"{low}~{low + 4}세"
+                if age_key not in age_bucket:
+                    age_bucket[age_key] = {}
+                for single in [i.strip() for i in item.split(",") if i.strip()]:
+                    age_bucket[age_key][single] = age_bucket[age_key].get(single, 0) + cnt
+            age_items: dict = {}
+            for age_key in sorted(age_bucket.keys()):
+                top = sorted(age_bucket[age_key].items(), key=lambda x: -x[1])[:5]
+                age_items[age_key] = [{"item": i, "count": c} for i, c in top]
+
+            await cur.execute("""
+                SELECT CEIL(DAY(p.created_at) / 7) as week, v.vlm_item_name, COUNT(*) as cnt
+                FROM photo_vlm_results v
+                JOIN photos p ON v.photo_id = p.photo_id
+                WHERE v.vlm_item_name IS NOT NULL
+                GROUP BY week, v.vlm_item_name
+                ORDER BY week, cnt DESC
+            """)
+            week_rows = await cur.fetchall()
+            week_bucket: dict = {}
+            for week, item, cnt in week_rows:
+                if week is None:
+                    continue
+                slot = f"{min(int(week), 4)}주차"
+                if slot not in week_bucket:
+                    week_bucket[slot] = {}
+                for single in [i.strip() for i in item.split(",") if i.strip()]:
+                    week_bucket[slot][single] = week_bucket[slot].get(single, 0) + cnt
+            week_items: dict = {}
+            for slot in ["1주차", "2주차", "3주차", "4주차"]:
+                if slot in week_bucket:
+                    top = sorted(week_bucket[slot].items(), key=lambda x: -x[1])[:5]
+                    week_items[slot] = [{"item": i, "count": c} for i, c in top]
 
             await cur.execute("""
                 SELECT u.name, COUNT(p.photo_id) as total,
@@ -288,6 +317,7 @@ async def vlm_stats():
         "vlm_success_rate": round(total_vlm / total_photos * 100, 1) if total_photos else 0,
         "categories": categories,
         "age_items": age_items,
+        "week_items": week_items,
         "per_user_vlm": per_user_vlm,
     }
 
@@ -508,7 +538,8 @@ async def spending_category_detail(category: str):
                 SELECT t.payment_place, t.payment_out, t.payment_date, u.name
                 FROM transactions t
                 JOIN users u ON t.user_id = u.user_id
-                WHERE t.payment_category = %s AND t.payment_out > 0
+                JOIN category_master c ON t.payment_category_id = c.payment_category_id
+                WHERE c.category_name = %s AND t.payment_out > 0
                 ORDER BY t.payment_date DESC, t.payment_id DESC LIMIT 30
             """, (category,))
             transactions = [
@@ -521,7 +552,8 @@ async def spending_category_detail(category: str):
                 SELECT u.name, COUNT(*) as cnt, SUM(t.payment_out) as total
                 FROM transactions t
                 JOIN users u ON t.user_id = u.user_id
-                WHERE t.payment_category = %s AND t.payment_out > 0
+                JOIN category_master c ON t.payment_category_id = c.payment_category_id
+                WHERE c.category_name = %s AND t.payment_out > 0
                 GROUP BY u.user_id, u.name ORDER BY total DESC
             """, (category,))
             per_user = [
@@ -531,10 +563,11 @@ async def spending_category_detail(category: str):
 
             # 월별 추이
             await cur.execute("""
-                SELECT DATE_FORMAT(payment_date, '%%Y-%%m') as month,
-                       COUNT(*) as cnt, SUM(payment_out) as total
-                FROM transactions
-                WHERE payment_category = %s AND payment_out > 0
+                SELECT DATE_FORMAT(t.payment_date, '%%Y-%%m') as month,
+                       COUNT(*) as cnt, SUM(t.payment_out) as total
+                FROM transactions t
+                JOIN category_master c ON t.payment_category_id = c.payment_category_id
+                WHERE c.category_name = %s AND t.payment_out > 0
                 GROUP BY month ORDER BY month DESC LIMIT 6
             """, (category,))
             monthly = [{"month": r[0], "count": r[1], "total": int(r[2])} for r in await cur.fetchall()]
@@ -627,10 +660,13 @@ async def spending():
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
-                SELECT payment_category, COUNT(*) as cnt, SUM(payment_out) as total
-                FROM transactions
-                WHERE payment_out > 0 AND payment_category IS NOT NULL
-                GROUP BY payment_category ORDER BY cnt DESC LIMIT 15
+                SELECT c.category_name,
+                       COUNT(t.payment_id) as cnt,
+                       COALESCE(SUM(t.payment_out), 0) as total
+                FROM category_master c
+                LEFT JOIN transactions t
+                  ON t.payment_category_id = c.payment_category_id AND t.payment_out > 0
+                GROUP BY c.payment_category_id, c.category_name ORDER BY cnt DESC
             """)
             categories = [
                 {"category": r[0], "count": r[1], "total": int(r[2])}
