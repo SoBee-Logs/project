@@ -1,44 +1,99 @@
 import React, { useEffect, useState } from 'react'
+import soBee from '../assets/so-bee.png'
 
 const LIFE_STAGE = {
   UNI: '대학생', CHILD_BABY: '영유아 자녀', NEW_WED: '신혼부부',
   SINGLE: '1인 가구', SENIOR: '시니어',
 }
 
+const SORT_OPTIONS = [
+  { value: 'avatar_created_at', label: '아바타 생성일' },
+  { value: 'user_created_at',   label: '가입일' },
+  { value: 'persona_tx',        label: '이용 횟수' },
+  { value: 'age',               label: '나이' },
+  { value: 'name',              label: '이름' },
+]
+
+function sortData(data, field, dir) {
+  const d = [...data]
+  const asc = dir === 'asc'
+  switch (field) {
+    case 'avatar_created_at': return d.sort((a, b) => asc
+      ? (a.avatar_created_at || '') > (b.avatar_created_at || '') ? 1 : -1
+      : (b.avatar_created_at || '') > (a.avatar_created_at || '') ? 1 : -1)
+    case 'user_created_at': return d.sort((a, b) => asc
+      ? (a.user_created_at || '') > (b.user_created_at || '') ? 1 : -1
+      : (b.user_created_at || '') > (a.user_created_at || '') ? 1 : -1)
+    case 'persona_tx': return d.sort((a, b) => asc
+      ? (a.persona_tx_count || 0) - (b.persona_tx_count || 0)
+      : (b.persona_tx_count || 0) - (a.persona_tx_count || 0))
+    case 'age': return d.sort((a, b) => asc
+      ? (a.age || 0) - (b.age || 0)
+      : (b.age || 0) - (a.age || 0))
+    case 'name': return d.sort((a, b) => asc
+      ? (a.name || '').localeCompare(b.name || '', 'ko')
+      : (b.name || '').localeCompare(a.name || '', 'ko'))
+    default: return d
+  }
+}
+
 export default function AvatarGallery() {
   const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
   const [selected, setSelected] = useState(null)
+  const [sortField, setSortField] = useState('avatar_created_at')
+  const [sortDir, setSortDir] = useState('desc')
 
   useEffect(() => {
-    fetch('/admin/avatars').then(r => r.json()).then(d => {
-      const unique = Object.values(
-        d.reduce((acc, item) => {
-          if (!acc[item.user_id] || item.avatar_created_at > acc[item.user_id].avatar_created_at)
-            acc[item.user_id] = item
-          return acc
-        }, {})
-      )
-      setData(unique)
-    })
+    fetch('/admin/avatars')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then(d => {
+        if (!Array.isArray(d)) throw new Error('응답이 배열이 아님: ' + JSON.stringify(d))
+        const unique = Object.values(
+          d.reduce((acc, item) => {
+            if (!acc[item.user_id] || item.avatar_created_at > acc[item.user_id].avatar_created_at)
+              acc[item.user_id] = item
+            return acc
+          }, {})
+        )
+        setData(unique)
+      })
+      .catch(e => setError(e.message))
   }, [])
 
+  if (error) return <p style={{ color: 'red', padding: 24 }}>오류: {error}</p>
   if (!data) return <p style={{ color: '#888', padding: 24 }}>불러오는 중...</p>
+
+  const sorted = sortData(data, sortField, sortDir)
 
   return (
     <div>
-      <h2 style={styles.heading}>아바타 갤러리</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <h2 style={{ ...styles.heading, marginBottom: 0 }}>아바타 갤러리 <span style={{ fontSize: 14, color: '#aaa', fontWeight: 400 }}>{data.length}명</span></h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <select value={sortField} onChange={e => setSortField(e.target.value)} style={styles.select}>
+            {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <button
+            onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+            style={styles.dirBtn}
+            title={sortDir === 'desc' ? '내림차순' : '오름차순'}
+          >
+            {sortDir === 'desc' ? '↓' : '↑'}
+          </button>
+        </div>
+      </div>
       <div style={styles.grid}>
-        {data.map(u => (
+        {sorted.map(u => (
           <div key={u.user_id} style={styles.card} onClick={() => setSelected(u)}>
             {u.avatar_img_url ? (
               <img src={u.avatar_img_url} alt={u.avatar_name} style={styles.img} onError={e => { e.target.style.display='none' }} />
             ) : (
-              <div style={styles.placeholder}>🧬</div>
+              <img src={soBee} alt="default" style={styles.img} />
             )}
             <div style={styles.name}>{u.avatar_name || u.name}</div>
             <div style={styles.meta}>{u.name} · {u.age}세 · {u.gender?.toLowerCase() === 'm' ? '남' : u.gender?.toLowerCase() === 'f' ? '여' : '-'}</div>
             <div style={styles.badge}>{LIFE_STAGE[u.life_stage_code] || u.life_stage_code || '미분류'}</div>
-            <div style={styles.txCount}>persona 거래 {u.persona_tx_count}건</div>
           </div>
         ))}
       </div>
@@ -77,6 +132,15 @@ export default function AvatarGallery() {
 
 const styles = {
   heading: { fontSize: 20, fontWeight: 700, marginBottom: 20 },
+  select: {
+    padding: '6px 12px', borderRadius: 8, border: '1px solid #ddd',
+    fontSize: 13, color: '#444', cursor: 'pointer', background: '#fff',
+  },
+  dirBtn: {
+    width: 34, height: 34, borderRadius: 8, border: '1px solid #ddd',
+    background: '#fff', fontSize: 16, cursor: 'pointer', color: '#444',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 },
   card: {
     background: '#fff', borderRadius: 12, padding: 20, textAlign: 'center',

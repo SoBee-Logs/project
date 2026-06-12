@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import beeImage from '../../assets/image 61.png'
+import beeImage from '../../assets/so-bee.png'
 
 const WOORI_NAVY  = "#042C53"
 const WOORI_GREEN = "#1D9E75"

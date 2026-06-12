@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import RoomTabs from '../../common/components/RoomTabs'
-import beeImage from '../../assets/image 61.png'
+import beeImage from '../../assets/so-bee.png'
 import calendarIcon from '../../assets/calendar_icon.png'
 
 const mapDiaryToPost = (item) => ({
