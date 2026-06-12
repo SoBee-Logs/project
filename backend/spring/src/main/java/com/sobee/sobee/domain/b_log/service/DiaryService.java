@@ -268,8 +268,12 @@ public class DiaryService {
                 : personaTransactionRepository.findMatchedPhotoIds(allPhotoIds);
 
         return diaries.stream().map(diary -> {
-            String authorName = Optional.ofNullable(userMap.get(diary.getUserId()))
-                    .map(User::getName).orElse("익명");
+            User author = userMap.get(diary.getUserId());
+            String authorName = author != null ? author.getName() : "익명";
+            String authorNickname = (author != null
+                    && author.getNickname() != null
+                    && !author.getNickname().isBlank())
+                    ? author.getNickname() : authorName;
 
             List<Long> dpPhotoIds = diaryPhotosMap.getOrDefault(diary.getDiaryId(), Collections.emptyList())
                     .stream().map(dp -> dp.getId().getPhotoId()).collect(Collectors.toList());
@@ -307,6 +311,7 @@ public class DiaryService {
                             .toLocalTime()
                             .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) : "")
                     .authorName(authorName)
+                    .authorNickname(authorNickname)
                     .authorId(diary.getUserId())
                     .imageUrls(imageUrls)
                     .imageUrl(imageUrls.isEmpty() ? null : imageUrls.get(0))
@@ -428,8 +433,12 @@ public class DiaryService {
                 : personaTransactionRepository.findMatchedPhotoIds(allPhotoIds);
 
         return diaries.stream().map(diary -> {
-            String authorName = Optional.ofNullable(userMap.get(diary.getUserId()))
-                    .map(User::getName).orElse("익명");
+            User author = userMap.get(diary.getUserId());
+            String authorName = author != null ? author.getName() : "익명";
+            String authorNickname = (author != null
+                    && author.getNickname() != null
+                    && !author.getNickname().isBlank())
+                    ? author.getNickname() : authorName;
 
             Group group = groupMap.get(diary.getGroupId());
 
@@ -469,6 +478,7 @@ public class DiaryService {
                             .toLocalTime()
                             .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) : "")
                     .authorName(authorName)
+                    .authorNickname(authorNickname)
                     .authorId(diary.getUserId())
                     .imageUrls(imageUrls)
                     .imageUrl(imageUrls.isEmpty() ? null : imageUrls.get(0))

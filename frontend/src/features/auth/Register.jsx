@@ -6,6 +6,7 @@ function Register() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
+    nickname: "",
     email: "",
     gender: "",
     age: "",
@@ -18,6 +19,8 @@ function Register() {
   };
 
   const handleRegister = async () => {
+    if (!form.name.trim()) return alert("이름을 입력해주세요.");
+    if (!form.nickname.trim()) return alert("닉네임을 입력해주세요.");
     if (!agreed) return alert("개인정보 수집 및 이용에 동의해주세요!");
     try {
       const res = await axios.post("/api/users/register", {
@@ -54,7 +57,35 @@ function Register() {
       minHeight: "100vh",
       padding: "20px",
       backgroundColor: "white",
+      position: "relative",
     }}>
+      {/* 뒤로가기 버튼 */}
+      <button
+        type="button"
+        onClick={() => navigate("/login")}
+        style={{
+          position: "absolute",
+          top: "16px",
+          left: "12px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: "32px",
+          height: "32px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "#1f2937",
+          marginLeft: "-8px",
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.2"
+          strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+
       <h1 style={{
         fontSize: "36px",
         fontWeight: "bold",
@@ -65,6 +96,7 @@ function Register() {
       <p style={{ color: "#20C4F4", fontSize: "13px", marginBottom: "40px" }}>회원가입</p>
 
       <input placeholder="이름" name="name" value={form.name} onChange={handleChange} style={inputStyle} />
+      <input placeholder="닉네임 (피드에 표시되는 이름)" name="nickname" value={form.nickname} onChange={handleChange} style={inputStyle} />
       <input placeholder="이메일" name="email" value={form.email} onChange={handleChange} style={inputStyle} />
 
       <div style={{
@@ -153,7 +185,7 @@ function Register() {
             <h3 style={{ color: "#0083CA", fontWeight: "bold", marginBottom: "16px" }}>개인정보 수집 및 이용 동의</h3>
             <p style={{ fontSize: "13px", color: "#555", lineHeight: "1.8" }}>
               <strong>1. 수집하는 개인정보 항목</strong><br />
-              이름, 이메일, 성별, 나이, 금융거래 내역<br /><br />
+              이름, 닉네임, 이메일, 성별, 나이, 금융거래 내역<br /><br />
               <strong>2. 개인정보 수집 및 이용 목적</strong><br />
               소비 패턴 분석 및 맞춤형 소비 일기 생성, 금융 상품 추천 서비스 제공<br /><br />
               <strong>3. 개인정보 보유 및 이용 기간</strong><br />

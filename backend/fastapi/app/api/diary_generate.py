@@ -94,14 +94,16 @@ Write a JSON consumption diary based on the above.
 USER_PROMPT_UNMATCHED_TEMPLATE = """\
 [주의] 이 사진은 결제 내역과 아직 연결되지 않은 소비 사진이에요.
 item, price, store 정보를 사실인 것처럼 언급하거나 추측하지 마세요.
+모임방 설명(group theme)은 일기 톤·분위기 참고용으로만 사용하고,
+절대 일기 내용에 직접 언급하거나 반영하지 마세요.
 AI 사진 분석과 사용자 감정·메모만을 근거로 감정 위주의 일기를 작성해주세요.
 
 [Photo & Mood Info]
-- User mood: {mood} (사진 순서대로 각 사진의 기분 이모지, 공백 구분)
+- User mood: {mood}
 - User memo: {emotion_text}
-- Group theme: {group_description}
 - Room writing theme: {room_theme}
 - AI photo analysis: {description}
+- Group theme (톤 참고용, 내용에 직접 언급 금지): {group_description}
 
 Write a JSON consumption diary based on the above.
 """

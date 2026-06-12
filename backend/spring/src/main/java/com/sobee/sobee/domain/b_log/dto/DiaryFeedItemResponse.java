@@ -18,6 +18,7 @@ public class DiaryFeedItemResponse {
     private String date;             // 생성 날짜 (yyyy-MM-dd)
     private String time;             // 생성 시간 (HH:mm)
     private String authorName;       // 작성자 이름 (users.name)
+    private String authorNickname;   // 작성자 닉네임 (users.nickname)
     private Long authorId;           // 작성자 userId
     private List<String> imageUrls;  // 연결된 사진 URL 전체 목록
     private String imageUrl;         // 대표 사진 URL (imageUrls[0])
