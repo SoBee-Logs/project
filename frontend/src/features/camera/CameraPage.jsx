@@ -7,6 +7,37 @@ import cameraPageImg from '../../assets/camerapage.png'
 const MOOD_EMOJIS = ['☺️', '😭', '😮', '😍', '😡']
 const MOOD_TYPES = ['HAPPY', 'SAD', 'SURPRISED', 'LOVE', 'ANGRY']
 
+async function correctOrientation(file, orientation) {
+  if (!orientation || orientation === 1) return file
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      const { width: w, height: h } = img
+      const swap = orientation >= 5
+      canvas.width  = swap ? h : w
+      canvas.height = swap ? w : h
+      const transforms = {
+        2: () => { ctx.translate(w, 0); ctx.scale(-1, 1) },
+        3: () => { ctx.translate(w, h); ctx.rotate(Math.PI) },
+        4: () => { ctx.translate(0, h); ctx.scale(1, -1) },
+        5: () => { ctx.rotate(0.5 * Math.PI); ctx.scale(1, -1) },
+        6: () => { ctx.translate(h, 0); ctx.rotate(0.5 * Math.PI) },
+        7: () => { ctx.translate(h, w); ctx.rotate(0.5 * Math.PI); ctx.scale(1, -1) },
+        8: () => { ctx.translate(0, w); ctx.rotate(-0.5 * Math.PI) },
+      }
+      transforms[orientation]?.()
+      ctx.drawImage(img, 0, 0)
+      canvas.toBlob(
+        (blob) => resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' })),
+        'image/jpeg', 0.95
+      )
+    }
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 export default function CameraPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -104,28 +135,32 @@ export default function CameraPage() {
     const file = e.target.files[0]
     if (!file) return
 
+    const exifData = await exifr.parse(file, ['Orientation']).catch(() => null)
+    const orientation = exifData?.Orientation ?? 1
+
     const ext = file.name.toLowerCase().split('.').pop()
     if (ext === 'heic' || ext === 'heif') {
       try {
-
         const blob = await heic2any({ blob: file, toType: 'image/jpeg' })
         const convertedFile = new File(
           [blob],
           file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
           { type: 'image/jpeg' }
         )
-        setImageFile(convertedFile)
-        setPreviewUrl(URL.createObjectURL(blob))
-        runVlmAnalysis(file)  // ← 원본 HEIC 전송 (EXIF 있음)
+        const corrected = await correctOrientation(convertedFile, orientation)
+        setImageFile(corrected)
+        setPreviewUrl(URL.createObjectURL(corrected))
+        runVlmAnalysis(corrected)
       } catch {
         setImageFile(file)
         setPreviewUrl(null)
         runVlmAnalysis(file)
       }
     } else {
-      setImageFile(file)
-      setPreviewUrl(URL.createObjectURL(file))
-      runVlmAnalysis(file)
+      const corrected = await correctOrientation(file, orientation)
+      setImageFile(corrected)
+      setPreviewUrl(URL.createObjectURL(corrected))
+      runVlmAnalysis(corrected)
     }
   }
 
