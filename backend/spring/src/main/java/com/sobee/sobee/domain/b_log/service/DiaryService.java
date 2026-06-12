@@ -34,7 +34,6 @@ public class DiaryService {
 
     private final GroupRepository groupRepository;
     private final PhotoGroupsRepository photoGroupsRepository;
-    private final PhotoMetadataRepository photoMetadataRepository;
     private final EmotionsTextRepository emotionsTextRepository;
     private final PhotoVlmResultRepository photoVlmResultRepository;
     private final PersonaTransactionRepository personaTransactionRepository;
@@ -43,7 +42,6 @@ public class DiaryService {
     private final PhotoRepository photoRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
-    private final PhotoService photoService;
     private final TransactionRepository transactionRepository; 
 
     @Value("${fastapi.base-url}/api/diary/generate")
@@ -149,8 +147,6 @@ public class DiaryService {
         .map(p -> emotionsTextRepository.findByPhotoId(p.getPhotoId()).orElse(null))
         .filter(Objects::nonNull)
         .collect(Collectors.toList());
-
-        EmotionsText latestEmotion = allEmotions.isEmpty() ? null : allEmotions.get(0);
 
         String combinedEmotionText = allEmotions.stream()
                 .map(EmotionsText::getText)
@@ -295,11 +291,9 @@ public class DiaryService {
                     .diaryLines(lines)
                     .date(diary.getCreatedAt() != null ? diary.getCreatedAt().toLocalDate().toString() : "")
                     .time(diary.getCreatedAt() != null
-                            ? diary.getCreatedAt()
-                                .atZone(java.time.ZoneOffset.UTC)
-                                .withZoneSameInstant(java.time.ZoneId.of("Asia/Seoul"))
-                                .toLocalTime()
-                                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) : "")
+                        ? diary.getCreatedAt()
+                        .toLocalTime()
+                        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) : "")
                     .authorName(authorName)
                     .authorId(diary.getUserId())
                     .imageUrls(imageUrls)
@@ -467,8 +461,6 @@ public List<DiaryFeedItemResponse> getMyDiaryList(Long userId) {
                 .date(diary.getCreatedAt() != null ? diary.getCreatedAt().toLocalDate().toString() : "")
                 .time(diary.getCreatedAt() != null
                         ? diary.getCreatedAt()
-                            .atZone(java.time.ZoneOffset.UTC)
-                            .withZoneSameInstant(java.time.ZoneId.of("Asia/Seoul"))
                             .toLocalTime()
                             .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) : "")
                 .authorName(authorName)
