@@ -15,7 +15,7 @@ const STAT_CARDS = [
 ]
 
 export default function Overview() {
-  const { data, error, loading, reload } = useFetch('/admin/overview', 30000)
+  const { data, error, loading, reload } = useFetch('/admin/overview')
   const [lastRefresh, setLastRefresh] = useState(new Date())
 
   const handleReload = () => { reload(); setLastRefresh(new Date()) }
@@ -39,7 +39,7 @@ export default function Overview() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <h2 style={styles.heading}>전체 현황</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 12, color: '#aaa' }}>30초마다 자동갱신 · 마지막: {lastRefresh.toLocaleTimeString()}</span>
+          <span style={{ fontSize: 12, color: '#aaa' }}>마지막: {lastRefresh.toLocaleTimeString()}</span>
           <button onClick={handleReload} style={styles.refreshBtn}>↻ 새로고침</button>
         </div>
       </div>

@@ -482,7 +482,9 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
     )
 
     # 5. LLM 분석 + 이미지 생성 병렬 실행
+    import time as _time
     summary = _build_transaction_summary(transactions, vlm_items, vlm_descriptions)
+    _t0 = _time.monotonic()
     analysis, image_bytes = await asyncio.gather(
         _analyze_persona(
             summary=summary,
@@ -496,6 +498,8 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
         ),
         _generate_image(image_prompt),
     )
+    from app.core.metrics import record
+    record("avatar", round((_time.monotonic() - _t0) * 1000))
 
     # 6. S3 업로드 및 DB 저장
     avatar_image_url = _upload_to_s3(image_bytes, user_id)
