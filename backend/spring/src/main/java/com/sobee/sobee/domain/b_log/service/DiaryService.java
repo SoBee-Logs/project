@@ -326,6 +326,34 @@ public class DiaryService {
         return new DiaryPreviewResponse(count, myCount, imageUrl);
         }
 
+    public Map<Long, DiaryPreviewResponse> getDiaryPreviewBatch(List<Long> groupIds, Long userId) {
+        LocalDateTime startOfWeek = LocalDate.now(ZoneId.of("Asia/Seoul"))
+                .with(DayOfWeek.MONDAY).atStartOfDay();
+        LocalDateTime endOfWeek = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+
+        Map<Long, Long> countMap = new HashMap<>();
+        for (Object[] row : diaryRepository.countByGroupIdIn(groupIds))
+            countMap.put((Long) row[0], (Long) row[1]);
+
+        Map<Long, Long> myCountMap = new HashMap<>();
+        for (Object[] row : diaryRepository.countByUserIdAndGroupIdInAndDateRange(userId, groupIds, startOfWeek, endOfWeek))
+            myCountMap.put((Long) row[0], (Long) row[1]);
+
+        Map<Long, String> imageMap = new HashMap<>();
+        for (Object[] row : diaryRepository.findLatestImageUrlsByGroupIds(groupIds))
+            imageMap.put(((Number) row[0]).longValue(), (String) row[1]);
+
+        Map<Long, DiaryPreviewResponse> result = new HashMap<>();
+        for (Long groupId : groupIds) {
+            result.put(groupId, new DiaryPreviewResponse(
+                    countMap.getOrDefault(groupId, 0L),
+                    myCountMap.getOrDefault(groupId, 0L),
+                    imageMap.get(groupId)
+            ));
+        }
+        return result;
+    }
+
     @Transactional
     public void toggleLike(Long diaryId) {
         Diary diary = diaryRepository.findById(diaryId)

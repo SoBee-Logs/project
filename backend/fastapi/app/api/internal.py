@@ -50,6 +50,8 @@ from app.services.search_parse_service import parse_search_query
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
+_summary_cache: dict[tuple, str] = {}  # (user_id, date) → summary
+
 
 @router.get(
     "/sync/status",
@@ -362,6 +364,10 @@ async def daily_summary(
     if x_internal_secret != settings.INTERNAL_SECRET_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+    cache_key = (user_id, date)
+    if cache_key in _summary_cache:
+        return {"summary": _summary_cache[cache_key]}
+
     from app.db.connection import get_pool
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -379,6 +385,7 @@ async def daily_summary(
             rows = await cur.fetchall()
 
     if not rows:
+        _summary_cache[cache_key] = "기록 없음"
         return {"summary": "기록 없음"}
 
     items_text = "\n".join([f"- {r[1]}: {r[0]} ({r[2]}원)" for r in rows])
@@ -400,4 +407,5 @@ async def daily_summary(
         log.warning(f"[daily-summary] Gemini 실패: {e}")
         summary = "소비 요약 실패"
 
+    _summary_cache[cache_key] = summary
     return {"summary": summary}

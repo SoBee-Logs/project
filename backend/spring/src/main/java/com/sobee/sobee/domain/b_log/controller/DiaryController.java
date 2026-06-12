@@ -3,6 +3,7 @@ package com.sobee.sobee.domain.b_log.controller;
 import com.sobee.sobee.domain.b_log.dto.DiaryFeedItemResponse;
 import com.sobee.sobee.domain.b_log.dto.DiaryGenerateRequest;
 import com.sobee.sobee.domain.b_log.dto.DiaryGenerateResponse;
+import com.sobee.sobee.domain.b_log.dto.DiaryPreviewBatchResponse;
 import com.sobee.sobee.domain.b_log.dto.DiaryPreviewResponse;
 import com.sobee.sobee.domain.b_log.dto.DiarySaveRequest;
 import com.sobee.sobee.domain.b_log.service.DiaryService;
@@ -12,7 +13,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/diary")
@@ -88,6 +91,19 @@ public class DiaryController {
     ) {
         Long userId = extractUserId(authHeader);  // extractUserId 결과 변수에 담기
         return ResponseEntity.ok(diaryService.getDiaryPreview(groupId, userId));  // userId 전달
+    }
+
+    @GetMapping("/preview/batch")
+    public ResponseEntity<DiaryPreviewBatchResponse> getDiaryPreviewBatch(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam String groupIds
+    ) {
+        Long userId = extractUserId(authHeader);
+        List<Long> ids = Arrays.stream(groupIds.split(","))
+                .map(String::trim)
+                .map(Long::parseLong)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(new DiaryPreviewBatchResponse(diaryService.getDiaryPreviewBatch(ids, userId)));
     }
 
     @GetMapping("/my-list")

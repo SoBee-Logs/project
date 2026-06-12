@@ -190,21 +190,19 @@ export default function Home() {
           const groups = await groupsRes.json()
           setFeedPreviews(groups.map(g => ({ groupId: g.groupId, groupName: g.groupName, imageUrl: null })))
 
-          const previewResults = await Promise.all(
-            groups.map(g =>
-              fetch(`/api/diary/preview?groupId=${g.groupId}`, { headers: { Authorization: `Bearer ${token}` } })
-                .then(r => r.ok ? r.json() : { count: 0, myCount: 0, imageUrl: null })
-                .catch(() => ({ count: 0, myCount: 0, imageUrl: null }))
-            )
-          )
+          const groupIds = groups.map(g => g.groupId).join(',')
+          const batchRes = await fetch(`/api/diary/preview/batch?groupIds=${groupIds}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }).then(r => r.ok ? r.json() : { previews: {} }).catch(() => ({ previews: {} }))
 
-          const previews = groups.map((g, i) => ({
+          const previewMap = batchRes.previews ?? {}
+          const previews = groups.map(g => ({
             groupId: g.groupId,
             groupName: g.groupName,
-            imageUrl: previewResults[i].imageUrl ?? null,
+            imageUrl: previewMap[g.groupId]?.imageUrl ?? null,
           }))
 
-          const myCount = previewResults.length > 0 ? (previewResults[0].myCount ?? 0) : 0
+          const myCount = groups.length > 0 ? (previewMap[groups[0].groupId]?.myCount ?? 0) : 0
           setDiaryCount(myCount)
           setFeedPreviews(previews)
         }
