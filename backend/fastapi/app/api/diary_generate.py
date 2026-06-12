@@ -158,6 +158,8 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
             description=req.description or "특이사항 없음",
         )
 
+    import time as _time
+    _t0 = _time.monotonic()
     response = await client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -168,6 +170,8 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
         temperature=0.75,
         max_tokens=600,
     )
+    from app.core.metrics import record
+    record("diary", round((_time.monotonic() - _t0) * 1000))
 
     content = response.choices[0].message.content
     if not content:

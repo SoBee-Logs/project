@@ -574,6 +574,13 @@ async def system_health():
     except Exception as e:
         result["db"] = {"status": "error", "error": str(e)}
 
+    from app.core.metrics import get_stats
+    result["llm_response_times"] = {
+        "vlm": get_stats("vlm"),
+        "diary": get_stats("diary"),
+        "avatar": get_stats("avatar"),
+    }
+
     try:
         prompts = list_prompts()
         result["prompt_store"] = {"status": "ok", "count": len(prompts), "modified": sum(1 for p in prompts if p["is_modified"])}
@@ -630,6 +637,44 @@ async def reset_prompt_endpoint(key: str):
 @router.get("/prompts/{key}/history")
 async def get_prompt_history_endpoint(key: str):
     return get_prompt_history(key)
+
+
+class PromptTestInput(BaseModel):
+    input: str
+    prompt: str = ""
+
+
+@router.post("/prompts/{key}/test")
+async def test_prompt(key: str, body: PromptTestInput):
+    import json, httpx, os
+    prompt_text = body.prompt or get_prompt(key)
+    try:
+        user_input = json.loads(body.input)
+    except Exception:
+        user_input = body.input
+
+    openai_key = os.getenv("OPENAI_API_KEY", "")
+    if not openai_key:
+        return {"error": "OPENAI_API_KEY가 설정되지 않았습니다."}
+
+    messages = [
+        {"role": "system", "content": prompt_text},
+        {"role": "user", "content": json.dumps(user_input, ensure_ascii=False) if isinstance(user_input, dict) else str(user_input)},
+    ]
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {openai_key}"},
+            json={"model": "gpt-4o", "messages": messages},
+        )
+        data = resp.json()
+
+    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    try:
+        parsed = json.loads(content)
+        return {"result": parsed, "raw": content, "valid_json": True}
+    except Exception:
+        return {"result": content, "raw": content, "valid_json": False}
 
 
 @router.get("/spending")

@@ -240,7 +240,10 @@ async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str, max_r
                     if cleaned.startswith("json"):
                         cleaned = cleaned[4:]
                 result = json.loads(cleaned.strip())
-                result["_elapsed_ms"] = round(elapsed * 1000)
+                elapsed_ms = round(elapsed * 1000)
+                result["_elapsed_ms"] = elapsed_ms
+                from app.core.metrics import record
+                record("vlm", elapsed_ms)
                 return result
             except json.JSONDecodeError:
                 return {"error": "JSON 파싱 실패", "raw_response": content[:200]}
