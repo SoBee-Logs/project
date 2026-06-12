@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 
 import requests
 from airflow import DAG
-from airflow.operators.python import PythonOperator, ShortCircuitOperator
+from airflow.providers.standard.operators.python import PythonOperator, ShortCircuitOperator
 
 FASTAPI_URL = os.environ.get("SOBEE_FASTAPI_URL", "http://host.docker.internal:8000")
 SECRET = os.environ.get("SOBEE_INTERNAL_SECRET", "")
