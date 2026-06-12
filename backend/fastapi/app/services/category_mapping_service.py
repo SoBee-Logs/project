@@ -11,7 +11,8 @@ from langsmith import traceable
 from app.db import category_mapping_repository as repo
 from app.models.schemas import CategoryResolveResponse
 from app.core.config import settings
-
+from app.db.connection import get_pool
+import aiomysql
 
 logger = logging.getLogger(__name__)
 
@@ -262,3 +263,48 @@ async def process_llm_for_etc_transactions(batch_size: int = 50) -> dict:
         "processed": processed,
         "transactions_backfilled": total_backfilled,
     }
+async def vlm_category_fallback() -> dict:
+    """
+    transactions.payment_category_id가 NULL/13/16인 것 중
+    persona_transaction으로 매핑된 건만 vlm_category로 보정
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("""
+                SELECT t.payment_id, pvr.vlm_category
+                FROM transactions t
+                JOIN persona_transaction pt ON t.payment_id = pt.payment_id
+                JOIN photo_vlm_results pvr ON pt.vlm_id = pvr.vlm_id
+                WHERE (t.payment_category_id IS NULL
+                    OR t.payment_category_id IN (13, 16))
+                AND pvr.vlm_category IS NOT NULL
+            """)
+            rows = await cur.fetchall()
+
+            if not rows:
+                logger.info("vlm_category_fallback: 보정 대상 없음")
+                return {"updated": 0}
+
+            await cur.execute(
+                "SELECT payment_category_id, category_name FROM category_master"
+            )
+            categories = await cur.fetchall()
+            name_to_id = {c["category_name"]: c["payment_category_id"] for c in categories}
+
+            updated = 0
+            for row in rows:
+                category_id = name_to_id.get(row["vlm_category"])
+                if not category_id:
+                    continue
+                await cur.execute("""
+                    UPDATE transactions
+                    SET payment_category_id = %s
+                    WHERE payment_id = %s
+                """, (category_id, row["payment_id"]))
+                updated += 1
+
+        await conn.commit()
+
+    logger.info(f"vlm_category_fallback 완료: {updated}건 업데이트")
+    return {"updated": updated}

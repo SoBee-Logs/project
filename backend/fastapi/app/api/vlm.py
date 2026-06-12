@@ -22,7 +22,7 @@ EXTRACTION_PROMPT = """이 사진을 분석해서 소비 정보를 추출해줘.
 
 {
     "is_valid": true | false,
-    "category": "식비 | 카페간식 | 온라인쇼핑 | 패션쇼핑 | 교통 | 여행숙박 | 문화여가 | 술유흥 | 의료건강 | 뷰티미용 | 주거통신 | 교육학습 | 금융 | 경조선물 | 생활 | 기타",
+    "category": "식비 | 카페/간식 | 온라인쇼핑 | 패션/쇼핑 | 교통 | 여행/숙박 | 문화/여가 | 술/유흥 | 의료/건강 | 뷰티/미용 | 주거/통신 | 교육/학습 | 금융 | 경조/선물 | 생활 | 기타",
     "item_name": "품목 또는 메뉴 이름",
     "price": 숫자만 원단위,
     "location_type": "식당 | 카페 | 마트 | 편의점 | 온라인 등",
@@ -43,37 +43,37 @@ EXTRACTION_PROMPT = """이 사진을 분석해서 소비 정보를 추출해줘.
 
 카테고리 기준:
 - 식비: 식당, 분식, 패스트푸드, 배달, 편의점 도시락/삼각김밥, 해산물 요리, 과일
-- 카페간식: 카페 음료, 베이커리, 디저트, 편의점 과자/스낵, 호떡/붕어빵 등 길거리 음식
-- 패션쇼핑: 옷, 신발, 가방, 액세서리 (인형 제외)
+- 카페/간식: 카페 음료, 베이커리, 디저트, 편의점 과자/스낵, 호떡/붕어빵 등 길거리 음식
+- 패션/쇼핑: 옷, 신발, 가방, 액세서리 (인형 제외)
 - 교통: 지하철, 버스, 택시, 기차, 주유
-- 여행숙박: 항공권, 숙박, 면세점, 해외결제
-- 문화여가: 영화, 공연, 스키장, 놀이공원, 노래방, PC방, 인형뽑기, 완구류(피규어/키링/장난감)
-- 술유흥: 술집, 바, 와인/맥주/소주 구매
-- 의료건강: 병원, 약국, 안경, 영양제
-- 뷰티미용: 미용실, 네일샵, 화장품
-- 교육학습: 학원, 교재, 책, 스터디카페
+- 여행/숙박: 항공권, 숙박, 면세점, 해외결제
+- 문화/여가: 영화, 공연, 스키장, 놀이공원, 노래방, PC방, 인형뽑기, 완구류(피규어/키링/장난감)
+- 술/유흥: 술집, 바, 와인/맥주/소주 구매
+- 의료/건강: 병원, 약국, 안경, 영양제
+- 뷰티/미용: 미용실, 네일샵, 화장품
+- 교육/학습: 학원, 교재, 책, 스터디카페
 - 금융: 증권/투자, 보험, 복권
-- 경조선물: 경조사비, 선물, 꽃다발
+- 경조/선물: 경조사비, 선물, 꽃다발
 - 생활: 마트, 생활용품
 - 기타: 동물, 자연, 풍경 등 소비 없는 사진
 - 음식처럼 보이지만 실제로는 음식 모양 굿즈(그립톡, 자석, 키링 등)일 수 있으니 포장재, 재질, 맥락을 꼼꼼히 확인해줘
-- 굿즈샵, 소품샵 맥락이 보이면 음식이 아닌 문화여가로 분류해줘
+- 굿즈샵, 소품샵 맥락이 보이면 음식이 아닌 문화/여가로 분류해줘
 
 아래는 올바른 분류 예시야 (사진 내용 → 올바른 카테고리):
 [식비]
 - 대게, 랍스터 등 해산물 요리 → 식비 (고급 식당 음식)
 - 과일(딸기, 수박 등) 한 접시/한 팩 → 식비 (식재료)
-[카페간식]
-- 편의점 과자/스낵 → 카페간식
-- 호떡, 붕어빵, 길거리 음식 → 카페간식
-[문화여가]
-- 불꽃놀이, 축제, 공연 현장 사진 → 문화여가
-- 인형뽑기, 뽑기방 → 문화여가
-- 완구류(피규어, 장난감, 볼펜 등 캐릭터 상품) → 문화여가
-[패션쇼핑]
-- 인형은 패션쇼핑 아님 → 문화여가 또는 기타
-[교육학습]
-- 학원, 독서실, 교재, 책, 스터디카페 → 교육학습
+[카페/간식]
+- 편의점 과자/스낵 → 카페/간식
+- 호떡, 붕어빵, 길거리 음식 → 카페/간식
+[문화/여가]
+- 불꽃놀이, 축제, 공연 현장 사진 → 문화/여가
+- 인형뽑기, 뽑기방 → 문화/여가
+- 완구류(피규어, 장난감, 볼펜 등 캐릭터 상품) → 문화/여가
+[패션/쇼핑]
+- 인형은 패션/쇼핑 아님 → 문화/여가 또는 기타
+[교육/학습]
+- 학원, 독서실, 교재, 책, 스터디카페 → 교육/학습
 
 groups 규칙:
 - 카테고리가 다른 품목은 별도 group으로 분리하기
@@ -129,7 +129,6 @@ def _convert_to_jpeg_if_needed(filename: str, image_bytes: bytes) -> tuple[bytes
             pillow_heif.register_heif_opener()
             img = Image.open(io.BytesIO(image_bytes))
             buf = io.BytesIO()
-            # HEIC → JPEG 변환 시 EXIF 메타데이터 보존 (taken_at, gps 손실 방지)
             exif_data = img.info.get("exif", b"")
             img.convert("RGB").save(buf, format="JPEG", exif=exif_data)
             return buf.getvalue(), "converted.jpg"
@@ -209,7 +208,7 @@ def _get_mime_type(filename: str) -> str:
     ext = filename.lower().rsplit(".", 1)[-1]
     return {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(ext, "image/jpeg")
 
-#503 에러 대비 : 재시도로직 추가
+
 async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str, max_retries: int = 2) -> dict:
     image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
     
@@ -247,21 +246,17 @@ async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str, max_r
                 return {"error": "JSON 파싱 실패", "raw_response": content[:200]}
 
         except Exception as e:
-            # 503 등 서버 에러면 재시도
             if attempt < max_retries - 1:
-                print(f"[Gemini] 오류 발생 (attempt={attempt+1}), 3초 후 재시도: {e}")
+                print(f"[Gemini] 오류 발생 (attempt={attempt+1}), 1초 후 재시도: {e}")
                 time.sleep(1)
                 continue
-            # 마지막 시도도 실패하면 에러 반환
             print(f"[Gemini] 최종 실패: {e}")
             return {"error": f"Gemini 호출 실패: {str(e)}"}
 
 
-# exif 파라미터 추가 — 엔드포인트에서 원본 EXIF를 미리 추출해서 넘겨줌
 async def analyze_image(filename: str, image_bytes: bytes, exif: dict = None) -> dict:
     client = _get_client()
 
-    # exif가 없으면 직접 추출
     if exif is None:
         exif = extract_exif(image_bytes)
 
@@ -269,16 +264,15 @@ async def analyze_image(filename: str, image_bytes: bytes, exif: dict = None) ->
     if exif["gps"]:
         address = reverse_geocode(exif["gps"]["latitude"], exif["gps"]["longitude"])
 
-    # 추가: 이미지 리사이즈 (전송 크기 줄여서 속도 개선)
     try:
         img = Image.open(io.BytesIO(image_bytes))
-        img.thumbnail((768 , 768))
+        img.thumbnail((768, 768))
         buf = io.BytesIO()
         img.convert("RGB").save(buf, format="JPEG", quality=85)
         image_bytes = buf.getvalue()
         filename = "resized.jpg"
     except Exception:
-        pass  # 리사이즈 실패 시 원본 사용
+        pass
 
     mime_type = _get_mime_type(filename)
     vlm_result = await _analyze_with_gemini(client, image_bytes, mime_type)
@@ -296,9 +290,6 @@ async def analyze_image(filename: str, image_bytes: bytes, exif: dict = None) ->
 async def analyze_image_endpoint(image: UploadFile = File(...)):
     image_bytes = await image.read()
     filename = image.filename or "image.jpg"
-    # HEIC는 변환 후에 EXIF 추출해야 함
     image_bytes, filename = _convert_to_jpeg_if_needed(filename, image_bytes)
-    exif = extract_exif(image_bytes)  # 변환 후 추출
+    exif = extract_exif(image_bytes)
     return await analyze_image(filename, image_bytes, exif)
-
-    
