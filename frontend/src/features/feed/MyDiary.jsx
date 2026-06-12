@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import beeImage from '../../assets/image 61.png'
+import beeImage from '../../assets/so-bee.png'
 import calendarIcon from '../../assets/calendar_icon.png'
 
 const mapDiaryToPost = (item) => ({

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getUserId } from "../../common/hooks/useAuth";
-import beeImage from "../../assets/image 61.png";
+import beeImage from "../../assets/so-bee.png";
 
 const WOORI_NAVY = "#042C53";
 const WOORI_GREEN = "#1D9E75";

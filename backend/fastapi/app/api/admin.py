@@ -48,6 +48,22 @@ async def overview():
             """)
             stats["user_trend"] = [{"date": str(r[0]), "count": r[1]} for r in await cur.fetchall()]
 
+            await cur.execute("""
+                SELECT DATE(created_at) as d, COUNT(*) as cnt
+                FROM photos
+                WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+                GROUP BY d ORDER BY d
+            """)
+            stats["photo_trend"] = [{"date": str(r[0]), "count": r[1]} for r in await cur.fetchall()]
+
+            await cur.execute("""
+                SELECT DATE(payment_date) as d, COUNT(*) as cnt
+                FROM transactions
+                WHERE payment_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+                GROUP BY d ORDER BY d
+            """)
+            stats["transaction_trend"] = [{"date": str(r[0]), "count": r[1]} for r in await cur.fetchall()]
+
             stats["vlm_missing"] = max(0, stats["photos"] - stats["vlm_count"])
             stats["vlm_success_rate"] = (
                 round(stats["vlm_count"] / stats["photos"] * 100, 1) if stats["photos"] else 0

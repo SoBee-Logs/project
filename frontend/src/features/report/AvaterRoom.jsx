@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getUserId } from '../../common/hooks/useAuth'
-import defaultAvatar from '../../assets/image 61.png'
+import defaultAvatar from '../../assets/so-bee.png'
 import { MousePointerClick } from 'lucide-react'
 
 function getFirstWeekday(year, month) {

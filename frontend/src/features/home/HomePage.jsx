@@ -6,7 +6,7 @@ import { jwtDecode } from 'jwt-decode'
 import cameraHalo from '../../assets/camera.png'
 import receiptHalo from '../../assets/log.png'
 import productBag from '../../assets/recommend.png'
-import beeImage from '../../assets/image 61.png'
+import beeImage from '../../assets/so-bee.png'
 
 const CATEGORY_MESSAGES = {
   '식비': [

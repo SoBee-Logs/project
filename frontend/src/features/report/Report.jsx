@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getUserId } from '../../common/hooks/useAuth'
-import beeImage from '../../assets/image 61.png'
+import beeImage from '../../assets/so-bee.png'
 import AlertBoard from './AlertBoard'
 import {
   PieChart, Pie, Cell, Tooltip,
