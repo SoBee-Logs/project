@@ -160,7 +160,12 @@ export default function UserDataStats() {
     return data
   })()
 
-  const bubbleData = filtered.map(u => ({ x: u.diary_count, y: u.photo_count, z: u.tx_count || 1, name: u.name }))
+  const bubbleData = filtered.map(u => ({
+    x: Number(u.diary_count) || 0,
+    y: Number(u.photo_count) || 0,
+    z: Number(u.tx_count) || 1,
+    name: u.name,
+  }))
 
   return (
     <div>
@@ -181,13 +186,15 @@ export default function UserDataStats() {
         <h3 style={styles.subheading}>일기 vs 사진 (버블 크기 = 거래 내역)</h3>
         {loading ? (
           <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>로딩 중...</div>
+        ) : bubbleData.length === 0 ? (
+          <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>데이터 없음</div>
         ) : (
           <ResponsiveContainer width="100%" height={320}>
             <ScatterChart margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="x" name="일기" type="number" tick={{ fontSize: 11 }} label={{ value: '일기', position: 'insideBottom', offset: -8, fontSize: 12, fill: '#888' }} />
               <YAxis dataKey="y" name="사진" type="number" tick={{ fontSize: 11 }} label={{ value: '사진', angle: -90, position: 'insideLeft', fontSize: 12, fill: '#888' }} />
-              <ZAxis dataKey="z" name="거래내역" range={[40, 600]} />
+              <ZAxis dataKey="z" name="거래내역" type="number" range={[40, 600]} />
               <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }) => {
                 if (!active || !payload?.length) return null
                 const d = payload[0].payload
@@ -227,11 +234,11 @@ export default function UserDataStats() {
                   <td>{u.age ?? '-'}</td>
                   <td>{u.gender?.toLowerCase() === 'm' ? '남' : u.gender?.toLowerCase() === 'f' ? '여' : '-'}</td>
                   <td><span style={styles.badge}>{LIFE_STAGE[u.life_stage_code] || u.life_stage_code || '미분류'}</span></td>
-                  <td style={styles.num}>{u.card_count}</td>
-                  <td style={styles.num}>{u.bank_count}</td>
-                  <td style={styles.num}>{u.tx_count.toLocaleString()}</td>
-                  <td style={styles.num}>{u.photo_count}</td>
-                  <td style={styles.num}>{u.diary_count}</td>
+                  <td style={styles.num}>{Number(u.card_count) || 0}</td>
+                  <td style={styles.num}>{Number(u.bank_count) || 0}</td>
+                  <td style={styles.num}>{(Number(u.tx_count) || 0).toLocaleString()}</td>
+                  <td style={styles.num}>{Number(u.photo_count) || 0}</td>
+                  <td style={styles.num}>{Number(u.diary_count) || 0}</td>
                   <td style={{ fontSize: 12, color: u.last_diary ? '#666' : '#ef4444' }}>
                     {u.last_diary ? u.last_diary.slice(0, 10) : '없음'}
                   </td>
@@ -290,7 +297,6 @@ const ms = {
   },
 }
 
-// 테이블 th/td 패딩
 if (typeof document !== 'undefined' && !document.getElementById('table-style')) {
   const s = document.createElement('style')
   s.id = 'table-style'

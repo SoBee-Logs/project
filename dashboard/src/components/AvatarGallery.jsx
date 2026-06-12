@@ -37,6 +37,87 @@ function sortData(data, field, dir) {
   }
 }
 
+function AvatarModal({ user, onClose }) {
+  const [history, setHistory] = useState(null)
+  const [idx, setIdx] = useState(0)
+  const [histError, setHistError] = useState(null)
+
+  useEffect(() => {
+    fetch(`/admin/user-avatars/${user.user_id}`)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then(d => setHistory(d))
+      .catch(e => setHistError(e.message))
+  }, [user.user_id])
+
+  const current = history?.[idx]
+  const total = history?.length || 0
+
+  return (
+    <div style={styles.modal} onClick={onClose}>
+      <div style={styles.modalBox} onClick={e => e.stopPropagation()}>
+        <button style={styles.close} onClick={onClose}>✕</button>
+
+        <p style={{ color: '#666', fontSize: 13, margin: '0 0 16px' }}>
+          {user.name} · {user.age}세 · {user.gender?.toLowerCase() === 'm' ? '남' : user.gender?.toLowerCase() === 'f' ? '여' : '-'} · {LIFE_STAGE[user.life_stage_code] || '미분류'}
+        </p>
+
+        {histError && <p style={{ color: 'red', fontSize: 13 }}>오류: {histError}</p>}
+
+        {!history && !histError && <p style={{ color: '#aaa', fontSize: 13 }}>불러오는 중...</p>}
+
+        {history && total === 0 && <p style={{ color: '#aaa', fontSize: 13 }}>아바타 없음</p>}
+
+        {current && (
+          <>
+            <button
+              onClick={() => setIdx(i => i + 1)}
+              disabled={idx >= total - 1}
+              style={{ ...styles.arrow, position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', opacity: idx >= total - 1 ? 0.3 : 1 }}
+            >←</button>
+
+            <button
+              onClick={() => setIdx(i => i - 1)}
+              disabled={idx <= 0}
+              style={{ ...styles.arrow, position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', opacity: idx <= 0 ? 0.3 : 1 }}
+            >→</button>
+
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              {current.avatar_img_url ? (
+                <img src={current.avatar_img_url} alt={current.avatar_name}
+                  style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', marginBottom: 8 }}
+                  onError={e => { e.target.src = soBee }} />
+              ) : (
+                <img src={soBee} alt="default" style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', marginBottom: 8 }} />
+              )}
+              <div style={{ fontWeight: 700, fontSize: 16 }}>{current.avatar_name || '-'}</div>
+              <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>
+                {current.avatar_created_at ? current.avatar_created_at.slice(0, 10) : '-'}
+              </div>
+              <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{idx + 1} / {total}</div>
+            </div>
+
+            {current.avatar_explain && (
+              <p style={{ fontSize: 13, lineHeight: 1.6, color: '#444', textAlign: 'left' }}>{current.avatar_explain}</p>
+            )}
+          </>
+        )}
+
+        {user.top_categories?.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>상위 소비 카테고리</p>
+            {user.top_categories.map((c, i) => (
+              <div key={i} style={styles.catRow}>
+                <span>{c.category}</span>
+                <span style={{ fontWeight: 700, color: '#6c63ff' }}>{c.amount.toLocaleString()}원</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function AvatarGallery() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -83,6 +164,7 @@ export default function AvatarGallery() {
           </button>
         </div>
       </div>
+
       <div style={styles.grid}>
         {sorted.map(u => (
           <div key={u.user_id} style={styles.card} onClick={() => setSelected(u)}>
@@ -98,34 +180,7 @@ export default function AvatarGallery() {
         ))}
       </div>
 
-      {selected && (
-        <div style={styles.modal} onClick={() => setSelected(null)}>
-          <div style={styles.modalBox} onClick={e => e.stopPropagation()}>
-            <button style={styles.close} onClick={() => setSelected(null)}>✕</button>
-            {selected.avatar_img_url && (
-              <img src={selected.avatar_img_url} alt="" style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', marginBottom: 12 }} />
-            )}
-            <h3>{selected.avatar_name || selected.name}</h3>
-            <p style={{ color: '#666', fontSize: 13, margin: '4px 0 12px' }}>
-              {selected.name} · {selected.age}세 · {selected.gender?.toLowerCase() === 'm' ? '남' : selected.gender?.toLowerCase() === 'f' ? '여' : '-'} · {LIFE_STAGE[selected.life_stage_code] || '미분류'}
-            </p>
-            {selected.avatar_explain && (
-              <p style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12, color: '#444' }}>{selected.avatar_explain}</p>
-            )}
-            {selected.top_categories?.length > 0 && (
-              <div>
-                <p style={{ fontWeight: 600, marginBottom: 8 }}>상위 소비 카테고리</p>
-                {selected.top_categories.map((c, i) => (
-                  <div key={i} style={styles.catRow}>
-                    <span>{c.category}</span>
-                    <span style={{ fontWeight: 700, color: '#6c63ff' }}>{c.amount.toLocaleString()}원</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {selected && <AvatarModal user={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }
@@ -145,28 +200,31 @@ const styles = {
   card: {
     background: '#fff', borderRadius: 12, padding: 20, textAlign: 'center',
     boxShadow: '0 2px 8px rgba(0,0,0,.06)', cursor: 'pointer',
-    transition: 'transform .15s', ':hover': { transform: 'translateY(-2px)' },
+    transition: 'transform .15s',
   },
   img: { width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', marginBottom: 10 },
-  placeholder: { fontSize: 48, marginBottom: 10 },
   name: { fontWeight: 700, fontSize: 15, marginBottom: 4 },
   meta: { fontSize: 12, color: '#888', marginBottom: 6 },
   badge: {
     display: 'inline-block', padding: '2px 10px', borderRadius: 12,
     background: '#ede9fe', color: '#6c63ff', fontSize: 12, marginBottom: 6,
   },
-  txCount: { fontSize: 12, color: '#aaa' },
   modal: {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
   },
   modalBox: {
-    background: '#fff', borderRadius: 16, padding: 32, maxWidth: 400, width: '90%',
-    position: 'relative', textAlign: 'center',
+    background: '#fff', borderRadius: 16, padding: 32, maxWidth: 420, width: '90%',
+    position: 'relative', textAlign: 'center', maxHeight: '90vh', overflowY: 'auto',
   },
   close: {
     position: 'absolute', top: 12, right: 16, background: 'none',
     border: 'none', fontSize: 18, cursor: 'pointer', color: '#888',
+  },
+  arrow: {
+    width: 36, height: 36, borderRadius: '50%', border: '1px solid #ddd',
+    background: '#fff', fontSize: 18, cursor: 'pointer', color: '#444',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   catRow: {
     display: 'flex', justifyContent: 'space-between',

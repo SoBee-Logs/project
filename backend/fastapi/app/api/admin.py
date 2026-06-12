@@ -113,6 +113,28 @@ async def avatars():
     return result
 
 
+@router.get("/user-avatars/{user_id}")
+async def user_avatars(user_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+                SELECT avatar_name, avatar_img_url, avatar_explain, avatar_created_at
+                FROM avatar WHERE user_id=%s
+                ORDER BY avatar_created_at DESC
+            """, (user_id,))
+            rows = await cur.fetchall()
+            return [
+                {
+                    "avatar_name": r[0],
+                    "avatar_img_url": r[1],
+                    "avatar_explain": r[2],
+                    "avatar_created_at": str(r[3]) if r[3] else None,
+                }
+                for r in rows
+            ]
+
+
 @router.get("/user-data")
 async def user_data():
     pool = await get_pool()
