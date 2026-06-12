@@ -4,15 +4,13 @@ export const ROOMS = [
   { id: 'room3', label: '모임3', hashtag: '#모임3', diaryTab: '모임3' },
 ]
 
-import personaBeeImg from '../../assets/persona-bee.png'
-
 export const CURRENT_USER = {
   nickname: '시원',
   personaTitle: '야행성 도시 탐험가',
   personaEmoji: '🌃',
   avatarUrl:
     'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&q=80',
-  personaImage: personaBeeImg,
+  personaImage: null,
 }
 
 export const SKY_BLUE = '#2F7DF6'
