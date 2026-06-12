@@ -1,6 +1,6 @@
 import asyncio
 from fastapi import APIRouter, Query
-from app.services.report_service import get_transaction_report
+from app.services.report_service import get_transaction_report, get_avatar_room_data
 from app.services.ai_insight_service import get_ai_insight
 from app.services.lifecycle_service import get_lifecycle
 from app.services.question_service import generate_recommend_questions
@@ -9,13 +9,23 @@ from app.models.schemas import AiInsightResponse
 router = APIRouter()
 
 
-@router.get("/mydata/transaction")  
+@router.get("/mydata/transaction")
 def get_transaction(
+    user_id: int  = Query(...),
+    year:    int  = Query(None),
+    month:   int  = Query(None),
+    summary: bool = Query(False),
+):
+    return get_transaction_report(user_id, year, month, summary=summary)
+
+
+@router.get("/avatar-room")
+def get_avatar_room(
     user_id: int = Query(...),
     year:    int = Query(None),
     month:   int = Query(None),
 ):
-    return get_transaction_report(user_id, year, month)
+    return get_avatar_room_data(user_id, year, month)
 
 
 @router.get("/ai-insight", response_model=AiInsightResponse)  

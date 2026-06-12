@@ -92,7 +92,6 @@ export default function AvaterRoom() {
   const [selectedMonth, setSelectedMonth] = useState(location.state?.month ?? today.getMonth() + 1)
   const [selectedWeek, setSelectedWeek] = useState('1주')
 
-  const [persona, setPersona] = useState(null)
   const [txData, setTxData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [isEmptyMonth, setIsEmptyMonth] = useState(false)
@@ -127,28 +126,17 @@ export default function AvaterRoom() {
   }
 
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
     setTxData(null)
 
-    Promise.allSettled([
-      fetch(`/api/users/${USER_ID}/persona`).then((r) =>
-        r.ok ? r.json() : null
-      ),
-      fetch(
-        `/api/report/mydata/transaction?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`
-      ).then((r) => r.json()),
-    ])
-      .then(([personaRes, txRes]) => {
-        if (personaRes.status === 'fulfilled' && personaRes.value) {
-          setPersona(personaRes.value)
-        }
-
-        if (txRes.status === 'fulfilled') {
-          const tx = txRes.value
-          const isEmpty = !isCurrentMonth &&
-            (tx.payment_total_num ?? 0) === 0 &&
-            (tx.payment_out ?? 0) === 0 &&
-            Object.keys(tx.category_transactions ?? {}).length === 0
+    fetch(`/api/report/avatar-room?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`, {
+      signal: controller.signal,
+    })
+      .then((r) => r.json())
+      .then((tx) => {
+        if (tx && !tx.detail) {
+          const isEmpty = !isCurrentMonth && !tx.has_transactions
 
           if (isEmpty) {
             setIsEmptyMonth(true)
@@ -174,9 +162,14 @@ export default function AvaterRoom() {
           }
         }
       })
+      .catch((err) => {
+        if (err.name !== 'AbortError') console.error(err)
+      })
       .finally(() => {
         setLoading(false)
       })
+
+    return () => controller.abort()
   }, [USER_ID, selectedYear, selectedMonth])
 
   const weeks = (txData?.week_order ?? [])
@@ -191,8 +184,8 @@ export default function AvaterRoom() {
 
   const weekAvatar = txData?.weekly_avatar?.[selectedWeek] ?? null
   const avatarImgUrl = weekAvatar?.avatar_img_url ?? null
-  const avatarName = weekAvatar?.avatar_name ?? (persona?.avatarName ?? '내 페르소나')
-  const avatarExplain = weekAvatar?.avatar_explain ?? persona?.avatarExplain ?? ''
+  const avatarName = weekAvatar?.avatar_name ?? '내 페르소나'
+  const avatarExplain = weekAvatar?.avatar_explain ?? ''
   const hasWeekAvatar = !!avatarImgUrl
 
   const isCurrentWeek = (() => {
