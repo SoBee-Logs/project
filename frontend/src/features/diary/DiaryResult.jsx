@@ -131,7 +131,12 @@ export default function DiaryResult() {
       }
     }
 
-    navigate('/feed', { state: { newDiaries: toUpload } })
+    navigate('/feed', { 
+      state: { 
+        newDiaries: toUpload,
+        roomId: toUpload[0]?.roomId  // 저장한 첫 번째 그룹방으로 이동
+      } 
+    })
   }
 
   if (diaries.length === 0) {
