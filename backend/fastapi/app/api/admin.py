@@ -271,28 +271,29 @@ async def vlm_stats():
                 age_items[age_key] = [{"item": i, "count": c} for i, c in top]
 
             await cur.execute("""
-                SELECT CEIL(DAY(p.created_at) / 7) as week, v.vlm_item_name, COUNT(*) as cnt
+                SELECT DATE_FORMAT(p.created_at, '%Y-%m') as ym,
+                       CEIL(DAY(p.created_at) / 7) as week,
+                       v.vlm_item_name, COUNT(*) as cnt
                 FROM photo_vlm_results v
                 JOIN photos p ON v.photo_id = p.photo_id
                 WHERE v.vlm_item_name IS NOT NULL
-                GROUP BY week, v.vlm_item_name
-                ORDER BY week, cnt DESC
+                GROUP BY ym, week, v.vlm_item_name
+                ORDER BY ym, week, cnt DESC
             """)
             week_rows = await cur.fetchall()
             week_bucket: dict = {}
-            for week, item, cnt in week_rows:
-                if week is None:
+            for ym, week, item, cnt in week_rows:
+                if week is None or ym is None:
                     continue
-                slot = f"{min(int(week), 4)}주차"
+                slot = f"{ym} {min(int(week), 4)}주차"
                 if slot not in week_bucket:
                     week_bucket[slot] = {}
                 for single in [i.strip() for i in item.split(",") if i.strip()]:
                     week_bucket[slot][single] = week_bucket[slot].get(single, 0) + cnt
             week_items: dict = {}
-            for slot in ["1주차", "2주차", "3주차", "4주차"]:
-                if slot in week_bucket:
-                    top = sorted(week_bucket[slot].items(), key=lambda x: -x[1])[:5]
-                    week_items[slot] = [{"item": i, "count": c} for i, c in top]
+            for slot in sorted(week_bucket.keys()):
+                top = sorted(week_bucket[slot].items(), key=lambda x: -x[1])[:5]
+                week_items[slot] = [{"item": i, "count": c} for i, c in top]
 
             await cur.execute("""
                 SELECT u.name, COUNT(p.photo_id) as total,

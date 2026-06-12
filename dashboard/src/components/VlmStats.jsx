@@ -228,6 +228,50 @@ function downloadSpendingCsv(categories) {
 }
 
 // ── 메인 컴포넌트 ──────────────────────────────────────────────────────────
+function WeekItems({ weekItems }) {
+  const months = [...new Set(Object.keys(weekItems).map(k => k.slice(0, 7)))].sort()
+  const [monthIdx, setMonthIdx] = useState(months.length - 1)
+  const currentMonth = months[monthIdx]
+  const weeks = Object.keys(weekItems).filter(k => k.startsWith(currentMonth)).sort()
+
+  return (
+    <div style={styles.chartBox}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <h3 style={{ ...styles.subheading, margin: 0 }}>주차별 자주 등장한 품목</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => setMonthIdx(i => i - 1)} disabled={monthIdx === 0}
+            style={navBtn(monthIdx === 0)}>{'<'}</button>
+          <span style={{ fontSize: 14, fontWeight: 600, color: '#444', minWidth: 70, textAlign: 'center' }}>{currentMonth}</span>
+          <button onClick={() => setMonthIdx(i => i + 1)} disabled={monthIdx === months.length - 1}
+            style={navBtn(monthIdx === months.length - 1)}>{'>'}</button>
+        </div>
+      </div>
+      <div style={styles.ageGrid}>
+        {weeks.map(week => (
+          <div key={week} style={styles.ageCard}>
+            <div style={{ ...styles.ageBadge, background: '#f857a6' }}>{week.slice(8)}</div>
+            <ul style={styles.itemList}>
+              {weekItems[week].map((item, i) => (
+                <li key={i} style={styles.item}>
+                  <span style={{ color: COLORS[i] }}>●</span>{' '}
+                  <span style={styles.itemName}>{item.item.length > 20 ? item.item.slice(0, 20) + '…' : item.item}</span>
+                  <span style={styles.itemCount}>{item.count}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const navBtn = disabled => ({
+  padding: '2px 10px', borderRadius: 6, border: '1px solid #ddd',
+  background: disabled ? '#f5f5f5' : '#fff', color: disabled ? '#ccc' : '#444',
+  cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700,
+})
+
 export default function VlmStats() {
   const { data: vlm, error: vlmErr, loading: vlmLoading, reload: vlmReload } = useFetch('/admin/vlm-stats')
   const { data: spending, error: spendingErr, loading: spendingLoading, reload: spendingReload } = useFetch('/admin/spending')
@@ -338,25 +382,9 @@ export default function VlmStats() {
           </div>
         </div>
 
-        <div style={styles.chartBox}>
-          <h3 style={{ ...styles.subheading, marginBottom: 16 }}>주차별 자주 등장한 품목</h3>
-          <div style={styles.ageGrid}>
-            {Object.keys(vlm.week_items || {}).map(week => (
-              <div key={week} style={styles.ageCard}>
-                <div style={{ ...styles.ageBadge, background: '#f857a6' }}>{week}</div>
-                <ul style={styles.itemList}>
-                  {vlm.week_items[week].map((item, i) => (
-                    <li key={i} style={styles.item}>
-                      <span style={{ color: COLORS[i] }}>●</span>{' '}
-                      <span style={styles.itemName}>{item.item.length > 20 ? item.item.slice(0, 20) + '…' : item.item}</span>
-                      <span style={styles.itemCount}>{item.count}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
+        {Object.keys(vlm.week_items || {}).length > 0 && (
+          <WeekItems weekItems={vlm.week_items} />
+        )}
       </div>
 
 
