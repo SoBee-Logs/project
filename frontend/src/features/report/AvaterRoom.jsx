@@ -126,6 +126,7 @@ export default function AvaterRoom() {
   }
 
   useEffect(() => {
+    let active = true
     const controller = new AbortController()
     setLoading(true)
     setTxData(null)
@@ -135,6 +136,7 @@ export default function AvaterRoom() {
     })
       .then((r) => r.json())
       .then((tx) => {
+        if (!active) return
         if (tx && !tx.detail) {
           const isEmpty = !isCurrentMonth && !tx.has_transactions
 
@@ -163,14 +165,18 @@ export default function AvaterRoom() {
         }
       })
       .catch((err) => {
+        if (!active) return
         if (err.name !== 'AbortError') console.error(err)
       })
       .finally(() => {
-        setLoading(false)
+        if (active) setLoading(false)
       })
 
-    return () => controller.abort()
-  }, [USER_ID, selectedYear, selectedMonth])
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [selectedYear, selectedMonth])
 
   const weeks = (txData?.week_order ?? [])
     .filter(w => {
