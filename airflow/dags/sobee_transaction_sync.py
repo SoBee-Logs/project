@@ -147,7 +147,7 @@ def task_persona(**ctx):
 with DAG(
     dag_id="sobee_transaction_sync",
     description="매일 sync, 월요일 photo 있는 유저 아바타 생성",
-    schedule="30 17 * * *",  # KST 02:30 (UTC 17:30)
+    schedule="0 18 * * *",  # KST 03:00 (UTC 18:00)
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["sobee", "transaction", "persona"],
