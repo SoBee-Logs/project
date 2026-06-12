@@ -3,6 +3,30 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ROOMS, SKY_BLUE } from '../../common/utils/rooms'
 import { useDragScroll } from '../../common/hooks/useDragScroll'
 
+function MappingWarningBanner({ key }) {
+  const [visible, setVisible] = useState(true)
+  if (!visible) return null
+
+  return (
+    <div
+      className="flex items-start justify-between gap-2 rounded-xl px-3 py-2.5 mb-3 text-[12px] text-yellow-800 leading-relaxed"
+      style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}
+    >
+      <span>⚠️ 결제 내역과 매칭된 사진이 없어 소비 내용이 일기에 정확히 반영되지 않았을 수 있어요.</span>
+      <button
+        type="button"
+        onClick={() => setVisible(false)}
+        className="shrink-0 text-yellow-600 mt-0.5"
+        aria-label="닫기"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
 export default function DiaryResult() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -131,11 +155,11 @@ export default function DiaryResult() {
       }
     }
 
-    navigate('/feed', { 
-      state: { 
+    navigate('/feed', {
+      state: {
         newDiaries: toUpload,
-        roomId: toUpload[0]?.roomId  // 저장한 첫 번째 그룹방으로 이동
-      } 
+        roomId: toUpload[0]?.roomId,
+      }
     })
   }
 
@@ -166,6 +190,7 @@ export default function DiaryResult() {
       : []
 
   const hasPhotos = slides.length > 0
+  const isAllUnmatched = diary.matchedPhotoIds?.length === 0 && diary.photoIds?.length > 0
 
   return (
     <main className="flex flex-col min-h-full bg-[#FAFAFA] relative">
@@ -296,6 +321,10 @@ export default function DiaryResult() {
               />
             ))}
           </div>
+        )}
+
+        {isAllUnmatched && (
+          <MappingWarningBanner key={roomIndex} />
         )}
 
         <article className="bg-white rounded-2xl p-5 shadow-md text-left">
