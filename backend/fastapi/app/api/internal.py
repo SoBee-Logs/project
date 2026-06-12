@@ -396,7 +396,7 @@ async def daily_summary(
         client = genai.Client(api_key=settings.GEMINI_API_KEY)
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=f"소비 기록:\n{items_text}\n\n위 소비를 한국어 15자 이내로 한 줄 요약해줘. 20대 말투로 이모지 1개 포함. 예: '카페 또 갔네 ☕ㅋㅋ', '쇼핑 신났다~ 🛍️', '식비 탕진 중 🍚', '카페+쇼핑 데이 ✨'. 요약문만 출력.",
+            contents=f"소비 기록:\n{items_text}\n\n위 소비를 한국어 공백 포함 15자 이내로 한 줄 요약해줘. 20대 말투로 이모지 1개 포함. 예: '카페 또 갔네 ☕ㅋㅋ', '쇼핑 신났다~ 🛍️', '식비 탕진 중 🍚', '카페+쇼핑 데이 ✨'. 요약문만 출력.",
             config=types.GenerateContentConfig(
                 temperature=0.8,
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
