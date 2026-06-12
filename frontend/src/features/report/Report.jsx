@@ -366,6 +366,7 @@ export default function Report() {
   }, [USER_ID])
 
   useEffect(() => {
+    let active = true
     const controller = new AbortController()
 
     setLoading(true)
@@ -384,6 +385,7 @@ export default function Report() {
     )
       .then(r => r.json())
       .then(txRes => {
+        if (!active) return
         const isEmpty = !isCurrentMonth &&
           txRes.payment_total_num === 0 && txRes.payment_out === 0 &&
           Object.keys(txRes.category_price ?? {}).length === 0
@@ -410,17 +412,21 @@ export default function Report() {
         // AI 추천은 백그라운드 로드
         fetch(`/api/report/ai-insight?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`)
           .then(r => r.json())
-          .then(data => setRecommendData(data))
-          .catch(() => setRecommendData({ error: true }))
+          .then(data => { if (active) setRecommendData(data) })
+          .catch(() => { if (active) setRecommendData({ error: true }) })
       })
       .catch(err => {
+        if (!active) return
         if (err.name !== 'AbortError') {
           setError(err.message)
           setLoading(false)
         }
       })
 
-    return () => controller.abort()
+    return () => {
+      active = false
+      controller.abort()
+    }
   }, [selectedYear, selectedMonth])
 
   const fetchRecommend = async () => {
