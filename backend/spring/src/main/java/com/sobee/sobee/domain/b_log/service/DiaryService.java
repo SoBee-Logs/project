@@ -97,8 +97,8 @@ public class DiaryService {
                 .map(Photo::getPhotoId)
                 .collect(Collectors.toList());
 
-        // VLM 결과 수집 (매핑된 사진 전체)
-        List<PhotoVlmResult> allVlms = photosForDiary.stream()
+        // VLM 결과 수집 (사진 전체)
+        List<PhotoVlmResult> allVlms = todayPhotos.stream()
         .map(p -> photoVlmResultRepository
                 .findFirstByPhotoIdOrderByVlmIdDesc(p.getPhotoId())
                 .orElse(null))
