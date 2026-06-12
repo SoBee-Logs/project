@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 // 이미지 import mock
-vi.mock('../../../assets/image 61.png', () => ({ default: 'default-avatar.png' }))
+vi.mock('../../../assets/so-bee.png', () => ({ default: 'default-avatar.png' }))
 
 // useAuth mock
 vi.mock('../../../common/hooks/useAuth', () => ({

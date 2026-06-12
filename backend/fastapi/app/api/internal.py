@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 import aiohttp
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, BackgroundTasks
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +49,8 @@ from app.db.user_repository import get_all_user_ids
 from app.services.search_parse_service import parse_search_query
 
 router = APIRouter(prefix="/internal", tags=["internal"])
+
+_summary_cache: dict[tuple, str] = {}  # (user_id, date) → summary
 
 
 @router.get(
@@ -362,6 +364,10 @@ async def daily_summary(
     if x_internal_secret != settings.INTERNAL_SECRET_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+    cache_key = (user_id, date)
+    if cache_key in _summary_cache:
+        return {"summary": _summary_cache[cache_key]}
+
     from app.db.connection import get_pool
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -379,6 +385,7 @@ async def daily_summary(
             rows = await cur.fetchall()
 
     if not rows:
+        _summary_cache[cache_key] = "기록 없음"
         return {"summary": "기록 없음"}
 
     items_text = "\n".join([f"- {r[1]}: {r[0]} ({r[2]}원)" for r in rows])
@@ -389,7 +396,7 @@ async def daily_summary(
         client = genai.Client(api_key=settings.GEMINI_API_KEY)
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=f"소비 기록:\n{items_text}\n\n위 소비를 한국어 15자 이내로 한 줄 요약해줘. 20대 말투로 이모지 1개 포함. 예: '카페 또 갔네 ☕ㅋㅋ', '쇼핑 신났다~ 🛍️', '식비 탕진 중 🍚', '카페+쇼핑 데이 ✨'. 요약문만 출력.",
+            contents=f"소비 기록:\n{items_text}\n\n위 소비를 한국어 공백 포함 15자 이내로 한 줄 요약해줘. 20대 말투로 이모지 1개 포함. 예: '카페 또 갔네 ☕ㅋㅋ', '쇼핑 신났다~ 🛍️', '식비 탕진 중 🍚', '카페+쇼핑 데이 ✨'. 요약문만 출력.",
             config=types.GenerateContentConfig(
                 temperature=0.8,
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
@@ -400,4 +407,21 @@ async def daily_summary(
         log.warning(f"[daily-summary] Gemini 실패: {e}")
         summary = "소비 요약 실패"
 
+    _summary_cache[cache_key] = summary
     return {"summary": summary}
+
+@router.post(
+    "/vlm-category-fallback",
+    summary="VLM 카테고리 보정",
+    description="""
+transactions.payment_category_id가 NULL/13/16인 것 중
+persona_transaction으로 매핑된 건의 카테고리를 vlm_category로 보정합니다.
+일기 생성 완료 후 Spring에서 자동 호출됩니다.
+""",
+)
+async def vlm_category_fallback_endpoint(
+    background_tasks: BackgroundTasks,
+):
+    from app.services.category_mapping_service import vlm_category_fallback
+    background_tasks.add_task(vlm_category_fallback)
+    return {"status": "started"}

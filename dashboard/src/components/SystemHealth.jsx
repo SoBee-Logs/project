@@ -35,16 +35,13 @@ function MetricCard({ title, children, status }) {
 }
 
 export default function SystemHealth() {
-  const { data, error, loading, reload } = useFetch('/admin/system-health', 60000)
+  const { data, error, loading, reload } = useFetch('/admin/system-health')
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>시스템 상태</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 12, color: '#aaa' }}>60초마다 자동 갱신</span>
-          <button onClick={reload} style={styles.refreshBtn}>↻ 새로고침</button>
-        </div>
+        <button onClick={reload} style={styles.refreshBtn}>↻ 새로고침</button>
       </div>
 
       {error && <ErrorBox message={error} onRetry={reload} />}

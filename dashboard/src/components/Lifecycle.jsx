@@ -1,170 +1,144 @@
 import React, { useState } from 'react'
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts'
 import { useFetch } from '../hooks/useFetch'
-import { ErrorBox } from './common/StatusViews'
-import DrillDownModal from './common/DrillDownModal'
+import { ErrorBox, CardSkeleton } from './common/StatusViews'
 
-const COLORS = ['#6c63ff', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#64748b']
+const COLORS = ['#6c63ff', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#64748b', '#f97316', '#8b5cf6', '#14b8a6', '#e11d48']
 
-function StageDetail({ stage, label, onClose }) {
+function StagePanel({ stage }) {
   const { data, error, loading } = useFetch(`/admin/lifecycle/${encodeURIComponent(stage)}`)
 
-  const genderLabel = g => g?.toLowerCase() === 'm' ? '남' : g?.toLowerCase() === 'f' ? '여' : '-'
+  if (loading) return <div style={{ padding: 32, color: '#aaa' }}>불러오는 중...</div>
+  if (error) return <div style={{ padding: 32, color: '#e53e3e' }}>{error}</div>
+  if (!data) return null
+
+  const max = data.top_categories[0]?.total || 1
 
   return (
-    <DrillDownModal title={`${label} 상세`} onClose={onClose} width={680}>
-      {loading && <p style={{ color: '#888' }}>불러오는 중...</p>}
-      {error && <p style={{ color: '#e53e3e' }}>{error}</p>}
-      {data && (
-        <>
-          {/* 상위 소비 카테고리 */}
-          {data.top_categories.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={ds.sectionTitle}>이 그룹의 소비 카테고리 Top 5</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {data.top_categories.map((c, i) => {
-                  const max = data.top_categories[0].total
-                  return (
-                    <div key={i} style={ds.catRow}>
-                      <div style={{ width: 100, fontSize: 13, color: '#444', flexShrink: 0 }}>{c.category}</div>
-                      <div style={{ flex: 1, background: '#f0f0f0', borderRadius: 4, overflow: 'hidden', height: 18 }}>
-                        <div style={{ height: '100%', width: `${(c.total / max) * 100}%`, background: COLORS[i], borderRadius: 4 }} />
-                      </div>
-                      <div style={{ width: 100, textAlign: 'right', fontSize: 13, fontWeight: 600, color: '#333', flexShrink: 0 }}>
-                        {c.total.toLocaleString()}원
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
+    <div style={ps.wrap}>
+      {/* 유저 수 */}
+      <div style={ps.statBox}>
+        <div style={ps.statNum}>{data.users.length}<span style={ps.statUnit}>명</span></div>
+        <div style={ps.statLabel}>이 그룹 유저 수</div>
+      </div>
 
-          {/* 유저 목록 */}
-          <div style={ds.sectionTitle}>유저 ({data.users.length}명)</div>
-          <table style={ds.table}>
-            <thead>
-              <tr style={ds.thead}>
-                <th>이름</th><th>나이</th><th>성별</th>
-                <th>사진</th><th>일기</th><th>거래</th><th>총 소비</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.users.map(u => (
-                <tr key={u.user_id} style={ds.tr}>
-                  <td style={{ fontWeight: 600 }}>{u.name}</td>
-                  <td>{u.age ?? '-'}</td>
-                  <td>{genderLabel(u.gender)}</td>
-                  <td style={ds.num}>{u.photo_count}</td>
-                  <td style={ds.num}>{u.diary_count}</td>
-                  <td style={ds.num}>{u.tx_count.toLocaleString()}</td>
-                  <td style={ds.num}>{u.total_spend.toLocaleString()}원</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-    </DrillDownModal>
+      {/* 소비 TOP 5 */}
+      <div style={ps.topBox}>
+        <div style={ps.topTitle}>소비 카테고리 TOP 5</div>
+        {data.top_categories.length === 0 ? (
+          <div style={{ color: '#aaa', fontSize: 13 }}>데이터 없음</div>
+        ) : (
+          data.top_categories.map((c, i) => (
+            <div key={i} style={ps.catRow}>
+              <div style={ps.rank}>{i + 1}</div>
+              <div style={ps.catName}>{c.category || '기타'}</div>
+              <div style={ps.barWrap}>
+                <div style={{ ...ps.bar, width: `${(c.total / max) * 100}%`, background: COLORS[i] }} />
+              </div>
+              <div style={ps.catAmt}>{c.total.toLocaleString()}원</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   )
 }
 
 export default function Lifecycle() {
   const { data, error, loading, reload } = useFetch('/admin/lifecycle')
-  const [selected, setSelected] = useState(null)
+  const [activeStage, setActiveStage] = useState(null)
 
   if (error) return <ErrorBox message={error} onRetry={reload} />
-  if (loading) return <p style={{ color: '#888', padding: 24 }}>불러오는 중...</p>
+  if (loading) return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>{Array(10).fill(0).map((_, i) => <CardSkeleton key={i} />)}</div>
+
+  if (!activeStage && data?.length > 0) {
+    setActiveStage(data[0].stage)
+    return null
+  }
+
+  const active = data?.find(d => d.stage === activeStage)
 
   return (
     <div>
-      <h2 style={styles.heading}>생애주기 예측 분포</h2>
-
-      <div style={styles.charts}>
-        <div style={styles.chartBox}>
-          <h3 style={styles.subheading}>생애주기 도넛 차트
-            <span style={styles.clickHint}>· 클릭 시 상세</span>
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={data} cx="50%" cy="50%"
-                innerRadius={70} outerRadius={110}
-                dataKey="count" nameKey="label"
-                label={({ label, percent }) => `${label} ${(percent * 100).toFixed(0)}%`}
-                cursor="pointer"
-                onClick={(entry) => entry && setSelected({ stage: entry.stage, label: entry.label })}
-              >
-                {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-              </Pie>
-              <Tooltip formatter={(v, n) => [`${v}명`, n]} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div style={styles.chartBox}>
-          <h3 style={styles.subheading}>생애주기별 인원 수
-            <span style={styles.clickHint}>· 막대 클릭 시 상세</span>
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-              onClick={e => { if (e?.activePayload?.[0]) { const d = e.activePayload[0].payload; setSelected({ stage: d.stage, label: d.label }) } }}>
-              <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-              <Tooltip formatter={v => [`${v}명`]} />
-              <Bar dataKey="count" radius={[6, 6, 0, 0]} cursor="pointer">
-                {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>생애주기 예측 분포</h2>
+        <button onClick={reload} style={styles.refreshBtn}>↻ 새로고침</button>
       </div>
 
-      <div style={styles.cards}>
+      {/* 탭 */}
+      <div style={styles.tabWrap}>
         {data.map((d, i) => (
-          <div key={d.stage} style={{ ...styles.card, borderLeft: `4px solid ${COLORS[i % COLORS.length]}`, cursor: 'pointer' }}
-            onClick={() => setSelected({ stage: d.stage, label: d.label })}>
-            <div style={{ ...styles.count, color: COLORS[i % COLORS.length] }}>{d.count}명</div>
-            <div style={styles.label}>{d.label}</div>
-            <div style={styles.code}>{d.stage}</div>
-            <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>클릭하여 상세 보기 →</div>
-          </div>
+          <button
+            key={d.stage}
+            onClick={() => setActiveStage(d.stage)}
+            style={{
+              ...styles.tab,
+              ...(activeStage === d.stage ? { ...styles.tabActive, borderBottom: `3px solid ${COLORS[i % COLORS.length]}`, color: COLORS[i % COLORS.length] } : {}),
+            }}
+          >
+            <div style={styles.tabLabel}>{d.label}</div>
+            <div style={{ ...styles.tabCount, color: activeStage === d.stage ? COLORS[i % COLORS.length] : '#aaa' }}>{d.count}명</div>
+          </button>
         ))}
       </div>
 
-      {selected && (
-        <StageDetail stage={selected.stage} label={selected.label} onClose={() => setSelected(null)} />
+      {/* 패널 */}
+      {active && (
+        <div style={styles.panel}>
+          <div style={styles.panelHeader}>
+            <span style={styles.panelTitle}>{active.label}</span>
+            <span style={styles.panelCode}>{active.stage}</span>
+          </div>
+          <StagePanel stage={activeStage} key={activeStage} />
+        </div>
       )}
     </div>
   )
 }
 
 const styles = {
-  heading: { fontSize: 20, fontWeight: 700, marginBottom: 20 },
-  subheading: { fontSize: 15, fontWeight: 600, marginBottom: 12, color: '#444' },
-  clickHint: { fontSize: 12, color: '#aaa', fontWeight: 400, marginLeft: 8 },
-  charts: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 },
-  chartBox: { background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,.06)' },
-  cards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 },
-  card: { background: '#fff', borderRadius: 12, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,.06)', transition: 'box-shadow .15s' },
-  count: { fontSize: 28, fontWeight: 800, marginBottom: 4 },
-  label: { fontSize: 14, fontWeight: 600, color: '#333' },
-  code: { fontSize: 11, color: '#aaa', marginTop: 2 },
+  refreshBtn: {
+    padding: '5px 14px', background: '#6c63ff', color: '#fff',
+    border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13,
+  },
+  tabWrap: {
+    display: 'flex', flexWrap: 'wrap', gap: 0,
+    background: '#fff', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,.06)',
+    marginBottom: 16, overflow: 'hidden',
+  },
+  tab: {
+    flex: '1 1 auto', padding: '14px 12px', border: 'none', borderBottom: '3px solid transparent',
+    background: 'transparent', cursor: 'pointer', textAlign: 'center',
+    transition: 'background .15s',
+  },
+  tabActive: { background: '#fafafe' },
+  tabLabel: { fontSize: 13, fontWeight: 600, color: '#333', marginBottom: 2 },
+  tabCount: { fontSize: 12, fontWeight: 700 },
+  panel: {
+    background: '#fff', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,.06)', overflow: 'hidden',
+  },
+  panelHeader: {
+    padding: '16px 24px', borderBottom: '1px solid #f0f0f0',
+    display: 'flex', alignItems: 'center', gap: 10,
+  },
+  panelTitle: { fontSize: 16, fontWeight: 700 },
+  panelCode: { fontSize: 12, color: '#aaa', background: '#f5f5f5', padding: '2px 8px', borderRadius: 6 },
 }
 
-const ds = {
-  sectionTitle: { fontSize: 13, fontWeight: 700, color: '#6c63ff', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' },
-  catRow: { display: 'flex', alignItems: 'center', gap: 10 },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 14 },
-  thead: { background: '#f8f9fa' },
-  tr: { borderBottom: '1px solid #f0f0f0' },
-  num: { textAlign: 'right', padding: '8px 14px' },
-}
-
-if (typeof document !== 'undefined' && !document.getElementById('lifecycle-style')) {
-  const s = document.createElement('style')
-  s.id = 'lifecycle-style'
-  s.textContent = '#lifecycle-table th, #lifecycle-table td { padding: 8px 14px; text-align: left; }'
-  document.head.appendChild(s)
+const ps = {
+  wrap: { display: 'grid', gridTemplateColumns: '200px 1fr', gap: 0 },
+  statBox: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    padding: 32, borderRight: '1px solid #f0f0f0', background: '#fafafe',
+  },
+  statNum: { fontSize: 52, fontWeight: 800, color: '#6c63ff', lineHeight: 1 },
+  statUnit: { fontSize: 20, fontWeight: 600, marginLeft: 4 },
+  statLabel: { fontSize: 13, color: '#888', marginTop: 8 },
+  topBox: { padding: '24px 28px' },
+  topTitle: { fontSize: 13, fontWeight: 700, color: '#6c63ff', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em' },
+  catRow: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 },
+  rank: { width: 20, height: 20, borderRadius: '50%', background: '#f0f0f0', fontSize: 11, fontWeight: 700, color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  catName: { width: 110, fontSize: 13, color: '#444', flexShrink: 0 },
+  barWrap: { flex: 1, background: '#f0f0f0', borderRadius: 4, height: 18, overflow: 'hidden' },
+  bar: { height: '100%', borderRadius: 4, transition: 'width .4s ease' },
+  catAmt: { width: 110, textAlign: 'right', fontSize: 13, fontWeight: 600, color: '#333', flexShrink: 0 },
 }

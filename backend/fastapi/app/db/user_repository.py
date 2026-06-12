@@ -74,15 +74,4 @@ async def update_user_avatar(
                 """,
                 (user_id, avatar_name, avatar_explain, avatar_img_url, avatar_change_reason, created_at),
             )
-            # users 테이블도 업데이트 (Spring persona 엔드포인트가 읽는 테이블)
-            await cur.execute(
-                """
-                UPDATE users
-                SET avatar_name = %s,
-                    avatar_explain = %s,
-                    avatar_img_url = %s
-                WHERE user_id = %s
-                """,
-                (avatar_name, avatar_explain, avatar_img_url, user_id),
-            )
         await conn.commit()

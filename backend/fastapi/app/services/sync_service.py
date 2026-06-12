@@ -24,6 +24,9 @@ import aiomysql
 import boto3
 from botocore.exceptions import ClientError
 
+import aiomysql
+from app.db.connection import get_pool
+
 from app.core.config import settings
 from app.db.connection import get_pool
 from app.services.codef_client import (
@@ -36,9 +39,12 @@ from app.services.codef_client import (
     fetch_bank_transactions_by_account,
     CodefRateLimitError,
 )
-from app.services.category_mapping_service import resolve_and_update_all_unmapped
 from app.services.lifecycle_service import predict_lifecycle
 from app.models.schemas import LifecycleRequest
+from app.services.category_mapping_service import (
+    resolve_and_update_all_unmapped,
+    vlm_category_fallback,  # ← 추가
+)
 
 log = logging.getLogger(__name__)
 
@@ -796,8 +802,13 @@ async def sync_transactions(
     # 카테고리 매핑 — 룰베이스 → 기타 남은 건 LLM 자동 체이닝
     # 카테고리 매핑 — 백그라운드로 분리
     mapping_result = {}
+    # 수정
+    async def _run_category_pipeline():
+        await resolve_and_update_all_unmapped()
+        await vlm_category_fallback()
+
     try:
-        asyncio.create_task(resolve_and_update_all_unmapped())
+        asyncio.create_task(_run_category_pipeline())
         log.info("카테고리 매핑 백그라운드 실행 시작")
     except Exception as e:
         log.error(f"카테고리 매핑 태스크 생성 실패: {e}")
