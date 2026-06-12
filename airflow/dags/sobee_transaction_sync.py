@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 
 import requests
 from airflow import DAG
-from airflow.operators.python import PythonOperator, ShortCircuitOperator
+from airflow.providers.standard.operators.python import PythonOperator, ShortCircuitOperator
 
 FASTAPI_URL = os.environ.get("SOBEE_FASTAPI_URL", "http://host.docker.internal:8000")
 SECRET = os.environ.get("SOBEE_INTERNAL_SECRET", "")
@@ -147,7 +147,7 @@ def task_persona(**ctx):
 with DAG(
     dag_id="sobee_transaction_sync",
     description="매일 sync, 월요일 photo 있는 유저 아바타 생성",
-    schedule="0 17 * * *",  # KST 02:00 (UTC 17:00)
+    schedule="30 17 * * *",  # KST 02:30 (UTC 17:30)
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["sobee", "transaction", "persona"],
