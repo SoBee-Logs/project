@@ -29,6 +29,7 @@ public class UserService {
         }
         User user = User.builder()
                 .name(dto.getName())
+                .nickname(dto.getNickname() != null ? dto.getNickname() : "")
                 .email(dto.getEmail())
                 .gender(dto.getGender())
                 .age(dto.getAge())

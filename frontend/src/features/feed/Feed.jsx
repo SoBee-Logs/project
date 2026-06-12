@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import RoomTabs from '../../common/components/RoomTabs'
-import beeImage from '../../assets/image 61.png'
+import beeImage from '../../assets/so-bee.png'
 import calendarIcon from '../../assets/calendar_icon.png'
 
 const mapDiaryToPost = (item) => ({
@@ -12,7 +12,7 @@ const mapDiaryToPost = (item) => ({
     : [item.subtitle].filter(Boolean),
   date: item.date || '',
   time: item.time || '',
-  authorNickname: item.authorName || '익명',
+  authorNickname: item.authorNickname || item.authorName || '익명',
   // 작성자 userId — 타 사용자 페르소나 이미지 조회에 사용
   authorId: item.authorId ?? null,
   personaTitle: item.roomLabel || '',
@@ -36,6 +36,18 @@ const formatFeedDate = (dateStr) => {
 function FeedPost({ post, onToggleLike, personaImage, personaName, onProfileClick }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const images = post.imageUrls || []
+  const touchStartX = useRef(null)
+
+  const goPrev = () => setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)
+  const goNext = () => setCurrentIndex((prev) => (prev + 1) % images.length)
+
+  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX }
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current === null) return
+    const diff = touchStartX.current - e.changedTouches[0].clientX
+    if (Math.abs(diff) > 40) diff > 0 ? goNext() : goPrev()
+    touchStartX.current = null
+  }
 
   return (
     <article className="bg-white mb-3 rounded-2xl overflow-hidden shadow-sm mx-4">
@@ -52,7 +64,8 @@ function FeedPost({ post, onToggleLike, personaImage, personaName, onProfileClic
         </span>
       </header>
 
-      <figure className="m-0 w-full aspect-square bg-gray-100 relative group overflow-hidden">
+      <figure className="m-0 w-full aspect-square bg-gray-100 relative group overflow-hidden"
+        onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         {images.length > 0 && (
           <img
             src={images[currentIndex]}
@@ -65,10 +78,8 @@ function FeedPost({ post, onToggleLike, personaImage, personaName, onProfileClic
           <>
             <button
               type="button"
-              onClick={() =>
-                setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)
-              }
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 flex items-center justify-center shadow text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+              onClick={goPrev}
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 flex items-center justify-center shadow text-gray-600 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity duration-200 z-10"
               aria-label="이전 이미지"
             >
               <span className="text-[24px] leading-none -translate-y-[3px]">
@@ -78,10 +89,8 @@ function FeedPost({ post, onToggleLike, personaImage, personaName, onProfileClic
 
             <button
               type="button"
-              onClick={() =>
-                setCurrentIndex((prev) => (prev + 1) % images.length)
-              }
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 flex items-center justify-center shadow text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+              onClick={goNext}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 flex items-center justify-center shadow text-gray-600 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity duration-200 z-10"
               aria-label="다음 이미지"
             >
               <span className="text-[24px] leading-none -translate-y-[3px]">

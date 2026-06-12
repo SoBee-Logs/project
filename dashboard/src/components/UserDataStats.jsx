@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { useFetch } from '../hooks/useFetch'
 import { CardSkeleton, ErrorBox } from './common/StatusViews'
 import DrillDownModal from './common/DrillDownModal'
@@ -118,14 +118,8 @@ function UserDetailModal({ userId, onClose }) {
               {data.cards.length === 0 && <p style={{ color: '#aaa', fontSize: 13 }}>카드 없음</p>}
               {data.cards.map(c => (
                 <div key={c.card_id} style={ms.cardRow}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{c.name || '카드명 없음'}</div>
-                    <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{c.type}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#6c63ff' }}>{c.total.toLocaleString()}원</div>
-                    <div style={{ fontSize: 12, color: '#aaa' }}>{c.tx_count}건</div>
-                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{c.name || '카드명 없음'}</div>
+                  <div style={{ fontSize: 12, color: '#888' }}>{c.type}</div>
                 </div>
               ))}
             </>
@@ -137,11 +131,11 @@ function UserDetailModal({ userId, onClose }) {
 }
 
 function downloadCsv(data) {
-  const headers = ['이름', '나이', '성별', '생애주기', '카드', '계좌', '카드거래', '계좌거래', '사진', '일기', '마지막 일기']
+  const headers = ['이름', '나이', '성별', '생애주기', '카드', '계좌', '거래 내역', '사진', '일기', '마지막 일기']
   const rows = data.map(u => [
     u.name, u.age ?? '', u.gender === 'M' ? '남' : u.gender === 'F' ? '여' : '',
     LIFE_STAGE[u.life_stage_code] || u.life_stage_code || '',
-    u.card_count, u.bank_count, u.card_tx, u.bank_tx,
+    u.card_count, u.bank_count, u.tx_count,
     u.photo_count, u.diary_count, u.last_diary || '',
   ])
   const csv = [headers, ...rows].map(r => r.join(',')).join('\n')
@@ -166,13 +160,7 @@ export default function UserDataStats() {
     return data
   })()
 
-  const chartData = filtered.map(u => ({
-    name: u.name,
-    카드거래: u.card_tx,
-    계좌거래: u.bank_tx,
-    사진: u.photo_count,
-    일기: u.diary_count,
-  }))
+  const bubbleData = filtered.map(u => ({ x: u.diary_count, y: u.photo_count, z: u.tx_count || 1, name: u.name }))
 
   return (
     <div>
@@ -190,21 +178,30 @@ export default function UserDataStats() {
       </div>
 
       <div style={styles.chartBox}>
-        <h3 style={styles.subheading}>유저별 거래·사진·일기 건수</h3>
+        <h3 style={styles.subheading}>일기 vs 사진 (버블 크기 = 거래 내역)</h3>
         {loading ? (
-          <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>로딩 중...</div>
+          <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>로딩 중...</div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="카드거래" fill="#6c63ff" />
-              <Bar dataKey="계좌거래" fill="#0ea5e9" />
-              <Bar dataKey="사진" fill="#f59e0b" />
-              <Bar dataKey="일기" fill="#ec4899" />
-            </BarChart>
+          <ResponsiveContainer width="100%" height={320}>
+            <ScatterChart margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="x" name="일기" type="number" tick={{ fontSize: 11 }} label={{ value: '일기', position: 'insideBottom', offset: -8, fontSize: 12, fill: '#888' }} />
+              <YAxis dataKey="y" name="사진" type="number" tick={{ fontSize: 11 }} label={{ value: '사진', angle: -90, position: 'insideLeft', fontSize: 12, fill: '#888' }} />
+              <ZAxis dataKey="z" name="거래내역" range={[40, 600]} />
+              <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }) => {
+                if (!active || !payload?.length) return null
+                const d = payload[0].payload
+                return (
+                  <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: '8px 12px', fontSize: 12, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>{d.name}</div>
+                    <div>일기: {d.x}</div>
+                    <div>사진: {d.y}</div>
+                    <div>거래내역: {d.z === 1 ? 0 : d.z}</div>
+                  </div>
+                )
+              }} />
+              <Scatter data={bubbleData} fill="#6c63ff" fillOpacity={0.7} />
+            </ScatterChart>
           </ResponsiveContainer>
         )}
       </div>
@@ -219,7 +216,7 @@ export default function UserDataStats() {
             <thead>
               <tr style={styles.thead}>
                 <th>유저</th><th>나이</th><th>성별</th><th>생애주기</th>
-                <th>카드</th><th>계좌</th><th>카드거래</th><th>계좌거래</th>
+                <th>카드</th><th>계좌</th><th>거래 내역</th>
                 <th>사진</th><th>일기</th><th>마지막 일기</th><th></th>
               </tr>
             </thead>
@@ -232,8 +229,7 @@ export default function UserDataStats() {
                   <td><span style={styles.badge}>{LIFE_STAGE[u.life_stage_code] || u.life_stage_code || '미분류'}</span></td>
                   <td style={styles.num}>{u.card_count}</td>
                   <td style={styles.num}>{u.bank_count}</td>
-                  <td style={styles.num}>{u.card_tx.toLocaleString()}</td>
-                  <td style={styles.num}>{u.bank_tx.toLocaleString()}</td>
+                  <td style={styles.num}>{u.tx_count.toLocaleString()}</td>
                   <td style={styles.num}>{u.photo_count}</td>
                   <td style={styles.num}>{u.diary_count}</td>
                   <td style={{ fontSize: 12, color: u.last_diary ? '#666' : '#ef4444' }}>

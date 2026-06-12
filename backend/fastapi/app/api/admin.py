@@ -48,6 +48,22 @@ async def overview():
             """)
             stats["user_trend"] = [{"date": str(r[0]), "count": r[1]} for r in await cur.fetchall()]
 
+            await cur.execute("""
+                SELECT DATE(created_at) as d, COUNT(*) as cnt
+                FROM photos
+                WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+                GROUP BY d ORDER BY d
+            """)
+            stats["photo_trend"] = [{"date": str(r[0]), "count": r[1]} for r in await cur.fetchall()]
+
+            await cur.execute("""
+                SELECT DATE(payment_date) as d, COUNT(*) as cnt
+                FROM transactions
+                WHERE payment_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+                GROUP BY d ORDER BY d
+            """)
+            stats["transaction_trend"] = [{"date": str(r[0]), "count": r[1]} for r in await cur.fetchall()]
+
             stats["vlm_missing"] = max(0, stats["photos"] - stats["vlm_count"])
             stats["vlm_success_rate"] = (
                 round(stats["vlm_count"] / stats["photos"] * 100, 1) if stats["photos"] else 0
@@ -62,7 +78,7 @@ async def avatars():
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
-                SELECT u.user_id, u.name, u.age, u.gender, u.life_stage_code,
+                SELECT u.user_id, u.name, u.age, u.gender, u.life_stage_code, u.created_at as user_created_at,
                        a.avatar_name, a.avatar_img_url, a.avatar_explain, a.avatar_created_at
                 FROM users u
                 LEFT JOIN avatar a ON u.user_id = a.user_id
@@ -76,9 +92,11 @@ async def avatars():
             for av in avatars_list:
                 uid = av["user_id"]
                 await cur.execute("""
-                    SELECT payment_category, SUM(payment_out) as total
-                    FROM transactions WHERE user_id=%s AND payment_out > 0
-                    GROUP BY payment_category ORDER BY total DESC LIMIT 3
+                    SELECT cm.category_name, SUM(t.payment_out) as total
+                    FROM transactions t
+                    LEFT JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+                    WHERE t.user_id=%s AND t.payment_out > 0
+                    GROUP BY cm.category_name ORDER BY total DESC LIMIT 3
                 """, (uid,))
                 top_cats = await cur.fetchall()
                 av["top_categories"] = [{"category": r[0], "amount": int(r[1])} for r in top_cats]
@@ -88,6 +106,8 @@ async def avatars():
 
                 if av.get("avatar_created_at"):
                     av["avatar_created_at"] = str(av["avatar_created_at"])
+                if av.get("user_created_at"):
+                    av["user_created_at"] = str(av["user_created_at"])
                 result.append(av)
 
     return result
@@ -107,16 +127,8 @@ async def user_data():
                 card_count = (await cur.fetchone())[0]
                 await cur.execute("SELECT COUNT(*) FROM bank_accounts WHERE user_id=%s", (uid,))
                 bank_count = (await cur.fetchone())[0]
-                await cur.execute("""
-                    SELECT COUNT(*) FROM card_transactions ct
-                    JOIN cards c ON ct.card_id = c.card_id WHERE c.user_id=%s
-                """, (uid,))
-                card_tx = (await cur.fetchone())[0]
-                await cur.execute("""
-                    SELECT COUNT(*) FROM bank_transactions bt
-                    JOIN bank_accounts ba ON bt.bank_account_id = ba.id WHERE ba.user_id=%s
-                """, (uid,))
-                bank_tx = (await cur.fetchone())[0]
+                await cur.execute("SELECT COUNT(*) FROM transactions WHERE user_id=%s", (uid,))
+                tx_count = (await cur.fetchone())[0]
                 await cur.execute("SELECT COUNT(*) FROM photos WHERE user_id=%s", (uid,))
                 photo_count = (await cur.fetchone())[0]
                 await cur.execute("SELECT COUNT(*) FROM diary WHERE user_id=%s", (uid,))
@@ -128,7 +140,7 @@ async def user_data():
                     "user_id": uid, "name": u[1], "age": u[2],
                     "gender": u[3], "life_stage_code": u[4],
                     "card_count": card_count, "bank_count": bank_count,
-                    "card_tx": card_tx, "bank_tx": bank_tx,
+                    "tx_count": tx_count,
                     "photo_count": photo_count, "diary_count": diary_count,
                     "last_diary": str(last_diary) if last_diary else None,
                 })
@@ -160,23 +172,27 @@ async def user_detail(user_id: int):
 
             # 소비 카테고리 top 8
             await cur.execute("""
-                SELECT payment_category, COUNT(*) as cnt, SUM(payment_out) as total
-                FROM transactions WHERE user_id=%s AND payment_out > 0
-                GROUP BY payment_category ORDER BY total DESC LIMIT 8
+                SELECT cm.category_name, COUNT(*) as cnt, SUM(t.payment_out) as total
+                FROM transactions t
+                LEFT JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+                WHERE t.user_id=%s AND t.payment_out > 0
+                GROUP BY cm.category_name ORDER BY total DESC LIMIT 8
             """, (user_id,))
             top_cats = [
-                {"category": r[0], "count": r[1], "total": int(r[2])}
+                {"category": r[0] or '미분류', "count": r[1], "total": int(r[2])}
                 for r in await cur.fetchall()
             ]
 
             # 최근 거래 10건
             await cur.execute("""
-                SELECT payment_place, payment_category, payment_out, payment_date
-                FROM transactions WHERE user_id=%s AND payment_out > 0
-                ORDER BY payment_date DESC, payment_id DESC LIMIT 10
+                SELECT t.payment_place, cm.category_name, t.payment_out, t.payment_date
+                FROM transactions t
+                LEFT JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+                WHERE t.user_id=%s AND t.payment_out > 0
+                ORDER BY t.payment_date DESC, t.payment_id DESC LIMIT 10
             """, (user_id,))
             recent_tx = [
-                {"place": r[0], "category": r[1], "amount": int(r[2]), "date": str(r[3])}
+                {"place": r[0], "category": r[1] or '미분류', "amount": int(r[2]), "date": str(r[3])}
                 for r in await cur.fetchall()
             ]
 
@@ -198,16 +214,11 @@ async def user_detail(user_id: int):
 
             # 카드 목록
             await cur.execute("""
-                SELECT c.card_id, c.res_card_name, c.res_card_type,
-                       COUNT(ct.card_transaction_id) as tx_count,
-                       SUM(ct.used_amount) as total
-                FROM cards c
-                LEFT JOIN card_transactions ct ON c.card_id = ct.card_id AND ct.cancel_yn='0'
-                WHERE c.user_id=%s
-                GROUP BY c.card_id, c.res_card_name, c.res_card_type
+                SELECT card_id, res_card_name, res_card_type
+                FROM cards WHERE user_id=%s
             """, (user_id,))
             cards = [
-                {"card_id": r[0], "name": r[1], "type": r[2], "tx_count": r[3], "total": float(r[4] or 0)}
+                {"card_id": r[0], "name": r[1], "type": r[2]}
                 for r in await cur.fetchall()
             ]
 

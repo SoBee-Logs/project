@@ -2,14 +2,13 @@ import { useState, useEffect } from 'react'
 import { ROOMS } from '../utils/rooms'
 import { useDragScroll } from '../hooks/useDragScroll'
 
-const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase()
-
 export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
   const [rooms, setRooms] = useState([])
   const [showCreatePopup, setShowCreatePopup] = useState(false)
   const [showJoinPopup, setShowJoinPopup] = useState(false)
   const [showCodePopup, setShowCodePopup] = useState(false)
   const [showAddMenu, setShowAddMenu] = useState(false)
+  const [isNewRoom, setIsNewRoom] = useState(false)
 
   const { ref: scrollRef, dragging, onMouseDown, onMouseMove, onMouseUp, onMouseLeave } = useDragScroll()
   const [newRoomName, setNewRoomName] = useState('')
@@ -19,7 +18,7 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
   const [newTargetDiaryCount, setNewTargetDiaryCount] = useState('')
   const [noBudgetLimit, setNoBudgetLimit] = useState(false)
   const [newSpendingCategoryId, setNewSpendingCategoryId] = useState(null)
-  const [openSection, setOpenSection] = useState(null) // 'roomCategory' | 'spendingCategory' | 'weeklyGoal'
+  const [openSection, setOpenSection] = useState(null)
   const toggleSection = (section) => setOpenSection(prev => prev === section ? null : section)
   const [joinCode, setJoinCode] = useState('')
   const [currentCode, setCurrentCode] = useState('')
@@ -59,12 +58,14 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
     if (activeRoom === roomId) {
       const room = rooms.find((r) => r.id === roomId)
       setCurrentCode(room.code)
-      setCurrentRoomId(room.id)  // ← 추가
+      setCurrentRoomId(room.id)
+      setIsNewRoom(false)
       setShowCodePopup(true)
     } else {
       onChange?.(roomId)
     }
   }
+
   const handleCreate = async () => {
     if (!newRoomName.trim()) return alert('모임 이름을 입력해주세요!')
     try {
@@ -103,6 +104,8 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
       setNewSpendingCategoryId(null)
       setShowCreatePopup(false)
       setCurrentCode(data.groupCode)
+      setCurrentRoomId(newRoom.id)
+      setIsNewRoom(true)
       setShowCodePopup(true)
       onChange?.(newRoom.id)
     } catch (err) {
@@ -119,12 +122,10 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
       headers: { 'Authorization': `Bearer ${token}` },
     }).catch(() => null)
 
-    // 네트워크 오류
     if (!res) {
       alert('네트워크 오류가 발생했어요. 다시 시도해주세요.')
       return
     }
-    // API 에러 — 서버 응답 메시지로 분기 처리
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       alert(err.message || '존재하지 않는 코드예요.')
@@ -149,7 +150,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
   const handleLeaveRoom = async () => {
     if (!window.confirm('정말 이 모임에서 나가시겠어요?')) return
 
-    // fetch 성공 여부만 판별 — 성공 후 상태 갱신은 try 밖에서 처리
     const token = localStorage.getItem('token')
     const groupId = currentRoomId.replace('room_', '')
     let success = false
@@ -168,10 +168,10 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
       return
     }
 
-    // API 성공 후 클라이언트 상태 갱신
     const updatedRooms = rooms.filter((r) => r.id !== currentRoomId)
     setRooms(updatedRooms)
     setShowCodePopup(false)
+    setIsNewRoom(false)
     onChange?.(updatedRooms[0]?.id ?? null)
   }
 
@@ -272,7 +272,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
             <h3 style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '4px' }}>모임 만들기</h3>
             <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>함께 소비를 기록해봐요!</p>
 
-            {/* 모임 이름 */}
             <input
               placeholder="모임 이름 (5자 이내)"
               value={newRoomName}
@@ -283,7 +282,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
               {newRoomName.length}/5
             </p>
 
-            {/* 모임 소개 */}
             <input
               placeholder="모임 소개 (15자 이내)"
               value={newRoomDesc}
@@ -294,7 +292,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
               {newRoomDesc.length}/15
             </p>
 
-            {/* 카테고리 (선택) — 아코디언 */}
             <button
               type="button"
               onClick={() => toggleSection('roomCategory')}
@@ -333,7 +330,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
             )}
             {openSection !== 'roomCategory' && <div style={{ marginBottom: '12px' }} />}
 
-            {/* 절약 카테고리 + 소비한도 (선택) — 아코디언 */}
             <button
               type="button"
               onClick={() => toggleSection('spendingCategory')}
@@ -346,7 +342,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
             </button>
             {openSection === 'spendingCategory' && (
               <div style={{ marginBottom: '16px' }}>
-                {/* 카테고리 선택 */}
                 <select
                   value={newSpendingCategoryId ?? ''}
                   onChange={(e) => {
@@ -387,7 +382,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
                   ))}
                 </select>
 
-                {/* 소비한도 입력 */}
                 {noBudgetLimit ? (
                   <div style={{ ...inputStyle, marginTop: 0, marginBottom: '8px', background: '#f3f4f6', color: '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
                     한도 없음
@@ -405,7 +399,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
                 )}
                 <p style={{ fontSize: '10px', color: '#9ca3af', marginBottom: '8px' }}>💸 주간 소비 한도</p>
 
-                {/* 소비한도 없음 체크박스 */}
                 <label
                   style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
@@ -431,7 +424,6 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
             )}
             {openSection !== 'spendingCategory' && <div style={{ marginBottom: '12px' }} />}
 
-            {/* 주간 일기 목표 (선택) — 아코디언 */}
             <button
               type="button"
               onClick={() => toggleSection('weeklyGoal')}
@@ -525,13 +517,20 @@ export default function RoomTabs({ activeRoom, onChange, showAdd = false }) {
               }}
               style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: '#0083CA', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}
             >코드 복사</button>
+
+            {!isNewRoom && (
+              <button
+                onClick={handleLeaveRoom}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: '#ef4444', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}
+              >모임 나가기</button>
+            )}
+
             <button
-              onClick={handleLeaveRoom}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: '#ef4444', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
-            >모임 나가기</button>
-            <button
-              onClick={() => setShowCodePopup(false)}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: '14px', marginBottom: '8px' }}
+              onClick={() => {
+                setShowCodePopup(false)
+                setIsNewRoom(false)
+              }}
+              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: '14px' }}
             >닫기</button>
           </div>
         </div>
