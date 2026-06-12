@@ -44,34 +44,40 @@ function statusChip(status) {
   return { label: '안전', bg: '#f0fdf4', color: '#22c55e' }
 }
 
+function ResultBadge({ success }) {
+  return success
+    ? <span style={{ fontSize: '10px', fontWeight: '700', color: '#22c55e', background: '#f0fdf4', borderRadius: '99px', padding: '1px 8px' }}>성공</span>
+    : <span style={{ fontSize: '10px', fontWeight: '700', color: '#ef4444', background: '#fef2f2', borderRadius: '99px', padding: '1px 8px' }}>실패</span>
+}
+
 function WeekDetail({ w }) {
   const hasBudget = w.targetBudget != null && w.targetBudget > 0
   const hasDiary  = w.targetDiaryCount != null && w.targetDiaryCount > 0
-  const budgetRaw = hasBudget ? Math.round((w.weeklySpend / w.targetBudget) * 100) : 0
-  const budgetColor = w.budgetStatus === 'DANGER' ? '#ef4444' : w.budgetStatus === 'WARNING' ? '#f59e0b' : '#22c55e'
-  const diaryColor  = w.diaryStatus  === 'DANGER' ? '#ef4444' : w.diaryStatus  === 'WARNING' ? '#f59e0b' : '#22c55e'
+  const budgetSuccess = hasBudget && w.weeklySpend <= w.targetBudget
+  const diarySuccess  = hasDiary  && w.weeklyDiaryCount >= w.targetDiaryCount
 
   return (
     <div className="rounded-xl px-3 py-2.5" style={{ background: '#EBF5FF' }}>
       {hasBudget && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasDiary ? '8px' : '0' }}>
           <span style={{ fontSize: '10px', color: '#9ca3af' }}>💸 소비한도</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '10px', color: '#374151' }}>
               {w.weeklySpend.toLocaleString()}원 / {w.targetBudget.toLocaleString()}원
             </span>
-            <span style={{ fontSize: '9px', fontWeight: '700', color: budgetColor }}>
-              {budgetRaw >= 100 ? `+${budgetRaw - 100}%` : `${budgetRaw}%`}
-            </span>
+            <ResultBadge success={budgetSuccess} />
           </div>
         </div>
       )}
       {hasDiary && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '10px', color: '#9ca3af' }}>✍️ 일기 목표</span>
-          <span style={{ fontSize: '10px', color: diaryColor, fontWeight: '700' }}>
-            {w.weeklyDiaryCount}회 / {w.targetDiaryCount}회 목표
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '10px', color: '#374151' }}>
+              {w.weeklyDiaryCount}회 / {w.targetDiaryCount}회 목표
+            </span>
+            <ResultBadge success={diarySuccess} />
+          </div>
         </div>
       )}
     </div>
@@ -151,7 +157,6 @@ function GroupAlert({ alert, isCurrentMonth }) {
           {activeWeek && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
               <span style={{ fontSize: '9px', color: '#9ca3af' }}>{activeWeek.startDate} ~ {activeWeek.endDate}</span>
-              <span style={{ fontSize: '9px', fontWeight: '700', padding: '1px 6px', borderRadius: '99px', background: chip.bg, color: chip.color }}>{chip.label}</span>
             </div>
           )}
 
