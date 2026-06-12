@@ -11,11 +11,12 @@ router = APIRouter()
 
 @router.get("/mydata/transaction")
 def get_transaction(
-    user_id: int = Query(...),
-    year:    int = Query(None),
-    month:   int = Query(None),
+    user_id: int  = Query(...),
+    year:    int  = Query(None),
+    month:   int  = Query(None),
+    summary: bool = Query(False),
 ):
-    return get_transaction_report(user_id, year, month)
+    return get_transaction_report(user_id, year, month, summary=summary)
 
 
 @router.get("/avatar-room")

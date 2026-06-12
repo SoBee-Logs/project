@@ -90,11 +90,8 @@ function CategoryDonut({ categoryList, selectedCat, onSelect }) {
 function CardImage({ src, alt, containerW, containerH }) {
   const [landscape, setLandscape] = useState(false)
   const [error, setError] = useState(false)
-  useEffect(() => {
-    const img = new Image()
-    img.onload = () => setLandscape(img.naturalWidth > img.naturalHeight)
-    img.src = src
-  }, [src])
+
+  const handleLoad = (e) => setLandscape(e.target.naturalWidth > e.target.naturalHeight)
 
   if (error) {
     return (
@@ -115,14 +112,16 @@ function CardImage({ src, alt, containerW, containerH }) {
         transformOrigin: 'center center',
         overflow: 'hidden',
       }}>
-        <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          onError={() => setError(true)} />
+        <img src={src} alt={alt} loading="lazy"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          onLoad={handleLoad} onError={() => setError(true)} />
       </div>
     </div>
   ) : (
     <div style={{ width: containerW, height: containerH, overflow: 'hidden', flexShrink: 0 }}>
-      <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-        onError={() => setError(true)} />
+      <img src={src} alt={alt} loading="lazy"
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        onLoad={handleLoad} onError={() => setError(true)} />
     </div>
   )
 }
@@ -351,62 +350,59 @@ export default function Report() {
   }, [loading, location.state])
 
   useEffect(() => {
-    fetch(`/api/lifecycle/${USER_ID}`)
-      .then(r => r.json())
-      .then(data => {
-        setLifecycle(data)
-        fetch(`/api/lifecycle/${USER_ID}/peers`)
-          .then(r => r.json())
-          .then(setPeers)
-          .catch(() => setPeers([]))
-      })
-      .catch(() => setLifecycle({ life_stage_code: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' }))
-
-    fetch(`/api/users/${USER_ID}/persona`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setPersona(data) })
-      .catch(() => {})
+    Promise.allSettled([
+      fetch(`/api/lifecycle/${USER_ID}`).then(r => r.json()),
+      fetch(`/api/lifecycle/${USER_ID}/peers`).then(r => r.json()),
+      fetch(`/api/users/${USER_ID}/persona`).then(r => r.ok ? r.json() : null),
+    ]).then(([lifecycleRes, peersRes, personaRes]) => {
+      if (lifecycleRes.status === 'fulfilled' && lifecycleRes.value) {
+        setLifecycle(lifecycleRes.value)
+      } else {
+        setLifecycle({ life_stage_code: '생애주기 없음', description: '분석 결과를 불러올 수 없어요.' })
+      }
+      if (peersRes.status === 'fulfilled' && peersRes.value) setPeers(peersRes.value)
+      if (personaRes.status === 'fulfilled' && personaRes.value) setPersona(personaRes.value)
+    })
   }, [USER_ID])
 
   useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        setLoading(true)
-        setTxData(null)
-        setRecommendData(null)
-        setCatWeek('전체')
-        setTimeWeek('전체')
-        setSelectedCat(null)
-        setCatDeselected(false)
-        setSelectedEmotionWeek(null)
-        setPersonaWeek(null)
+    const controller = new AbortController()
 
-        const txRes = await fetch(
-          `/api/report/mydata/transaction?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}`
-        ).then(r => r.json()).catch(() => null)
+    setLoading(true)
+    setTxData(null)
+    setRecommendData(null)
+    setCatWeek('전체')
+    setTimeWeek('전체')
+    setSelectedCat(null)
+    setCatDeselected(false)
+    setSelectedEmotionWeek(null)
+    setPersonaWeek(null)
 
-        if (txRes) {
-          const isEmpty = !isCurrentMonth &&
-            txRes.payment_total_num === 0 && txRes.payment_out === 0 &&
-            Object.keys(txRes.category_price ?? {}).length === 0
-          if (isEmpty) {
-            setIsEmptyMonth(true)
-          } else {
-            setTxData(txRes)
-            // 감정 섹션 default: 변경사유 있는 주차 중 마지막
-            const weeklyEmotion = txRes.weekly_top_emotion ?? {}
-            const weeklyAvatar  = txRes.weekly_avatar ?? {}
-            const emotionWeeks  = (txRes.week_order ?? []).filter(w => weeklyEmotion[w])
-            const defaultEmotionWeek = [...emotionWeeks].reverse().find(w => {
-              try {
-                const cr = weeklyAvatar[w]?.avatar_change_reason
-                if (!cr) return false
-                const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
-                return !!parsed?.emoji?.context
-              } catch { return false }
-            }) ?? emotionWeeks[emotionWeeks.length - 1] ?? null
-            setSelectedEmotionWeek(defaultEmotionWeek)
-          }
+    fetch(
+      `/api/report/mydata/transaction?user_id=${USER_ID}&year=${selectedYear}&month=${selectedMonth}&summary=true`,
+      { signal: controller.signal }
+    )
+      .then(r => r.json())
+      .then(txRes => {
+        const isEmpty = !isCurrentMonth &&
+          txRes.payment_total_num === 0 && txRes.payment_out === 0 &&
+          Object.keys(txRes.category_price ?? {}).length === 0
+        if (isEmpty) {
+          setIsEmptyMonth(true)
+        } else {
+          setTxData(txRes)
+          const weeklyEmotion = txRes.weekly_top_emotion ?? {}
+          const weeklyAvatar  = txRes.weekly_avatar ?? {}
+          const emotionWeeks  = (txRes.week_order ?? []).filter(w => weeklyEmotion[w])
+          const defaultEmotionWeek = [...emotionWeeks].reverse().find(w => {
+            try {
+              const cr = weeklyAvatar[w]?.avatar_change_reason
+              if (!cr) return false
+              const parsed = typeof cr === 'string' ? JSON.parse(cr) : cr
+              return !!parsed?.emoji?.context
+            } catch { return false }
+          }) ?? emotionWeeks[emotionWeeks.length - 1] ?? null
+          setSelectedEmotionWeek(defaultEmotionWeek)
         }
 
         setLoading(false)
@@ -416,12 +412,15 @@ export default function Report() {
           .then(r => r.json())
           .then(data => setRecommendData(data))
           .catch(() => setRecommendData({ error: true }))
-      } catch (e) {
-        setError(e.message)
-        setLoading(false)
-      }
-    }
-    fetchAll()
+      })
+      .catch(err => {
+        if (err.name !== 'AbortError') {
+          setError(err.message)
+          setLoading(false)
+        }
+      })
+
+    return () => controller.abort()
   }, [selectedYear, selectedMonth])
 
   const fetchRecommend = async () => {
@@ -661,6 +660,7 @@ export default function Report() {
                         <img
                           src={peer.avatar_img_url}
                           alt={peer.avatar_name}
+                          loading="lazy"
                           className="w-14 h-14 rounded-xl object-cover border border-gray-100 cursor-pointer active:scale-95 transition-transform"
                         />
                         <p className="text-[10px] text-gray-500 text-center max-w-[56px] truncate">{peer.avatar_name}</p>
