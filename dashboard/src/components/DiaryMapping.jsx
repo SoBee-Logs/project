@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts'
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { useFetch } from '../hooks/useFetch'
 import { ErrorBox } from './common/StatusViews'
 import DrillDownModal from './common/DrillDownModal'
 
-const COLORS = ['#6c63ff', '#0ea5e9', '#e2e8f0']
+const COLORS = ['#6c63ff', '#e2e8f0']
 
 function UserMappingDetail({ userId, name, onClose }) {
   const { data, error, loading } = useFetch(`/admin/diary-user/${userId}`)
@@ -21,7 +21,6 @@ function UserMappingDetail({ userId, name, onClose }) {
       {error && <p style={{ color: '#e53e3e' }}>{error}</p>}
       {data && (
         <>
-          {/* 요약 */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
             {[
               { label: '전체 사진', value: data.photos.length, color: '#333' },
@@ -36,7 +35,6 @@ function UserMappingDetail({ userId, name, onClose }) {
             ))}
           </div>
 
-          {/* 사진 목록 */}
           <div style={ds.sectionTitle}>사진 목록 ({data.photos.length}장)</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10, marginBottom: 24 }}>
             {data.photos.map(p => {
@@ -60,7 +58,6 @@ function UserMappingDetail({ userId, name, onClose }) {
             })}
           </div>
 
-          {/* 일기 목록 */}
           {data.diaries.length > 0 && (
             <>
               <div style={ds.sectionTitle}>일기 목록 ({data.diaries.length}건)</div>
@@ -92,41 +89,29 @@ export default function DiaryMapping() {
 
   const pieData = [
     { name: '결제 매핑 사진', value: data.tx_mapped },
-    { name: '일기 등록 사진', value: data.photos_in_diary - data.tx_mapped > 0 ? data.photos_in_diary - data.tx_mapped : 0 },
-    { name: '미매핑 사진', value: data.total_photos - data.photos_in_diary },
+    { name: '미매핑 사진', value: data.total_photos - data.tx_mapped },
   ]
-
-  const barData = data.per_user
-    .filter(u => u.total_photos > 0)
-    .map(u => ({
-      name: u.name,
-      _user_id: u.user_id,
-      전체사진: u.total_photos,
-      일기등록: u.diary_photos,
-      결제매핑: u.mapped_photos,
-    }))
 
   return (
     <div>
       <h2 style={styles.heading}>사진 · 일기 · 결제 매핑 현황</h2>
 
-      <div style={styles.row}>
-        {[
-          { value: data.total_photos, label: '전체 사진', color: '#1a1a2e' },
-          { value: data.photos_in_diary, label: '일기 등록 사진', color: '#0ea5e9', rate: data.diary_rate },
-          { value: data.tx_mapped, label: '결제 매핑 사진', color: '#6c63ff', rate: data.tx_mapping_rate },
-          { value: data.total_diaries, label: '생성된 일기', color: '#ec4899' },
-        ].map((s, i) => (
-          <div key={i} style={styles.statCard}>
-            <div style={{ ...styles.statValue, color: s.color }}>{s.value}</div>
-            <div style={styles.statLabel}>{s.label}</div>
-            {s.rate != null && <div style={styles.rate}>{s.rate}%</div>}
-          </div>
-        ))}
-      </div>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
+          {[
+            { value: data.total_photos, label: '전체 사진', color: '#1a1a2e' },
+            { value: data.tx_mapped, label: '결제 매핑 사진', color: '#6c63ff', rate: data.tx_mapping_rate },
+            { value: data.total_diaries, label: '생성된 일기', color: '#ec4899' },
+          ].map((s, i) => (
+            <div key={i} style={styles.statCard}>
+              <div style={{ ...styles.statValue, color: s.color }}>{s.value}</div>
+              <div style={styles.statLabel}>{s.label}</div>
+              {s.rate != null && <div style={styles.rate}>{s.rate}%</div>}
+            </div>
+          ))}
+        </div>
 
-      <div style={styles.charts}>
-        <div style={styles.chartBox}>
+        <div style={{ ...styles.chartBox, flex: 2 }}>
           <h3 style={styles.subheading}>사진 분류 비율</h3>
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
@@ -139,33 +124,8 @@ export default function DiaryMapping() {
             </PieChart>
           </ResponsiveContainer>
         </div>
-
-        <div style={styles.chartBox}>
-          <h3 style={styles.subheading}>
-            유저별 사진 매핑 현황
-            <span style={styles.clickHint}>· 막대 클릭 시 상세</span>
-          </h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={barData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-              onClick={e => {
-                if (e?.activePayload?.[0]) {
-                  const p = e.activePayload[0].payload
-                  setSelectedUser({ id: p._user_id, name: p.name })
-                }
-              }}>
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="전체사진" fill="#e2e8f0" cursor="pointer" />
-              <Bar dataKey="일기등록" fill="#0ea5e9" cursor="pointer" />
-              <Bar dataKey="결제매핑" fill="#6c63ff" cursor="pointer" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
       </div>
 
-      {/* 유저별 요약 테이블 */}
       <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,.06)', marginTop: 16 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
@@ -216,14 +176,12 @@ const th = { padding: '10px 14px', textAlign: 'left' }
 const styles = {
   heading: { fontSize: 20, fontWeight: 700, marginBottom: 20 },
   subheading: { fontSize: 15, fontWeight: 600, marginBottom: 12, color: '#444' },
-  clickHint: { fontSize: 12, color: '#aaa', fontWeight: 400, marginLeft: 8 },
-  row: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16, marginBottom: 20 },
+  row: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 20 },
   statCard: { background: '#fff', borderRadius: 12, padding: '20px 16px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,.06)' },
   statValue: { fontSize: 36, fontWeight: 800, color: '#1a1a2e' },
   statLabel: { fontSize: 13, color: '#888', marginTop: 4 },
   rate: { fontSize: 18, fontWeight: 700, color: '#10b981', marginTop: 4 },
-  charts: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 },
-  chartBox: { background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,.06)' },
+  chartBox: { background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,.06)', maxWidth: 480 },
 }
 
 const ds = {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from 'recharts'
 import { useFetch } from '../hooks/useFetch'
 import { CardSkeleton, ErrorBox } from './common/StatusViews'
@@ -33,7 +33,8 @@ export default function Overview() {
     })
   }
 
-  const handleReload = () => { reload(); setLastRefresh(new Date()) }
+  const handleReload = () => { reload(); onRefresh?.(new Date()) }
+  if (onReloadRef) onReloadRef.current = handleReload
 
   if (error) return <ErrorBox message={error} onRetry={handleReload} />
 
