@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 import aiohttp
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, BackgroundTasks
 
 log = logging.getLogger(__name__)
 
@@ -401,3 +401,19 @@ async def daily_summary(
         summary = "소비 요약 실패"
 
     return {"summary": summary}
+
+@router.post(
+    "/vlm-category-fallback",
+    summary="VLM 카테고리 보정",
+    description="""
+transactions.payment_category_id가 NULL/13/16인 것 중
+persona_transaction으로 매핑된 건의 카테고리를 vlm_category로 보정합니다.
+일기 생성 완료 후 Spring에서 자동 호출됩니다.
+""",
+)
+async def vlm_category_fallback_endpoint(
+    background_tasks: BackgroundTasks,
+):
+    from app.services.category_mapping_service import vlm_category_fallback
+    background_tasks.add_task(vlm_category_fallback)
+    return {"status": "started"}

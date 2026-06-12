@@ -42,13 +42,16 @@ public class DiaryService {
     private final PhotoRepository photoRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
-    private final TransactionRepository transactionRepository; 
+    private final TransactionRepository transactionRepository;
 
     @Value("${fastapi.base-url}/api/diary/generate")
     private String fastapiDiaryUrl;
 
     @Value("${fastapi.base-url}/internal/transactions/sync")
     private String fastapiSyncUrl;
+
+    @Value("${fastapi.base-url}/internal/vlm-category-fallback")
+    private String fastapiVlmFallbackUrl;
 
     @Value("${fastapi.internal-secret}")
     private String internalSecret;
@@ -65,7 +68,7 @@ public class DiaryService {
 
         List<PhotoGroups> pgList = photoGroupsRepository.findByIdGroupId(req.getGroupId());
 
-        // 오늘 날짜 + 본인 사진 필터 
+        // 오늘 날짜 + 본인 사진 필터
         List<Photo> todayPhotos = pgList.stream()
                 .map(PhotoGroups::getPhoto)
                 .filter(photo -> photo.getUserId().equals(userId))
@@ -75,9 +78,9 @@ public class DiaryService {
                 .collect(Collectors.toList());
 
         // 사진 없으면 일기 생성 차단
-                if (todayPhotos.isEmpty()) {
-                    throw new IllegalArgumentException("이 모임방에 등록된 사진이 없어 일기를 생성할 수 없습니다.");
-                }
+        if (todayPhotos.isEmpty()) {
+            throw new IllegalArgumentException("이 모임방에 등록된 사진이 없어 일기를 생성할 수 없습니다.");
+        }
 
         // 매핑된 사진만 따로 필터링 (LLM 일기 생성용)
         List<Photo> matchedPhotos = todayPhotos.stream()
@@ -97,86 +100,85 @@ public class DiaryService {
                 .map(Photo::getPhotoId)
                 .collect(Collectors.toList());
 
-        // VLM 결과 수집 (사진 전체)
+        // VLM 결과 수집 (전체 사진 기준 — 미매핑 사진 description도 반영)
         List<PhotoVlmResult> allVlms = todayPhotos.stream()
-        .map(p -> photoVlmResultRepository
-                .findFirstByPhotoIdOrderByVlmIdDesc(p.getPhotoId())
-                .orElse(null))
-        .filter(Objects::nonNull)
-        .collect(Collectors.toList());
+                .map(p -> photoVlmResultRepository
+                        .findFirstByPhotoIdOrderByVlmIdDesc(p.getPhotoId())
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
 
-        // 대표값은 category 있는 것 우선으로 첫 번째 (기존 로직 유지)
-        // PhotoVlmResult bestVlm = allVlms.stream()
-        // .filter(vlm -> vlm.getVlmCategory() != null)
-        // .findFirst()
-        // .orElse(allVlms.isEmpty() ? null : allVlms.get(0));
+        // 매핑된 사진 기준 VLM (item_name, store_name, category, price용)
+        List<PhotoVlmResult> matchedVlms = photosForDiary.stream()
+                .map(p -> photoVlmResultRepository
+                        .findFirstByPhotoIdOrderByVlmIdDesc(p.getPhotoId())
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
 
-        // 여러 사진의 item_name, description 합치기
-        String combinedItemName = allVlms.stream()
-        .map(PhotoVlmResult::getVlmItemName)
-        .filter(Objects::nonNull)
-        .collect(Collectors.joining(", "));
+        String combinedItemName = matchedVlms.stream()
+                .map(PhotoVlmResult::getVlmItemName)
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(", "));
 
+        // description은 전체 사진 기준
         String combinedDescription = allVlms.stream()
-        .map(PhotoVlmResult::getVlmDescription)
-        .filter(Objects::nonNull)
-        .collect(Collectors.joining(" / "));
+                .map(PhotoVlmResult::getVlmDescription)
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(" / "));
 
-        String combinedCategory = allVlms.stream()
-        .map(PhotoVlmResult::getVlmCategory)
-        .filter(Objects::nonNull)
-        .distinct()
-        .collect(Collectors.joining(", "));
+        String combinedCategory = matchedVlms.stream()
+                .map(PhotoVlmResult::getVlmCategory)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.joining(", "));
 
         Integer actualPrice = matchedPhotos.stream()
-        .flatMap(p -> personaTransactionRepository.findByPhotoId(p.getPhotoId()).stream())
-        .mapToInt(pt -> transactionRepository.findByPaymentId(pt.getPaymentId())
-                .map(t -> t.getPaymentOut() != null ? t.getPaymentOut() : 0)
-                .orElse(0))
-        .sum();
+                .flatMap(p -> personaTransactionRepository.findByPhotoId(p.getPhotoId()).stream())
+                .mapToInt(pt -> transactionRepository.findByPaymentId(pt.getPaymentId())
+                        .map(t -> t.getPaymentOut() != null ? t.getPaymentOut() : 0)
+                        .orElse(0))
+                .sum();
 
-        String combinedStoreName = allVlms.stream()
-        .map(PhotoVlmResult::getVlmStoreName)
-        .filter(Objects::nonNull)
-        .distinct()
-        .collect(Collectors.joining(", "));
-                        
+        String combinedStoreName = matchedVlms.stream()
+                .map(PhotoVlmResult::getVlmStoreName)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.joining(", "));
 
         // 감정 데이터 — 전체 수집 후 텍스트 합치기
         List<EmotionsText> allEmotions = todayPhotos.stream()
-        .map(p -> emotionsTextRepository.findByPhotoId(p.getPhotoId()).orElse(null))
-        .filter(Objects::nonNull)
-        .collect(Collectors.toList());
+                .map(p -> emotionsTextRepository.findByPhotoId(p.getPhotoId()).orElse(null))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
 
         String combinedEmotionText = allEmotions.stream()
                 .map(EmotionsText::getText)
                 .filter(Objects::nonNull)
                 .collect(Collectors.joining(", "));
 
-        // 수정: 전체 mood 이모지 순서대로 합치기
         String moodEmoji = allEmotions.stream()
-        .map(EmotionsText::getEmoji)
-        .filter(Objects::nonNull)
-        .map(MoodType::getEmoji)
-        .collect(Collectors.joining(" "));
+                .map(EmotionsText::getEmoji)
+                .filter(Objects::nonNull)
+                .map(MoodType::getEmoji)
+                .collect(Collectors.joining(" "));
 
         boolean matched = !matchedPhotoIds.isEmpty();
 
-        // FastApiDiaryRequest 빌드 부분 수정
         FastApiDiaryRequest faReq = FastApiDiaryRequest.builder()
-        .item_name(combinedItemName.isEmpty() ? null : combinedItemName)
-        .category(combinedCategory.isEmpty() ? null : combinedCategory)
-        .price(actualPrice > 0 ? actualPrice : null)
-        .store_name(combinedStoreName.isEmpty() ? null : combinedStoreName)
-        .description(combinedDescription.isEmpty() ? null : combinedDescription)
-        .matched(matched)
-        .mood(moodEmoji)
-        .emotion_text(combinedEmotionText.isEmpty() ? null : combinedEmotionText)
-        .tags(Collections.singletonList("#" + group.getGroupName()))
-        .group_description(group.getGroupDescription())
-        .room_category(group.getCategory() != null ? group.getCategory().name() : null)
-        .build();
-        
+                .item_name(combinedItemName.isEmpty() ? null : combinedItemName)
+                .category(combinedCategory.isEmpty() ? null : combinedCategory)
+                .price(actualPrice > 0 ? actualPrice : null)
+                .store_name(combinedStoreName.isEmpty() ? null : combinedStoreName)
+                .description(combinedDescription.isEmpty() ? null : combinedDescription)
+                .matched(matched)
+                .mood(moodEmoji)
+                .emotion_text(combinedEmotionText.isEmpty() ? null : combinedEmotionText)
+                .tags(Collections.singletonList("#" + group.getGroupName()))
+                .group_description(group.getGroupDescription())
+                .room_category(group.getCategory() != null ? group.getCategory().name() : null)
+                .build();
+
         FastApiDiaryResponse faRes;
         try {
             faRes = callFastApiDiary(faReq);
@@ -191,6 +193,20 @@ public class DiaryService {
                     .photoIds(photoIds)
                     .matchedPhotoIds(matchedPhotoIds)
                     .build();
+        }
+
+        // 일기 생성 완료 후 VLM 카테고리 보정 비동기 요청
+        try {
+            HttpHeaders fallbackHeaders = new HttpHeaders();
+            fallbackHeaders.set("X-Internal-Secret", internalSecret);
+            restTemplate.exchange(
+                    fastapiVlmFallbackUrl,
+                    HttpMethod.POST,
+                    new HttpEntity<>(fallbackHeaders),
+                    Void.class
+            );
+        } catch (Exception ignored) {
+            // 실패해도 일기 생성 결과에 영향 없음
         }
 
         return DiaryGenerateResponse.builder()
@@ -232,17 +248,14 @@ public class DiaryService {
 
         Group group = groupRepository.findById(groupId).orElse(null);
 
-        // 1. 유저 배치 조회
         Set<Long> userIds = diaries.stream().map(Diary::getUserId).collect(Collectors.toSet());
         Map<Long, User> userMap = userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(User::getUserId, u -> u));
 
-        // 2. diary_photos 배치 조회
         List<Long> diaryIds = diaries.stream().map(Diary::getDiaryId).collect(Collectors.toList());
         Map<Long, List<DiaryPhoto>> diaryPhotosMap = diaryPhotoRepository.findByIdDiaryIdIn(diaryIds)
                 .stream().collect(Collectors.groupingBy(dp -> dp.getId().getDiaryId()));
 
-        // 3. photos 배치 조회
         Set<Long> allPhotoIds = diaryPhotosMap.values().stream()
                 .flatMap(List::stream)
                 .map(dp -> dp.getId().getPhotoId())
@@ -250,7 +263,6 @@ public class DiaryService {
         Map<Long, Photo> photoMap = photoRepository.findAllById(allPhotoIds).stream()
                 .collect(Collectors.toMap(Photo::getPhotoId, p -> p));
 
-        // 4. persona_transaction 배치 조회
         Set<Long> matchedPhotoIds = allPhotoIds.isEmpty()
                 ? Collections.emptySet()
                 : personaTransactionRepository.findMatchedPhotoIds(allPhotoIds);
@@ -295,9 +307,9 @@ public class DiaryService {
                     .diaryLines(lines)
                     .date(diary.getCreatedAt() != null ? diary.getCreatedAt().toLocalDate().toString() : "")
                     .time(diary.getCreatedAt() != null
-                        ? diary.getCreatedAt()
-                        .toLocalTime()
-                        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) : "")
+                            ? diary.getCreatedAt()
+                            .toLocalTime()
+                            .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) : "")
                     .authorName(authorName)
                     .authorNickname(authorNickname)
                     .authorId(diary.getUserId())
@@ -313,10 +325,9 @@ public class DiaryService {
     }
 
     @Transactional(readOnly = true)
-        public DiaryPreviewResponse getDiaryPreview(Long groupId, Long userId) {
+    public DiaryPreviewResponse getDiaryPreview(Long groupId, Long userId) {
         long count = diaryRepository.countByGroupId(groupId);
 
-        // 이번 주 월요일 ~ 오늘
         LocalDateTime startOfWeek = LocalDate.now(ZoneId.of("Asia/Seoul"))
                 .with(DayOfWeek.MONDAY).atStartOfDay();
         LocalDateTime endOfWeek = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
@@ -324,7 +335,7 @@ public class DiaryService {
 
         String imageUrl = diaryRepository.findFirstImageUrlByGroupId(groupId).orElse(null);
         return new DiaryPreviewResponse(count, myCount, imageUrl);
-        }
+    }
 
     @Transactional
     public void toggleLike(Long diaryId) {
@@ -368,7 +379,6 @@ public class DiaryService {
         private String emotion_text;
         private List<String> tags;
         private String group_description;
-        // 모임방 카테고리 (EXERCISE, HOBBY 등) — FastAPI 일기 테마 주입용
         private String room_category;
     }
 
@@ -382,107 +392,102 @@ public class DiaryService {
     }
 
     public void syncTransactions(Long userId) {
-    try {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Internal-Secret", internalSecret);
-        Map<String, Object> body = Map.of("user_id", userId, "days", 1);
-        restTemplate.exchange(fastapiSyncUrl, HttpMethod.POST,
-                new HttpEntity<>(body, headers), String.class);
-    } catch (Exception ignored) {
-        // sync 실패해도 계속 진행
-    }
-}
-        
-@Transactional(readOnly = true)
-public List<DiaryFeedItemResponse> getMyDiaryList(Long userId) {
-    List<Diary> diaries = diaryRepository.findByUserIdOrderByCreatedAtDesc(userId);
-    if (diaries.isEmpty()) return Collections.emptyList();
-
-    // 1. 유저 배치 조회
-    Set<Long> userIds = diaries.stream().map(Diary::getUserId).collect(Collectors.toSet());
-    Map<Long, User> userMap = userRepository.findAllById(userIds).stream()
-            .collect(Collectors.toMap(User::getUserId, u -> u));
-
-    // 2. 그룹 배치 조회 (groupId별로)
-    Set<Long> groupIds = diaries.stream().map(Diary::getGroupId).collect(Collectors.toSet());
-    Map<Long, Group> groupMap = groupRepository.findAllById(groupIds).stream()
-            .collect(Collectors.toMap(Group::getGroupId, g -> g));
-
-    // 3. diary_photos 배치 조회
-    List<Long> diaryIds = diaries.stream().map(Diary::getDiaryId).collect(Collectors.toList());
-    Map<Long, List<DiaryPhoto>> diaryPhotosMap = diaryPhotoRepository.findByIdDiaryIdIn(diaryIds)
-            .stream().collect(Collectors.groupingBy(dp -> dp.getId().getDiaryId()));
-
-    // 4. photos 배치 조회
-    Set<Long> allPhotoIds = diaryPhotosMap.values().stream()
-            .flatMap(List::stream)
-            .map(dp -> dp.getId().getPhotoId())
-            .collect(Collectors.toSet());
-    Map<Long, Photo> photoMap = photoRepository.findAllById(allPhotoIds).stream()
-            .collect(Collectors.toMap(Photo::getPhotoId, p -> p));
-
-    // 5. persona_transaction 배치 조회
-    Set<Long> matchedPhotoIds = allPhotoIds.isEmpty()
-            ? Collections.emptySet()
-            : personaTransactionRepository.findMatchedPhotoIds(allPhotoIds);
-
-    return diaries.stream().map(diary -> {
-        User author = userMap.get(diary.getUserId());
-        String authorName = author != null ? author.getName() : "익명";
-        String authorNickname = (author != null
-                && author.getNickname() != null
-                && !author.getNickname().isBlank())
-                ? author.getNickname() : authorName;
-
-        Group group = groupMap.get(diary.getGroupId());  // 일기별 그룹 조회
-
-        List<Long> dpPhotoIds = diaryPhotosMap.getOrDefault(diary.getDiaryId(), Collections.emptyList())
-                .stream().map(dp -> dp.getId().getPhotoId()).collect(Collectors.toList());
-        List<String> imageUrls = dpPhotoIds.stream()
-                .map(photoMap::get).filter(Objects::nonNull)
-                .map(Photo::getImageUrl).filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        List<Long> dpMatchedPhotoIds = dpPhotoIds.stream()
-                .filter(matchedPhotoIds::contains).collect(Collectors.toList());
-
-        String title = "";
-        String subtitle = "";
-        List<String> lines = Collections.emptyList();
-        if (diary.getDiaryContent() != null) {
-            try {
-                JsonNode node = objectMapper.readTree(diary.getDiaryContent());
-                title = node.path("title").asText("");
-                subtitle = node.path("subtitle").asText("");
-                JsonNode linesNode = node.path("lines");
-                if (linesNode.isArray()) {
-                    lines = new ArrayList<>();
-                    for (JsonNode ln : linesNode) lines.add(ln.asText());
-                }
-            } catch (Exception ignored) {}
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-Internal-Secret", internalSecret);
+            Map<String, Object> body = Map.of("user_id", userId, "days", 1);
+            restTemplate.exchange(fastapiSyncUrl, HttpMethod.POST,
+                    new HttpEntity<>(body, headers), String.class);
+        } catch (Exception ignored) {
+            // sync 실패해도 계속 진행
         }
+    }
 
-        return DiaryFeedItemResponse.builder()
-                .diaryId(diary.getDiaryId())
-                .title(title)
-                .subtitle(subtitle)
-                .diaryLines(lines)
-                .date(diary.getCreatedAt() != null ? diary.getCreatedAt().toLocalDate().toString() : "")
-                .time(diary.getCreatedAt() != null
-                        ? diary.getCreatedAt()
+    @Transactional(readOnly = true)
+    public List<DiaryFeedItemResponse> getMyDiaryList(Long userId) {
+        List<Diary> diaries = diaryRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        if (diaries.isEmpty()) return Collections.emptyList();
+
+        Set<Long> userIds = diaries.stream().map(Diary::getUserId).collect(Collectors.toSet());
+        Map<Long, User> userMap = userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getUserId, u -> u));
+
+        Set<Long> groupIds = diaries.stream().map(Diary::getGroupId).collect(Collectors.toSet());
+        Map<Long, Group> groupMap = groupRepository.findAllById(groupIds).stream()
+                .collect(Collectors.toMap(Group::getGroupId, g -> g));
+
+        List<Long> diaryIds = diaries.stream().map(Diary::getDiaryId).collect(Collectors.toList());
+        Map<Long, List<DiaryPhoto>> diaryPhotosMap = diaryPhotoRepository.findByIdDiaryIdIn(diaryIds)
+                .stream().collect(Collectors.groupingBy(dp -> dp.getId().getDiaryId()));
+
+        Set<Long> allPhotoIds = diaryPhotosMap.values().stream()
+                .flatMap(List::stream)
+                .map(dp -> dp.getId().getPhotoId())
+                .collect(Collectors.toSet());
+        Map<Long, Photo> photoMap = photoRepository.findAllById(allPhotoIds).stream()
+                .collect(Collectors.toMap(Photo::getPhotoId, p -> p));
+
+        Set<Long> matchedPhotoIds = allPhotoIds.isEmpty()
+                ? Collections.emptySet()
+                : personaTransactionRepository.findMatchedPhotoIds(allPhotoIds);
+
+        return diaries.stream().map(diary -> {
+            User author = userMap.get(diary.getUserId());
+            String authorName = author != null ? author.getName() : "익명";
+            String authorNickname = (author != null
+                    && author.getNickname() != null
+                    && !author.getNickname().isBlank())
+                    ? author.getNickname() : authorName;
+
+            Group group = groupMap.get(diary.getGroupId());
+
+            List<Long> dpPhotoIds = diaryPhotosMap.getOrDefault(diary.getDiaryId(), Collections.emptyList())
+                    .stream().map(dp -> dp.getId().getPhotoId()).collect(Collectors.toList());
+            List<String> imageUrls = dpPhotoIds.stream()
+                    .map(photoMap::get).filter(Objects::nonNull)
+                    .map(Photo::getImageUrl).filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            List<Long> dpMatchedPhotoIds = dpPhotoIds.stream()
+                    .filter(matchedPhotoIds::contains).collect(Collectors.toList());
+
+            String title = "";
+            String subtitle = "";
+            List<String> lines = Collections.emptyList();
+            if (diary.getDiaryContent() != null) {
+                try {
+                    JsonNode node = objectMapper.readTree(diary.getDiaryContent());
+                    title = node.path("title").asText("");
+                    subtitle = node.path("subtitle").asText("");
+                    JsonNode linesNode = node.path("lines");
+                    if (linesNode.isArray()) {
+                        lines = new ArrayList<>();
+                        for (JsonNode ln : linesNode) lines.add(ln.asText());
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            return DiaryFeedItemResponse.builder()
+                    .diaryId(diary.getDiaryId())
+                    .title(title)
+                    .subtitle(subtitle)
+                    .diaryLines(lines)
+                    .date(diary.getCreatedAt() != null ? diary.getCreatedAt().toLocalDate().toString() : "")
+                    .time(diary.getCreatedAt() != null
+                            ? diary.getCreatedAt()
                             .toLocalTime()
                             .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) : "")
-                .authorName(authorName)
-                .authorNickname(authorNickname)
-                .authorId(diary.getUserId())
-                .imageUrls(imageUrls)
-                .imageUrl(imageUrls.isEmpty() ? null : imageUrls.get(0))
-                .roomId(diary.getGroupId())
-                .roomLabel(group != null ? group.getGroupName() : "")
-                .likes(diary.getLikes() != null ? diary.getLikes() : 0)
-                .photoIds(dpPhotoIds)
-                .matchedPhotoIds(dpMatchedPhotoIds)
-                .build();
-    }).collect(Collectors.toList());
-}
+                    .authorName(authorName)
+                    .authorNickname(authorNickname)
+                    .authorId(diary.getUserId())
+                    .imageUrls(imageUrls)
+                    .imageUrl(imageUrls.isEmpty() ? null : imageUrls.get(0))
+                    .roomId(diary.getGroupId())
+                    .roomLabel(group != null ? group.getGroupName() : "")
+                    .likes(diary.getLikes() != null ? diary.getLikes() : 0)
+                    .photoIds(dpPhotoIds)
+                    .matchedPhotoIds(dpMatchedPhotoIds)
+                    .build();
+        }).collect(Collectors.toList());
+    }
 }
