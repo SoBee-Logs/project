@@ -8,7 +8,7 @@ const COLORS = ['#6c63ff','#f857a6','#0ea5e9','#10b981','#f59e0b','#8b5cf6','#ec
 // ── 사진 + 매핑 내역 행 ────────────────────────────────────────────────────
 function MappingRow({ t, kind }) {
   // kind: 'moved' | 'remaining'
-  const fromLabel = '기타·금융·미분류'
+  const fromLabel = '기타·미분류'
   const toLabel = kind === 'moved' ? t.new_category : t.current_category
   return (
     <div style={ds.photoRow}>
@@ -68,21 +68,21 @@ export default function CategoryOverrides() {
     <div>
       <h2 style={styles.heading}>카테고리 보정 내역</h2>
       <p style={{ fontSize: 13, color: '#888', marginBottom: 20 }}>
-        결제 카테고리가 <strong>기타 · 금융 · 미분류(NULL)</strong> 였던 거래를 VLM 사진 분석으로 보정한 결과입니다.
+        결제 카테고리가 <strong>기타 · 미분류(NULL)</strong> 였던 거래를 VLM 사진 분석으로 보정한 결과입니다.
         카드를 누르면 사진과 매핑 내역을 볼 수 있습니다.
       </p>
 
       <div style={styles.statRow}>
         <div style={styles.statCard}>
           <div style={{ ...styles.statVal, color: '#64748b' }}>{data.before_count.toLocaleString()}</div>
-          <div style={styles.statLabel}>보정 전 기타·금융·미분류 (전체)</div>
+          <div style={styles.statLabel}>보정 전 기타·미분류 (전체)</div>
         </div>
         <div
           style={{ ...styles.statCard, ...styles.clickable }}
           onClick={() => setModal('remaining')}
         >
           <div style={{ ...styles.statVal, color: '#ef4444' }}>{data.after_count.toLocaleString()}</div>
-          <div style={styles.statLabel}>아직 기타·금융·미분류인 거래</div>
+          <div style={styles.statLabel}>아직 기타·미분류인 거래</div>
           <div style={styles.viewHint}>사진·매핑 보기 →</div>
         </div>
         <div
@@ -154,7 +154,7 @@ export default function CategoryOverrides() {
       )}
       {modal === 'remaining' && (
         <DetailModal
-          title="아직 기타·금융·미분류인 거래"
+          title="아직 기타·미분류인 거래"
           items={data.remaining_items}
           kind="remaining"
           onClose={() => setModal(null)}

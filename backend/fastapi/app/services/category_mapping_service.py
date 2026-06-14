@@ -34,10 +34,10 @@ STANDARD_CATEGORIES = [
     (10, "뷰티/미용",  "미용실, 네일샵, 왁싱, 피부과(미용 목적), 마사지, 피부관리, 화장품(이니스프리, 에뛰드, 올리브영, 시코르). 치료 목적 의원은 의료/건강(→9)."),
     (11, "주거/통신",  "관리비, 전기/가스/수도 공과금, 휴대폰 요금(SKT/KT/LG), 인터넷 요금, 방역(세스코), 청소 서비스, 가구(이케아)."),
     (12, "교육/학습",  "학원, 온라인 강의(클래스101, Coursera), 교재, 전자책(밀리의서재, 리디북스), 스터디카페, 자격증 응시료. 일반 서점은 문화/여가(→7)."),
-    (13, "금융",      "보험료, 카드 연회비, 증권 수수료, 협회비 등 금융 관련 소비. 카카오/네이버페이는 가맹점명만으로 판단 불가 시 이 카테고리."),
+    (13, "금융",      "[미사용] 금융성 소비(보험료, 카드 연회비, 증권 수수료, 카카오/네이버페이 등)도 기타(16)로 분류한다. 이 카테고리는 더이상 사용하지 않음."),
     (14, "경조/선물",  "꽃집, 케이크샵, 선물 전문점(텐바이텐, 마켓비), 상품권(카카오선물하기, 백화점상품권), 경조사비(결혼식, 장례식, 생일), 후원/기부."),
     (15, "생활",      "편의점(GS25, CU, 세븐일레븐), 대형마트(이마트, 홈플러스, 롯데마트), 슈퍼마켓, 생활용품(다이소), 세탁소, 인쇄소, 당근마켓. 일상 생활에 필요한 지출."),
-    (16, "기타",      "위 15개 카테고리로 절대 분류 불가능한 경우에만 사용. 최후의 수단."),
+    (16, "기타",      "보험료, 카드 연회비, 증권 수수료, 협회비, 카카오/네이버페이, 카드회사 등 금융성 소비 포함. 그 외 위 카테고리로 분류 불가능한 경우에도 사용."),
 ]
 ETC_payment_category_id = 16
 
@@ -152,7 +152,7 @@ def _build_llm_prompt(items: list[dict]) -> str:
    [문화/여가(7) 고정]
    - 케치팡, 완구점, 인형뽑기 → 문화/여가(7)
    - 구글페이먼트코리 → 문화/여가(7)
-   - Apple + 결제대행(PG) → 문화/여가(7), 금융(13) 아님
+   - Apple + 결제대행(PG) → 문화/여가(7), 기타(16) 아님
 
    [주거/통신(11) 고정]
    - 이케아 → 주거/통신(11), 생활(15) 아님
@@ -162,9 +162,10 @@ def _build_llm_prompt(items: list[dict]) -> str:
    [생활(15) 고정]
    - 당근마켓 → 생활(15), 온라인쇼핑(3) 아님
 
-   [금융(13) 고정]
-   - 카카오페이, 네이버페이포인트, 페이코 → 금융(13)
-   - 삼성카드, 현대카드 등 카드회사 → 금융(13)
+   [기타(16) 고정 - 금융성 소비는 모두 기타]
+   - 카카오페이, 네이버페이포인트, 페이코 → 기타(16)
+   - 삼성카드, 현대카드 등 카드회사 → 기타(16)
+   - 보험료, 카드 연회비, 증권 수수료, 협회비 등 → 기타(16)
 
    [여행/숙박(6) 고정 - PG여도 무조건]
    - 모두투어, 하나투어 → 여행/숙박(6)
@@ -245,6 +246,10 @@ async def process_llm_for_etc_transactions(batch_size: int = 50) -> dict:
             logger.warning(f"잘못된 payment_category_id={payment_category_id}, 16으로 fallback")
             payment_category_id = ETC_payment_category_id
 
+        # 금융(13)은 기타(16)로 통합 — 더이상 사용하지 않음
+        if payment_category_id == 13:
+            payment_category_id = ETC_payment_category_id
+
         await repo.insert_llm_mapping(
             payment_category=pair["payment_category"],
             payment_place=pair["payment_place"],
@@ -311,6 +316,9 @@ async def vlm_category_fallback() -> dict:
                 category_id = name_to_id.get(_normalize_category(row["vlm_category"]))
                 if not category_id:
                     continue
+                # 금융(13)은 기타(16)로 통합 — 더이상 사용하지 않음
+                if category_id == 13:
+                    category_id = ETC_payment_category_id
                 # VLM 카테고리가 기존 값과 동일하면 실제 변경이 아니므로 제외
                 if category_id == row["old_category_id"]:
                     continue
