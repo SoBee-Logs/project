@@ -1,4 +1,8 @@
-from fastapi import APIRouter
+import asyncio
+import json
+import urllib.request
+
+from fastapi import APIRouter, Query, BackgroundTasks
 from pydantic import BaseModel
 from app.db.connection import get_pool
 from app.core.prompt_store import list_prompts, set_prompt, reset_prompt, get_prompt_history, add_prompt_history, get_prompt
@@ -356,8 +360,24 @@ async def vlm_stats():
     }
 
 
-@router.get("/vlm-category/{category}")
-async def vlm_category_detail(category: str):
+class UpdateVlmCategoryBody(BaseModel):
+    category: str
+
+@router.patch("/vlm-photo/{photo_id}/category")
+async def update_vlm_category(photo_id: int, body: UpdateVlmCategoryBody):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE photo_vlm_results SET vlm_category = %s WHERE photo_id = %s",
+                (body.category, photo_id)
+            )
+            await conn.commit()
+            return {"ok": True, "photo_id": photo_id, "category": body.category}
+
+
+@router.get("/vlm-category")
+async def vlm_category_detail(category: str = Query(...)):
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
@@ -820,3 +840,92 @@ async def vlm_unprocessed():
         {"photo_id": r[0], "url": r[1], "created_at": str(r[2]), "user": r[3], "user_id": r[4]}
         for r in rows
     ]
+
+
+async def _do_reprocess(photo_id: int):
+    from app.api.vlm import analyze_image
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT image_url FROM photos WHERE photo_id = %s", (photo_id,))
+            row = await cur.fetchone()
+            if not row or not row[0]:
+                return {"error": "photo not found"}
+            image_url = row[0]
+
+    try:
+        req = urllib.request.Request(image_url, headers={"User-Agent": "SoBee-Admin/1.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            image_bytes = resp.read()
+    except Exception as e:
+        return {"error": f"이미지 다운로드 실패: {e}"}
+
+    filename = image_url.split("/")[-1].split("?")[0] or "image.jpg"
+    result = await analyze_image(filename, image_bytes)
+    if "error" in result:
+        return result
+
+    groups_json = json.dumps(result.get("groups", []), ensure_ascii=False) if result.get("groups") is not None else None
+
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT vlm_id FROM photo_vlm_results WHERE photo_id = %s", (photo_id,))
+            existing = await cur.fetchone()
+            if existing:
+                await cur.execute("""
+                    UPDATE photo_vlm_results SET
+                        vlm_category = %s, vlm_item_name = %s, vlm_price_estimate = %s,
+                        vlm_store_type = %s, vlm_store_name = %s, vlm_description = %s,
+                        vlm_confidence = %s, is_valid = %s, vlm_groups = %s
+                    WHERE photo_id = %s
+                """, (
+                    result.get("category"), result.get("item_name"),
+                    result.get("price") or None, result.get("location_type"),
+                    result.get("store_name"), result.get("description"),
+                    result.get("confidence", "low"), bool(result.get("is_valid", True)),
+                    groups_json, photo_id
+                ))
+            else:
+                await cur.execute("""
+                    INSERT INTO photo_vlm_results
+                        (photo_id, vlm_category, vlm_item_name, vlm_price_estimate,
+                         vlm_store_type, vlm_store_name, vlm_description,
+                         vlm_confidence, is_valid, vlm_groups)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    photo_id, result.get("category"), result.get("item_name"),
+                    result.get("price") or None, result.get("location_type"),
+                    result.get("store_name"), result.get("description"),
+                    result.get("confidence", "low"), bool(result.get("is_valid", True)),
+                    groups_json
+                ))
+            await conn.commit()
+    return {"ok": True, "photo_id": photo_id, "category": result.get("category")}
+
+
+@router.post("/vlm-reprocess/{photo_id}")
+async def reprocess_photo(photo_id: int):
+    return await _do_reprocess(photo_id)
+
+
+@router.post("/vlm-reprocess-all")
+async def reprocess_all(background_tasks: BackgroundTasks):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+                SELECT p.photo_id FROM photos p
+                LEFT JOIN photo_vlm_results v ON p.photo_id = v.photo_id
+                WHERE v.photo_id IS NULL
+                ORDER BY p.created_at DESC LIMIT 50
+            """)
+            rows = await cur.fetchall()
+    photo_ids = [r[0] for r in rows]
+
+    async def run_all():
+        for pid in photo_ids:
+            await _do_reprocess(pid)
+            await asyncio.sleep(0.3)
+
+    background_tasks.add_task(run_all)
+    return {"ok": True, "queued": len(photo_ids)}
