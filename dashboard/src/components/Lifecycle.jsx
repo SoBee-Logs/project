@@ -59,9 +59,8 @@ export default function Lifecycle() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>생애주기 예측 분포</h2>
-        <button onClick={reload} style={styles.refreshBtn}>↻ 새로고침</button>
       </div>
 
       {/* 탭 */}
