@@ -3,6 +3,7 @@ category_mapping_service.py
 """
 import json
 import logging
+import re
 from typing import Optional
 from google import genai
 from google.genai import types
@@ -263,6 +264,13 @@ async def process_llm_for_etc_transactions(batch_size: int = 50) -> dict:
         "processed": processed,
         "transactions_backfilled": total_backfilled,
     }
+def _normalize_category(name: Optional[str]) -> str:
+    """카테고리명을 매칭용으로 정규화. 슬래시·공백·중점 제거 + 소문자화."""
+    if not name:
+        return ""
+    return re.sub(r"[\s/·・,]", "", name).lower()
+
+
 async def vlm_category_fallback() -> dict:
     """
     transactions.payment_category_id가 NULL/13/16인 것 중
@@ -272,9 +280,9 @@ async def vlm_category_fallback() -> dict:
     async with pool.acquire() as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
             await cur.execute("""
-                SELECT t.payment_id, pvr.vlm_category
+                SELECT t.payment_id, t.payment_category_id AS old_category_id, pvr.vlm_category
                 FROM transactions t
-                JOIN persona_transaction pt ON t.payment_id = pt.payment_id
+                JOIN persona_transaction pt ON pt.payment_id = CONVERT(t.payment_id, CHAR)
                 JOIN photo_vlm_results pvr ON pt.vlm_id = pvr.vlm_id
                 WHERE (t.payment_category_id IS NULL
                     OR t.payment_category_id IN (13, 16))
@@ -290,16 +298,26 @@ async def vlm_category_fallback() -> dict:
                 "SELECT payment_category_id, category_name FROM category_master"
             )
             categories = await cur.fetchall()
-            name_to_id = {c["category_name"]: c["payment_category_id"] for c in categories}
+            # VLM 카테고리는 LLM 출력값을 그대로 저장하므로 슬래시/공백/대소문자가
+            # category_master 표기와 어긋날 수 있다(예: "카페간식" vs "카페/간식").
+            # 정규화한 키로 매칭해 조용히 누락되는 일을 막는다.
+            name_to_id = {
+                _normalize_category(c["category_name"]): c["payment_category_id"]
+                for c in categories
+            }
 
             updated = 0
             for row in rows:
-                category_id = name_to_id.get(row["vlm_category"])
+                category_id = name_to_id.get(_normalize_category(row["vlm_category"]))
                 if not category_id:
+                    continue
+                # VLM 카테고리가 기존 값과 동일하면 실제 변경이 아니므로 제외
+                if category_id == row["old_category_id"]:
                     continue
                 await cur.execute("""
                     UPDATE transactions
-                    SET payment_category_id = %s
+                    SET payment_category_id = %s,
+                        payment_ct_update = 1
                     WHERE payment_id = %s
                 """, (category_id, row["payment_id"]))
                 updated += 1

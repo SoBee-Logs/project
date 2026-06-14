@@ -40,3 +40,5 @@ __pycache__/
 prompts.json
 
 node_modules/
+
+md_docs/
