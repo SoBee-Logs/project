@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
 import { useFetch } from '../hooks/useFetch'
 import { ErrorBox } from './common/StatusViews'
 import DrillDownModal from './common/DrillDownModal'
+import { categoryColor } from '../constants/categoryColors'
 
-const COLORS = ['#6c63ff','#f857a6','#0ea5e9','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#ef4444','#64748b','#f97316','#84cc16','#06b6d4','#a855f7','#d946ef']
 
 // ── 사진 + 매핑 내역 행 ────────────────────────────────────────────────────
 function MappingRow({ t, kind }) {
@@ -64,6 +65,9 @@ export default function CategoryOverrides() {
   if (error) return <ErrorBox message={error} onRetry={reload} />
   if (loading) return <p style={{ color: '#888', padding: 24 }}>불러오는 중...</p>
 
+  // 변경 전/후 그래프가 같은 x축 범위를 쓰도록 공유 최댓값 계산
+  const distMax = Math.max(1, ...(data.category_dist || []).flatMap(c => [c.before, c.after]))
+
   return (
     <div>
       <h2 style={styles.heading}>카테고리 보정 내역</h2>
@@ -95,12 +99,51 @@ export default function CategoryOverrides() {
         </div>
       </div>
 
+      {data.category_dist?.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <h3 style={styles.subheading}>카테고리 분포 변화 (보정 전 → 후)</h3>
+          <p style={{ fontSize: 12, color: '#888', marginTop: -8, marginBottom: 16 }}>
+            보정된 거래는 보정 전 모두 <strong>기타</strong>였다고 가정한 분포입니다. (입금내역 제외)
+          </p>
+          <div style={styles.charts}>
+            <div style={styles.chartBox}>
+              <h4 style={styles.chartTitle}>변경 전</h4>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={data.category_dist} layout="vertical" margin={{ left: 20, right: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" domain={[0, distMax]} tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <YAxis dataKey="category" type="category" tick={{ fontSize: 11 }} width={72} />
+                  <Tooltip formatter={v => `${v.toLocaleString()}건`} />
+                  <Bar dataKey="before" radius={[0, 4, 4, 0]}>
+                    {data.category_dist.map((c, i) => <Cell key={i} fill={categoryColor(c.category, i)} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={styles.chartBox}>
+              <h4 style={styles.chartTitle}>변경 후</h4>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={data.category_dist} layout="vertical" margin={{ left: 20, right: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" domain={[0, distMax]} tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <YAxis dataKey="category" type="category" tick={{ fontSize: 11 }} width={72} />
+                  <Tooltip formatter={v => `${v.toLocaleString()}건`} />
+                  <Bar dataKey="after" radius={[0, 4, 4, 0]}>
+                    {data.category_dist.map((c, i) => <Cell key={i} fill={categoryColor(c.category, i)} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
       {data.by_category.length > 0 && (
         <div style={styles.section}>
           <h3 style={styles.subheading}>변경 후 카테고리별 분포</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {data.by_category.map((c, i) => (
-              <span key={i} style={{ ...styles.chip, background: COLORS[i % COLORS.length] + '20', color: COLORS[i % COLORS.length], border: `1px solid ${COLORS[i % COLORS.length]}40` }}>
+              <span key={i} style={{ ...styles.chip, background: categoryColor(c.category, i) + '20', color: categoryColor(c.category, i), border: `1px solid ${categoryColor(c.category, i)}40` }}>
                 {c.category} <strong>({c.count})</strong>
               </span>
             ))}
@@ -174,6 +217,9 @@ const styles = {
   statLabel: { fontSize: 13, color: '#888' },
   viewHint: { fontSize: 11, color: '#6c63ff', marginTop: 6 },
   section: { background: '#fff', borderRadius: 12, padding: 24, marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,.06)' },
+  charts: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 },
+  chartBox: { background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,.06)' },
+  chartTitle: { fontSize: 14, fontWeight: 600, color: '#555', marginTop: 0, marginBottom: 12, textAlign: 'center' },
   chip: { padding: '4px 10px', borderRadius: 20, fontSize: 13 },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 14 },
   thead: { background: '#f8f9fa', textAlign: 'left' },

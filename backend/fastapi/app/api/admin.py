@@ -842,6 +842,36 @@ async def category_overrides():
             """)
             by_category = [{"category": r[0], "count": r[1]} for r in await cur.fetchall()]
 
+            # 카테고리 분포 (변경 전/후 비교, payment_out=0 입금내역 제외)
+            #   변경 후 = 현재 payment_category_id 기준
+            #   변경 전 = payment_ct_update=1 인 거래는 원래 기타/NULL 이었다고 보고 '기타'로 간주
+            await cur.execute("""
+                SELECT cm.category_name, COUNT(*)
+                FROM transactions t
+                JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+                WHERE t.payment_out > 0
+                GROUP BY cm.payment_category_id, cm.category_name
+            """)
+            after_map = {r[0]: r[1] for r in await cur.fetchall()}
+
+            await cur.execute("""
+                SELECT CASE WHEN t.payment_ct_update = 1 THEN '기타'
+                            ELSE cm.category_name END AS cat,
+                       COUNT(*)
+                FROM transactions t
+                JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+                WHERE t.payment_out > 0
+                GROUP BY cat
+            """)
+            before_map = {r[0]: r[1] for r in await cur.fetchall()}
+
+            _cats = sorted(set(after_map) | set(before_map),
+                           key=lambda c: after_map.get(c, 0), reverse=True)
+            category_dist = [
+                {"category": c, "before": before_map.get(c, 0), "after": after_map.get(c, 0)}
+                for c in _cats
+            ]
+
             # 전체 변경 건수 (= 보정 전 대비 줄어든 건수)
             await cur.execute("SELECT COUNT(*) FROM transactions WHERE payment_ct_update = 1")
             total = (await cur.fetchone())[0]
@@ -936,6 +966,7 @@ async def category_overrides():
         "before_count": before_count,
         "after_count": after_count,
         "by_category": by_category,
+        "category_dist": category_dist,
         "items": items,
         "remaining_items": remaining_items,
     }
