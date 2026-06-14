@@ -66,13 +66,10 @@ export default function CameraPage() {
   const [previewUrl, setPreviewUrl] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingStep, setLoadingStep] = useState('')
-  // 고친 것
-  const groupsFromState = location.state?.myGroups ?? []  // ← 먼저 선언
+  const groupsFromState = location.state?.myGroups ?? []
   const [rooms, setRooms] = useState(
     groupsFromState.map(g => ({ id: g.groupId, label: g.groupName }))
   )
-  // VLM 분석 상태 — 사진 선택 즉시 백그라운드 분석
-
   const [vlmData, setVlmData] = useState(null)
   const [vlmLoading, setVlmLoading] = useState(false)
   const [gpsCoords, setGpsCoords] = useState(null)
@@ -81,12 +78,11 @@ export default function CameraPage() {
   const vlmPromiseRef = useRef(null)
   const fileInputRef = useRef(null)
   const albumInputRef = useRef(null)
+  const originalFileRef = useRef(null)  // ← 원본 파일 저장용
+  const hasUploaded = useRef(false)
 
- // 홈에서 group 정보 못 받아왔을때 groups api 호출해서 방 정보 가져오기
   useEffect(() => {
-    if (groupsFromState.length > 0) return  // 이미 있으면 스킵
-    
-    // 없을 때만 API 호출
+    if (groupsFromState.length > 0) return
     const token = localStorage.getItem('token')
     fetch('/api/groups', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
@@ -94,7 +90,6 @@ export default function CameraPage() {
       .catch(() => {})
   }, [])
 
-   // 컴포넌트 마운트 시 실제 기기 GPS 위치 요청
   useEffect(() => {
     if (!navigator.geolocation) {
       setGpsError('이 기기는 위치 정보를 지원하지 않아요. 기본 위치로 대체합니다.')
@@ -118,6 +113,7 @@ export default function CameraPage() {
       { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
     )
   }, [])
+
   const toggleRoom = (roomId) => {
     setSelectedRooms((prev) =>
       prev.includes(roomId) ? prev.filter((id) => id !== roomId) : [...prev, roomId]
@@ -153,6 +149,8 @@ export default function CameraPage() {
     const file = e.target.files[0]
     if (!file) return
 
+    originalFileRef.current = file  // ← 원본 저장 (EXIF 추출용)
+
     const exifData = await exifr.parse(file, ['Orientation']).catch(() => null)
     const orientation = exifData?.Orientation ?? 1
 
@@ -183,25 +181,23 @@ export default function CameraPage() {
     }
   }
 
-  const hasUploaded = useRef(false) 
-
- const handleNext = async () => {
-  if (hasUploaded.current) return  // 추가 : 중복 업로드 방지
-  hasUploaded.current = true  // 추가
+  const handleNext = async () => {
+    if (hasUploaded.current) return
+    hasUploaded.current = true
 
     if (selectedRooms.length === 0 || !imageFile) return
 
     setIsLoading(true)
     try {
       const token = localStorage.getItem("token")
-
       setLoadingStep('upload')
 
-      // EXIF에서 촬영 시각 추출 — 여러 태그를 순서대로 탐색
+      // EXIF는 원본 파일에서 추출 — resized 파일은 EXIF 없음
       let takenAt = null
       try {
-        const exif = await exifr.parse(imageFile)
-        console.log("🔍 파일에서 찾아낸 전체 EXIF 데이터:", exif)
+        const sourceFile = originalFileRef.current ?? imageFile
+        const exif = await exifr.parse(sourceFile)
+        console.log("🔍 원본 파일 EXIF 데이터:", exif)
         if (exif) {
           const extractedDate = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate
           if (extractedDate) {
@@ -216,7 +212,6 @@ export default function CameraPage() {
       const formData = new FormData()
       formData.append('image', imageFile)
       formData.append('takenAt', takenAt ?? new Date().toISOString())
-      // 실제 GPS 좌표 사용 — GPS 실패 시 서울시청 폴백 좌표 사용
       formData.append('latitude', String(gpsCoords?.latitude ?? 37.5665))
       formData.append('longitude', String(gpsCoords?.longitude ?? 126.9780))
       if (text) formData.append('text', text)
@@ -232,7 +227,6 @@ export default function CameraPage() {
       if (!res.ok) throw new Error('업로드 실패')
       const result = await res.json()
 
-      // ② VLM 결과 저장 (매핑은 일기 생성 시점으로 지연)
       let finalVlmData = vlmData
       if (vlmLoading && vlmPromiseRef.current) {
         setLoadingStep('analyze')
@@ -307,7 +301,7 @@ export default function CameraPage() {
             border: previewUrl ? '0' : '1.5px solid #DCEBFF',
             boxShadow: previewUrl
               ? 'none'
-              : '0 8px 22px rgba(31, 122, 224, 0.08)',
+              : '0 8px 22px rgba(31, 122, 244, 0.08)',
           }}
         >
           {previewUrl ? (
@@ -397,39 +391,39 @@ export default function CameraPage() {
         {(vlmLoading || vlmData) && (
           <div className="mt-2">
             <div className="relative">
-          <div
-            className="rounded-2xl bg-[#F0F7FF] border border-sky-100 px-4 pt-2 pb-3 overflow-hidden"
-            style={{
-              maxHeight: vlmLoading ? '44px' : '400px',
-              transition: 'max-height 0.5s ease-out',
-            }}
-          >
-            {vlmLoading && (
-              <div className="flex items-center gap-2.5 text-sky-500 pl-2">
-                <span className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin shrink-0" />
-                <span className="text-[12px] font-medium translate-y-px">AI가 사진 분석 중...</span>
-              </div>
-            )}
-            {vlmData && (
-              <>
-                <p className="text-[11px] font-bold text-sky-600 mb-2 mt-1">🤖 AI가 분석한 소비 항목</p>
-                {vlmData.groups && vlmData.groups.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {(() => {
-                      const counts = vlmData.groups.flatMap(g => g.items)
-                        .reduce((acc, item) => { acc[item] = (acc[item] || 0) + 1; return acc }, {})
-                      return Object.entries(counts).map(([item, count], i) => (
-                        <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-sky-100 text-[#0073BC] font-semibold">
-                          {item}{count > 1 ? `×${count}` : ''}
-                        </span>
-                      ))
-                    })()}
+              <div
+                className="rounded-2xl bg-[#F0F7FF] border border-sky-100 px-4 pt-2 pb-3 overflow-hidden"
+                style={{
+                  maxHeight: vlmLoading ? '44px' : '400px',
+                  transition: 'max-height 0.5s ease-out',
+                }}
+              >
+                {vlmLoading && (
+                  <div className="flex items-center gap-2.5 text-sky-500 pl-2">
+                    <span className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                    <span className="text-[12px] font-medium translate-y-px">AI가 사진 분석 중...</span>
                   </div>
                 )}
-              </>
-            )}
-          </div>
-          </div>
+                {vlmData && (
+                  <>
+                    <p className="text-[11px] font-bold text-sky-600 mb-2 mt-1">🤖 AI가 분석한 소비 항목</p>
+                    {vlmData.groups && vlmData.groups.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {(() => {
+                          const counts = vlmData.groups.flatMap(g => g.items)
+                            .reduce((acc, item) => { acc[item] = (acc[item] || 0) + 1; return acc }, {})
+                          return Object.entries(counts).map(([item, count], i) => (
+                            <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-sky-100 text-[#0073BC] font-semibold">
+                              {item}{count > 1 ? `×${count}` : ''}
+                            </span>
+                          ))
+                        })()}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -468,7 +462,7 @@ export default function CameraPage() {
           </ul>
         </section>
 
-       <section className="text-left">
+        <section className="text-left">
           <p className="text-[15px] font-bold text-gray-900 mb-3">모임 선택</p>
           <ul className="flex gap-3 overflow-x-auto list-none p-0 m-0 pb-1">
             {rooms.length === 0 ? (
