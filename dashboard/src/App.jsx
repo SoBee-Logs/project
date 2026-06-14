@@ -4,6 +4,7 @@ import AvatarGallery from './components/AvatarGallery.jsx'
 import UserDataStats from './components/UserDataStats.jsx'
 import DiaryMapping from './components/DiaryMapping.jsx'
 import VlmStats from './components/VlmStats.jsx'
+import CategoryOverrides from './components/CategoryOverrides.jsx'
 import Lifecycle from './components/Lifecycle.jsx'
 import PromptManager from './components/PromptManager.jsx'
 import SystemHealth from './components/SystemHealth.jsx'
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'user-data', label: '사용자 데이터' },
   { id: 'diary', label: '사진·일기 매핑' },
   { id: 'vlm', label: 'VLM 분석' },
+  { id: 'category-overrides', label: '카테고리 보정' },
   { id: 'lifecycle', label: '생애주기' },
   { id: 'prompts', label: '프롬프트 관리' },
   { id: 'health', label: '🩺 시스템' },
@@ -54,6 +56,7 @@ export default function App() {
         {tab === 'user-data' && <UserDataStats />}
         {tab === 'diary' && <DiaryMapping />}
         {tab === 'vlm' && <VlmStats />}
+        {tab === 'category-overrides' && <CategoryOverrides />}
         {tab === 'lifecycle' && <Lifecycle />}
 
         {tab === 'prompts' && <PromptManager />}
