@@ -106,10 +106,15 @@ public class PhotoService {
 
         String imageUrl = s3Uploader.upload(request.getImage());
 
+        LocalDateTime createdAt = (request.getSelectedDate() != null && !request.getSelectedDate().isBlank())
+                ? LocalDate.parse(request.getSelectedDate()).atTime(LocalTime.NOON)
+                : null; // null이면 @PrePersist에서 현재 KST 시각으로 자동 설정
+
         Photo photo = Photo.builder()
                 .userId(userId)
                 .imageUrl(imageUrl)
                 .fileName(request.getImage().getOriginalFilename())
+                .createdAt(createdAt)
                 .build();
         photoRepository.save(photo);
 

@@ -33,6 +33,7 @@ export default function DiaryResult() {
 
   const diariesFromState = location.state?.diaries ?? []
   const selectedRooms = diariesFromState.map((d) => d.roomId)
+  const selectedDate = location.state?.selectedDate ?? null
 
   const [roomIndex, setRoomIndex] = useState(0)
   const [diaries, setDiaries] = useState(diariesFromState)
@@ -148,6 +149,7 @@ export default function DiaryResult() {
             groupId: d.roomId,
             diaryContent: diaryContent,
             photoIds: d.photoIds ?? [],
+            diaryDate: selectedDate,
           }),
         })
       } catch {

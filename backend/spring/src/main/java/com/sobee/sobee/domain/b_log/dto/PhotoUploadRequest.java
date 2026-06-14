@@ -13,6 +13,7 @@ public class PhotoUploadRequest {
 
     private MultipartFile image;
     private String takenAt;
+    private String selectedDate; // yyyy-MM-dd, ConsumptionLog에서 선택한 날짜 (있으면 takenAt의 날짜를 override)
     private Double latitude;
     private Double longitude;
     private String text;

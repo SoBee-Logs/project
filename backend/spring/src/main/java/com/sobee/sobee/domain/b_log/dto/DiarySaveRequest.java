@@ -15,4 +15,5 @@ public class DiarySaveRequest {
     private Long groupId;           // 저장할 일기의 모임방 ID
     private String diaryContent;    // JSON 직렬화된 일기 내용 ({"title":"...","subtitle":"...","lines":[...]})
     private List<Long> photoIds;    // diary_photos 테이블에 연결할 사진 ID 목록
+    private String diaryDate;       // yyyy-MM-dd, 선택한 날짜 (있으면 createdAt override)
 }

@@ -18,6 +18,7 @@ export default function LoadingPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const imageUrl = location.state?.imageUrl ?? null
+  const selectedDate = location.state?.selectedDate ?? getTodayKST()  // ← 컴포넌트 안으로
   const selectedRooms =
     location.state?.selectedRooms?.length > 0
       ? location.state.selectedRooms
@@ -30,19 +31,18 @@ export default function LoadingPage() {
   const [userPhotos, setUserPhotos] = useState(imageUrl ? [imageUrl] : [])
   const [userEmojis, setUserEmojis] = useState(mood ? [mood] : [])
   const [personaImage, setPersonaImage] = useState(CURRENT_USER.personaImage)
-  const hasRun = useRef(false) // 추가: StrictMode 중복 실행 방지
+  const hasRun = useRef(false)
 
   useEffect(() => {
     const fetchUserPhotos = async () => {
       try {
         const token = localStorage.getItem('token')
-        const today = getTodayKST()
         const decoded = JSON.parse(atob(token.split('.')[1]))
         const userId = decoded.sub
 
         const [avatarRes, photosRes] = await Promise.all([
           fetch(`/api/avatar/${userId}`, { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`/api/photos?date=${today}`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`/api/photos?date=${selectedDate}`, { headers: { Authorization: `Bearer ${token}` } }),
         ])
 
         if (avatarRes.ok) {
@@ -66,7 +66,6 @@ export default function LoadingPage() {
   }, [])
 
   useEffect(() => {
-    // 추가: StrictMode 두 번째 실행 막기
     if (hasRun.current) return
     hasRun.current = true
 
@@ -76,11 +75,10 @@ export default function LoadingPage() {
 
     const runPipeline = async () => {
       const token = localStorage.getItem('token')
-      const today = getTodayKST()
-    
+
       let roomIds = selectedRooms
       let roomMap = {}
-    
+
       if (roomIds.length === 0) {
         try {
           const res = await fetch('/api/groups', {
@@ -103,11 +101,11 @@ export default function LoadingPage() {
           }
         } catch {}
       }
-    
-      // 오늘 사진이 있는 그룹만 필터링
+
+      // 선택한 날짜 사진이 있는 그룹만 필터링
       let photoList = []
       try {
-        const photosRes = await fetch(`/api/photos?date=${today}`, {
+        const photosRes = await fetch(`/api/photos?date=${selectedDate}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (photosRes.ok) {
@@ -119,17 +117,15 @@ export default function LoadingPage() {
           roomIds = roomIds.filter((id) => photoGroups.has(Number(id)))
         }
       } catch {}
-    
-      // 1. sync — 최신 결제 내역 업데이트
-      try {
-        await fetch('/api/diary/sync', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      } catch {
-        // sync 실패해도 계속 진행
-      }
-    
+
+      // // 1. sync — 최신 결제 내역 업데이트
+      // try {
+      //   await fetch('/api/diary/sync', {
+      //     method: 'POST',
+      //     headers: { Authorization: `Bearer ${token}` },
+      //   })
+      // } catch {}
+
       // 2. mapping — 미매핑 사진 매핑
       try {
         const unmappedPhotos = photoList.filter((p) => !p.mapped)
@@ -142,7 +138,7 @@ export default function LoadingPage() {
           )
         )
       } catch {}
-    
+
       // 3. generate — 일기 생성 (병렬)
       const diaries = (await Promise.all(
         roomIds.map(async (roomId) => {
@@ -155,7 +151,7 @@ export default function LoadingPage() {
               },
               body: JSON.stringify({
                 groupId: roomId,
-                date:    today,
+                date:    selectedDate,
                 mood:    mood,
               }),
             })
@@ -177,11 +173,11 @@ export default function LoadingPage() {
           return null
         })
       )).filter(Boolean)
-    
+
       clearInterval(messageTimer)
       navigate('/diary-result', {
         replace: true,
-        state: { diaries, selectedRooms: roomIds, roomIndex: 0 },
+        state: { diaries, selectedRooms: roomIds, roomIndex: 0, selectedDate },
       })
     }
 

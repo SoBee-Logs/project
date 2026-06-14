@@ -78,9 +78,11 @@ export default function CameraPage() {
   const [gpsCoords, setGpsCoords] = useState(null)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [gpsError, setGpsError] = useState(null)
+  const selectedDateFromState = location.state?.selectedDate ?? null
   const vlmPromiseRef = useRef(null)
   const fileInputRef = useRef(null)
   const albumInputRef = useRef(null)
+  const originalFileRef = useRef(null)
 
  // 홈에서 group 정보 못 받아왔을때 groups api 호출해서 방 정보 가져오기
   useEffect(() => {
@@ -153,6 +155,8 @@ export default function CameraPage() {
     const file = e.target.files[0]
     if (!file) return
 
+    originalFileRef.current = file
+
     const exifData = await exifr.parse(file, ['Orientation']).catch(() => null)
     const orientation = exifData?.Orientation ?? 1
 
@@ -197,16 +201,15 @@ export default function CameraPage() {
 
       setLoadingStep('upload')
 
-      // EXIF에서 촬영 시각 추출 — 여러 태그를 순서대로 탐색
+      // EXIF는 원본 파일에서 추출 (리사이즈 후엔 EXIF 소실)
       let takenAt = null
       try {
-        const exif = await exifr.parse(imageFile)
-        console.log("🔍 파일에서 찾아낸 전체 EXIF 데이터:", exif)
+        const sourceFile = originalFileRef.current ?? imageFile
+        const exif = await exifr.parse(sourceFile)
         if (exif) {
           const extractedDate = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate
           if (extractedDate) {
             takenAt = new Date(extractedDate).toISOString()
-            console.log("✅ 최종 결정된 촬영 시간:", takenAt)
           }
         }
       } catch (error) {
@@ -216,6 +219,7 @@ export default function CameraPage() {
       const formData = new FormData()
       formData.append('image', imageFile)
       formData.append('takenAt', takenAt ?? new Date().toISOString())
+      if (selectedDateFromState) formData.append('selectedDate', selectedDateFromState)
       // 실제 GPS 좌표 사용 — GPS 실패 시 서울시청 폴백 좌표 사용
       formData.append('latitude', String(gpsCoords?.latitude ?? 37.5665))
       formData.append('longitude', String(gpsCoords?.longitude ?? 126.9780))

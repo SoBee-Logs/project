@@ -22,7 +22,7 @@ export default function ConsumptionLog() {
   const [isLoading, setIsLoading] = useState(true)
   const [showCalendar, setShowCalendar] = useState(false)
   const [openGroupPhotoId, setOpenGroupPhotoId] = useState(null)
-  const [selectedDate, setSelectedDate] = useState(toLocalDateStr(new Date()))
+  const [selectedDate, setSelectedDate] = useState(location.state?.selectedDate ?? toLocalDateStr(new Date()))
   const [tempDate, setTempDate] = useState(new Date())
   const [joinedAt, setJoinedAt] = useState(null)
   const isToday = selectedDate === toLocalDateStr(new Date())
@@ -124,6 +124,7 @@ export default function ConsumptionLog() {
       state: {
         ...location.state,
         selectedRooms,
+        selectedDate, 
       },
     })
   }
@@ -242,7 +243,7 @@ export default function ConsumptionLog() {
               onChange={handleDateChange}
               value={tempDate}
               maxDate={new Date()}
-              minDate={joinedAt ?? undefined}
+              
               locale="ko-KR"
               calendarType="gregory"
               formatDay={(locale, date) => date.getDate()}
@@ -779,7 +780,7 @@ export default function ConsumptionLog() {
       <div className="fixed bottom-[100px] left-1/2 -translate-x-1/2 w-full max-w-[375px] px-5 flex justify-end pointer-events-none z-20">
         <button
           type="button"
-          onClick={() => navigate('/camera', { state: { myGroups } })}
+          onClick={() => navigate('/camera', { state: { myGroups, selectedDate } })}
           className="rounded-full flex items-center justify-center pointer-events-auto active:scale-95 transition-transform border"
           style={{ width: '52px', height: '52px', background: '#EBF5FF', borderColor: '#C3DCFF', color: '#2F7DF6', boxShadow: '0 10px 28px rgba(47, 125, 246, 0.18)' }}
           aria-label="사진 추가"

@@ -11,7 +11,8 @@ import java.util.List;
 
 public interface PhotoRepository extends JpaRepository<Photo, Long> {
 
-    @Query("SELECT p FROM Photo p WHERE p.userId = :userId " +
+    @Query("SELECT p FROM Photo p " +
+            "WHERE p.userId = :userId " +
             "AND p.createdAt >= :startOfDay AND p.createdAt < :endOfDay")
     List<Photo> findByUserIdAndDate(
             @Param("userId") Long userId,

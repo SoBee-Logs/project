@@ -41,6 +41,7 @@ public class PhotoController {
             @RequestHeader("Authorization") String authHeader,
             @RequestPart("image") MultipartFile image,
             @RequestPart("takenAt") String takenAt,
+            @RequestPart(value = "selectedDate", required = false) String selectedDate,
             @RequestPart("latitude") String latitude,
             @RequestPart("longitude") String longitude,
             @RequestPart(value = "text", required = false) String text,
@@ -64,6 +65,7 @@ public class PhotoController {
         PhotoUploadRequest request = PhotoUploadRequest.builder()
                 .image(image)
                 .takenAt(takenAt)
+                .selectedDate(selectedDate)
                 .latitude(Double.valueOf(latitude))
                 .longitude(Double.valueOf(longitude))
                 .text(text)

@@ -6,9 +6,9 @@ from typing import List, Optional
 from app.core.config import settings
 from app.core.prompt_store import register, get_prompt
 from langsmith import traceable, get_current_run_tree
-from datetime import datetime, timedelta
-from langsmith.wrappers import wrap_openai
-from openai import OpenAI  # AsyncOpenAI → OpenAI로 변경
+from datetime import datetime
+from google import genai
+from google.genai import types
 
 router = APIRouter()
 
@@ -39,8 +39,6 @@ class MappingResponse(BaseModel):
     group_id: Optional[int] = None
     payment_id: Optional[int] = None
     reason: Optional[str] = None
-
-from app.core.prompt_store import register, get_prompt
 
 GROUP_MAPPING_PROMPT = """너는 소비 사진의 특정 그룹과 결제 내역을 매핑하는 AI야.
 
@@ -80,8 +78,10 @@ GROUP_MAPPING_PROMPT = """너는 소비 사진의 특정 그룹과 결제 내역
 후보 목록에 표시된 시간 차이 값을 그대로 읽어. 절대 직접 계산하지 말 것.
 - 30분 이내: 강하게 우선 고려
 - 30분~2시간: 카테고리 또는 위치가 일치할 때만 고려
-- 2시간 초과: 시간은 참고만 하고 위치·카테고리·품목 일치 여부를 주요 판단 기준으로 삼을 것.
-  위치나 카테고리가 명확히 일치하지 않으면 null 반환.
+- 2시간 초과: 시간은 참고만 하고 아래 중 하나라도 해당하면 매핑해.
+  1) 카테고리가 일치하고 금액이 ±100% 범위 이내
+  2) 장소명이 품목/업종과 연관성이 있고 금액이 ±100% 범위 이내
+  3) 위 조건 모두 불일치 시 null 반환
 
 [매핑 판단 방법 - 간편결제가 아닌 경우에만 적용]
 
@@ -121,7 +121,7 @@ GROUP_MAPPING_PROMPT = """너는 소비 사진의 특정 그룹과 결제 내역
 위 기준을 종합해서 적합한 후보가 정말 없으면 null을 반환해.
 
 규칙:
-- 반드시 아래 JSON 형식으로만 응답해
+- 반드시 JSON 객체만 출력해. 설명 텍스트 없이.
 - payment_id는 반드시 아래 목록에 있는 값만 사용: {valid_ids}
 - 위 목록에 없는 숫자는 절대 사용하지 말 것
 
@@ -133,10 +133,10 @@ GROUP_MAPPING_PROMPT = """너는 소비 사진의 특정 그룹과 결제 내역
 register("group_mapping", GROUP_MAPPING_PROMPT)
 
 
-def _get_client():
-    if not settings.OPENAI_API_KEY:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY가 설정되지 않았습니다.")
-    return wrap_openai(OpenAI(api_key=settings.OPENAI_API_KEY))
+def _get_client() -> genai.Client:
+    if not settings.GEMINI_API_KEY:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY가 설정되지 않았습니다.")
+    return genai.Client(api_key=settings.GEMINI_API_KEY)
 
 
 def _time_diff_str(taken_at_kst: str, payment_time: Optional[str]) -> str:
@@ -205,15 +205,27 @@ def match_photo_to_transaction(req: MappingRequest):
         )
 
         try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-                temperature=0.1,
-                max_tokens=200,
-                langsmith_extra={"run_tree": get_current_run_tree()},
+            response = client.models.generate_content(
+                model="gemini-3.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.1,
+                    max_output_tokens=3000,
+                    response_mime_type="application/json",
+                    system_instruction="You must respond with valid JSON only. No explanation, no markdown, no text before or after the JSON object.",
+                ),
             )
-            content = response.choices[0].message.content
+            content = response.text.strip() if response.text else ""
+            print(f"[Gemini 응답 원문] {repr(content)}")  # ← 추가
+            content = response.text.strip()
+
+            # 백틱 감싸진 경우 제거
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+                content = content.strip()
+
             data = json.loads(content)
             payment_id = data.get("payment_id")
             reason = data.get("reason")

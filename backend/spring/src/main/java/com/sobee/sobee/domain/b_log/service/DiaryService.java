@@ -23,6 +23,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -224,10 +225,15 @@ public class DiaryService {
     @Transactional
     public void saveDiary(DiarySaveRequest req, Long userId) {
 
+        LocalDateTime diaryCreatedAt = (req.getDiaryDate() != null && !req.getDiaryDate().isBlank())
+                ? LocalDate.parse(req.getDiaryDate()).atTime(LocalTime.NOON)
+                : null;
+
         Diary diary = Diary.builder()
                 .userId(userId)
                 .groupId(req.getGroupId())
                 .diaryContent(req.getDiaryContent())
+                .createdAt(diaryCreatedAt)
                 .build();
         diaryRepository.save(diary);
 
