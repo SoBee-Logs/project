@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, CartesianGrid } from 'recharts'
 import { useFetch } from '../hooks/useFetch'
 import { ErrorBox } from './common/StatusViews'
@@ -11,7 +11,7 @@ const fmt = v => v >= 10000 ? `${(v / 10000).toFixed(0)}만` : v.toLocaleString(
 
 // ── VLM 카테고리 드릴다운 ──────────────────────────────────────────────────
 function VlmCategoryDetail({ category, onClose }) {
-  const { data, error, loading } = useFetch(`/admin/vlm-category/${encodeURIComponent(category)}`)
+  const { data, error, loading } = useFetch(`/admin/vlm-category?category=${encodeURIComponent(category)}`)
   return (
     <DrillDownModal title={`VLM 카테고리: ${category}`} onClose={onClose} width={720}>
       {loading && <p style={{ color: '#888' }}>불러오는 중...</p>}
@@ -228,6 +228,124 @@ function downloadSpendingCsv(categories) {
   URL.revokeObjectURL(url)
 }
 
+// ── 카테고리별 사진 갤러리 ────────────────────────────────────────────────
+function PhotoCard({ p, activeCategory, categories, onCategoryChange }) {
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [currentCategory, setCurrentCategory] = useState(activeCategory)
+
+  const handleChange = async (newCategory) => {
+    setSaving(true)
+    try {
+      await fetch(`/admin/vlm-photo/${p.photo_id}/category`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: newCategory }),
+      })
+      setCurrentCategory(newCategory)
+      onCategoryChange(p.photo_id, newCategory)
+    } finally {
+      setSaving(false)
+      setEditing(false)
+    }
+  }
+
+  return (
+    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #f0f0f0', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
+      {p.url ? (
+        <img src={p.url} alt="" style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }}
+          onError={e => { e.target.style.display = 'none' }} />
+      ) : (
+        <div style={{ height: 110, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>📷</div>
+      )}
+      <div style={{ padding: '8px 10px' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#333', marginBottom: 2 }}>{p.item || '-'}</div>
+        <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>{p.user}</div>
+        {p.price_estimate && (
+          <div style={{ fontSize: 11, color: '#6c63ff', fontWeight: 600, marginBottom: 4 }}>{Number(p.price_estimate).toLocaleString()}원</div>
+        )}
+        {editing ? (
+          <select
+            autoFocus
+            defaultValue={currentCategory}
+            disabled={saving}
+            onChange={e => handleChange(e.target.value)}
+            onBlur={() => setEditing(false)}
+            style={{ width: '100%', fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid #6c63ff' }}
+          >
+            {categories.map(c => (
+              <option key={c.category} value={c.category}>{c.category}</option>
+            ))}
+          </select>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+            <span style={{ fontSize: 11, color: '#6c63ff', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {currentCategory || '-'}
+            </span>
+            <button onClick={() => setEditing(true)} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, border: '1px solid #ddd', background: '#f8f9fa', cursor: 'pointer', color: '#666', flexShrink: 0 }}>
+              수정
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CategoryPhotoGallery({ categories }) {
+  const [activeCategory, setActiveCategory] = useState(categories[0]?.category || null)
+  const [photos, setPhotos] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!activeCategory) return
+    setLoading(true)
+    setPhotos(null)
+    setError(null)
+    fetch(`/admin/vlm-category?category=${encodeURIComponent(activeCategory)}`)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then(d => setPhotos(d.photos))
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [activeCategory])
+
+  const handleCategoryChange = (photoId, newCategory) => {
+    setPhotos(prev => prev?.filter(p => p.photo_id !== photoId) ?? prev)
+  }
+
+  return (
+    <div style={styles.chartBox}>
+      <h3 style={{ ...styles.subheading, marginBottom: 16 }}>카테고리별 사진 갤러리</h3>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+        {categories.map((c, i) => (
+          <button key={c.category} onClick={() => setActiveCategory(c.category)} style={{
+            padding: '5px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontWeight: 600,
+            border: `2px solid ${COLORS[i % COLORS.length]}`,
+            background: activeCategory === c.category ? COLORS[i % COLORS.length] : 'transparent',
+            color: activeCategory === c.category ? '#fff' : COLORS[i % COLORS.length],
+            transition: 'all .15s',
+          }}>
+            {c.category} <span style={{ opacity: 0.8 }}>({c.count})</span>
+          </button>
+        ))}
+      </div>
+
+      {loading && <p style={{ color: '#aaa', textAlign: 'center', padding: 24 }}>불러오는 중...</p>}
+      {error && <p style={{ color: '#e53e3e' }}>{error}</p>}
+
+      {photos && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+          {photos.length === 0 && <p style={{ color: '#aaa', fontSize: 13 }}>사진 없음</p>}
+          {photos.map(p => (
+            <PhotoCard key={p.photo_id} p={p} activeCategory={activeCategory} categories={categories} onCategoryChange={handleCategoryChange} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── 메인 컴포넌트 ──────────────────────────────────────────────────────────
 function WeekItems({ weekItems }) {
   const months = [...new Set(Object.keys(weekItems).map(k => k.slice(0, 7)))].sort()
@@ -238,7 +356,7 @@ function WeekItems({ weekItems }) {
   return (
     <div style={styles.chartBox}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h3 style={{ ...styles.subheading, margin: 0 }}>주차별 자주 등장한 품목</h3>
+        <h3 style={{ ...styles.subheading, margin: 0 }}>주차별 소비 트렌드</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={() => setMonthIdx(i => i - 1)} disabled={monthIdx === 0}
             style={navBtn(monthIdx === 0)}>{'<'}</button>
@@ -318,7 +436,7 @@ export default function VlmStats() {
       <div style={styles.charts}>
         <div style={styles.chartBox}>
           <h3 style={styles.subheading}>
-            VLM 카테고리 분포
+            VLM 분석 카테고리 분포
             <span style={styles.clickHint}>· 막대 클릭 시 상세</span>
           </h3>
           <ResponsiveContainer width="100%" height={400}>
@@ -337,7 +455,7 @@ export default function VlmStats() {
         <div style={styles.chartBox}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
             <h3 style={styles.subheading}>
-              거래 카테고리
+              전체 소비 카테고리 분포
               <span style={styles.clickHint}>· 막대 클릭 시 상세</span>
             </h3>
             <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
@@ -364,7 +482,7 @@ export default function VlmStats() {
 
       <div style={{ ...styles.charts, marginTop: 16 }}>
         <div style={styles.chartBox}>
-          <h3 style={{ ...styles.subheading, marginBottom: 16 }}>나이대별 자주 등장한 품목</h3>
+          <h3 style={{ ...styles.subheading, marginBottom: 16 }}>연령대별 TOP 소비 품목</h3>
           <div style={styles.ageGrid}>
             {Object.keys(vlm.age_items).sort().map(age => (
               <div key={age} style={styles.ageCard}>
@@ -388,6 +506,12 @@ export default function VlmStats() {
         )}
       </div>
 
+
+      {vlm.categories?.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <CategoryPhotoGallery categories={vlm.categories} />
+        </div>
+      )}
 
       {selectedVlmCategory && (
         <VlmCategoryDetail category={selectedVlmCategory} onClose={() => setSelectedVlmCategory(null)} />
