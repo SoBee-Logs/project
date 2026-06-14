@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineCh
 import { useFetch } from '../hooks/useFetch'
 import { ErrorBox } from './common/StatusViews'
 import DrillDownModal from './common/DrillDownModal'
+import { categoryColor } from '../constants/categoryColors'
 
 const COLORS = ['#6c63ff','#f857a6','#0ea5e9','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#ef4444','#64748b','#f97316','#84cc16','#06b6d4','#a855f7','#d946ef']
 
@@ -445,7 +446,7 @@ export default function VlmStats() {
               <YAxis dataKey="category" type="category" tick={{ fontSize: 11 }} width={80} />
               <Tooltip />
               <Bar dataKey="count" radius={[0, 4, 4, 0]} cursor="pointer">
-                {vlm.categories.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                {vlm.categories.map((c, i) => <Cell key={i} fill={categoryColor(c.category, i)} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -472,7 +473,7 @@ export default function VlmStats() {
               <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={90} />
               <Tooltip formatter={v => spendingView === 'total' ? `${v.toLocaleString()}원` : `${v}건`} />
               <Bar dataKey={spendingView === 'count' ? '건수' : '금액'} radius={[0, 4, 4, 0]} cursor="pointer">
-                {catData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                {catData.map((c, i) => <Cell key={i} fill={categoryColor(c.name, i)} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>

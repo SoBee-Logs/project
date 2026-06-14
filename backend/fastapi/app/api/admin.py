@@ -842,7 +842,155 @@ async def vlm_unprocessed():
         for r in rows
     ]
 
+@router.get("/category-overrides")
+async def category_overrides():
+    """
+    기타/금융/미분류(NULL) 였다가 VLM 분석으로 다른 카테고리로 변경된 거래 목록.
+    payment_ct_update = 1 인 거래만 조회한다.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            # 변경된 카테고리별 건수 요약
+            await cur.execute("""
+                SELECT cm.category_name, COUNT(*) as cnt
+                FROM transactions t
+                JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+                WHERE t.payment_ct_update = 1
+                GROUP BY cm.payment_category_id, cm.category_name
+                ORDER BY cnt DESC
+            """)
+            by_category = [{"category": r[0], "count": r[1]} for r in await cur.fetchall()]
 
+            # 카테고리 분포 (변경 전/후 비교, payment_out=0 입금내역 제외)
+            #   변경 후 = 현재 payment_category_id 기준
+            #   변경 전 = payment_ct_update=1 인 거래는 원래 기타/NULL 이었다고 보고 '기타'로 간주
+            await cur.execute("""
+                SELECT cm.category_name, COUNT(*)
+                FROM transactions t
+                JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+                WHERE t.payment_out > 0
+                GROUP BY cm.payment_category_id, cm.category_name
+            """)
+            after_map = {r[0]: r[1] for r in await cur.fetchall()}
+
+            await cur.execute("""
+                SELECT CASE WHEN t.payment_ct_update = 1 THEN '기타'
+                            ELSE cm.category_name END AS cat,
+                       COUNT(*)
+                FROM transactions t
+                JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+                WHERE t.payment_out > 0
+                GROUP BY cat
+            """)
+            before_map = {r[0]: r[1] for r in await cur.fetchall()}
+
+            _cats = sorted(set(after_map) | set(before_map),
+                           key=lambda c: after_map.get(c, 0), reverse=True)
+            category_dist = [
+                {"category": c, "before": before_map.get(c, 0), "after": after_map.get(c, 0)}
+                for c in _cats
+            ]
+
+            # 전체 변경 건수 (= 보정 전 대비 줄어든 건수)
+            await cur.execute("SELECT COUNT(*) FROM transactions WHERE payment_ct_update = 1")
+            total = (await cur.fetchone())[0]
+
+            # 보정 후(현재) 기타/금융/미분류 건수 (payment_out=0 입금내역 제외)
+            await cur.execute("""
+                SELECT COUNT(*) FROM transactions
+                WHERE (payment_category_id IS NULL OR payment_category_id IN (13, 16))
+                  AND payment_out > 0
+            """)
+            after_count = (await cur.fetchone())[0]
+
+            # 보정 전 기타/금융/미분류 건수
+            #   = (현재 기타/금융/null 이면서 미변경) + (변경된 건 ct_update=1)
+            #   두 집합은 ct_update 0/1 로 나뉘어 겹치지 않으므로 단순 합산
+            await cur.execute("""
+                SELECT COUNT(*) FROM transactions
+                WHERE (payment_category_id IS NULL OR payment_category_id IN (13, 16))
+                  AND payment_ct_update = 0
+                  AND payment_out > 0
+            """)
+            untouched_count = (await cur.fetchone())[0]
+            before_count = untouched_count + total
+
+            # 변경 거래 상세 (최근 200건)
+            await cur.execute("""
+                SELECT t.payment_id, t.payment_place, t.payment_out, t.payment_date,
+                       u.name, cm.category_name,
+                       MAX(pvr.vlm_category) AS vlm_category,
+                       MAX(p.image_url) AS image_url
+                FROM transactions t
+                JOIN users u ON t.user_id = u.user_id
+                LEFT JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+                LEFT JOIN persona_transaction pt ON pt.payment_id = CONVERT(t.payment_id, CHAR)
+                LEFT JOIN photo_vlm_results pvr ON pt.vlm_id = pvr.vlm_id
+                LEFT JOIN photos p ON pt.photo_id = p.photo_id
+                WHERE t.payment_ct_update = 1
+                GROUP BY t.payment_id, t.payment_place, t.payment_out, t.payment_date,
+                         u.name, cm.category_name
+                ORDER BY t.payment_date DESC, t.payment_id DESC
+                LIMIT 200
+            """)
+            items = [
+                {
+                    "payment_id": r[0],
+                    "place": r[1],
+                    "amount": int(r[2]) if r[2] is not None else 0,
+                    "date": str(r[3]) if r[3] else None,
+                    "user": r[4],
+                    "new_category": r[5],
+                    "vlm_category": r[6],
+                    "image_url": r[7],
+                }
+                for r in await cur.fetchall()
+            ]
+
+            # 아직 기타/금융/미분류로 남아있는 거래 (최근 200건)
+            await cur.execute("""
+                SELECT t.payment_id, t.payment_place, t.payment_out, t.payment_date,
+                       u.name, cm.category_name,
+                       MAX(pvr.vlm_category) AS vlm_category,
+                       MAX(p.image_url) AS image_url
+                FROM transactions t
+                JOIN users u ON t.user_id = u.user_id
+                LEFT JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
+                LEFT JOIN persona_transaction pt ON pt.payment_id = CONVERT(t.payment_id, CHAR)
+                LEFT JOIN photo_vlm_results pvr ON pt.vlm_id = pvr.vlm_id
+                LEFT JOIN photos p ON pt.photo_id = p.photo_id
+                WHERE (t.payment_category_id IS NULL OR t.payment_category_id IN (13, 16))
+                  AND t.payment_out > 0
+                GROUP BY t.payment_id, t.payment_place, t.payment_out, t.payment_date,
+                         u.name, cm.category_name
+                ORDER BY t.payment_date DESC, t.payment_id DESC
+                LIMIT 200
+            """)
+            remaining_items = [
+                {
+                    "payment_id": r[0],
+                    "place": r[1],
+                    "amount": int(r[2]) if r[2] is not None else 0,
+                    "date": str(r[3]) if r[3] else None,
+                    "user": r[4],
+                    "current_category": r[5] or "미분류",
+                    "vlm_category": r[6],
+                    "image_url": r[7],
+                }
+                for r in await cur.fetchall()
+            ]
+
+    return {
+        "total": total,
+        "before_count": before_count,
+        "after_count": after_count,
+        "by_category": by_category,
+        "category_dist": category_dist,
+        "items": items,
+        "remaining_items": remaining_items,
+    }
+  
 async def _do_reprocess(photo_id: int):
     from app.api.vlm import analyze_image
     pool = await get_pool()

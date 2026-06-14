@@ -69,7 +69,7 @@ async def _get_unmapped_photos(conn, user_id: int, start_date: str, end_date: st
             JOIN photo_vlm_results pvr ON p.photo_id = pvr.photo_id
             WHERE p.user_id = %s
               AND DATE(pm.taken_at) BETWEEN %s AND %s
-              AND p.is_valid = TRUE
+              AND pvr.is_valid = TRUE
               AND pm.taken_at IS NOT NULL
               AND p.photo_id NOT IN (
                   SELECT photo_id FROM persona_transaction WHERE user_id = %s
