@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from 'recharts'
 import { useFetch } from '../hooks/useFetch'
 import { CardSkeleton, ErrorBox } from './common/StatusViews'
@@ -20,7 +20,7 @@ const LINES = [
 ]
 
 export default function Overview() {
-  const { data, error, loading, reload } = useFetch('/admin/overview')
+  const { data, error, loading, reload } = useFetch('/admin/overview', 30000)
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const [activeLines, setActiveLines] = useState(new Set(LINES.map(l => l.key)))
 
@@ -33,8 +33,7 @@ export default function Overview() {
     })
   }
 
-  const handleReload = () => { reload(); onRefresh?.(new Date()) }
-  if (onReloadRef) onReloadRef.current = handleReload
+  const handleReload = () => { reload(); setLastRefresh(new Date()) }
 
   if (error) return <ErrorBox message={error} onRetry={handleReload} />
 
@@ -57,10 +56,7 @@ export default function Overview() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <h2 style={styles.heading}>전체 현황</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 12, color: '#aaa' }}>마지막: {lastRefresh.toLocaleTimeString()}</span>
-          <button onClick={handleReload} style={styles.refreshBtn}>↻ 새로고침</button>
-        </div>
+        <span style={{ fontSize: 12, color: '#aaa' }}>30초마다 자동갱신 · 마지막: {lastRefresh.toLocaleTimeString()}</span>
       </div>
 
       <div style={styles.grid}>
