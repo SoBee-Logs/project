@@ -562,11 +562,12 @@ async def lifecycle_stage_detail(stage: str):
 
             # 이 그룹의 소비 카테고리 top 5
             await cur.execute(f"""
-                SELECT t.payment_category, COUNT(*) as cnt, SUM(t.payment_out) as total
+                SELECT cm.category_name, COUNT(*) as cnt, SUM(t.payment_out) as total
                 FROM transactions t
                 JOIN users u ON t.user_id = u.user_id
+                JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
                 WHERE {condition} AND t.payment_out > 0
-                GROUP BY t.payment_category ORDER BY total DESC LIMIT 5
+                GROUP BY cm.category_name ORDER BY total DESC LIMIT 5
             """, params)
             top_cats = [{"category": r[0], "count": r[1], "total": int(r[2])} for r in await cur.fetchall()]
 

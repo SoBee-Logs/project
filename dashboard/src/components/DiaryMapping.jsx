@@ -113,16 +113,23 @@ export default function DiaryMapping() {
 
         <div style={{ ...styles.chartBox, flex: 2 }}>
           <h3 style={styles.subheading}>사진 분류 비율</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} dataKey="value"
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart margin={{ top: 50, bottom: 40, left: 10, right: 10 }}>
+              <Pie data={pieData} cx="50%" cy="58%" outerRadius={75} dataKey="value"
                 label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
                 {pieData.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
               </Pie>
               <Tooltip formatter={v => `${v}건`} />
-              <Legend />
             </PieChart>
           </ResponsiveContainer>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 16 }}>
+            {pieData.map((entry, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#555' }}>
+                <div style={{ width: 12, height: 12, borderRadius: 2, background: COLORS[i] }} />
+                {entry.name}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
