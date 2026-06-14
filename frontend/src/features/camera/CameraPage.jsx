@@ -38,6 +38,24 @@ async function correctOrientation(file, orientation) {
   })
 }
 
+async function resizeImage(file, maxWidth = 1024) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width)
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width * scale
+      canvas.height = img.height * scale
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(
+        (blob) => resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' })),
+        'image/jpeg', 0.85
+      )
+    }
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 export default function CameraPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -158,9 +176,10 @@ export default function CameraPage() {
       }
     } else {
       const corrected = await correctOrientation(file, orientation)
-      setImageFile(corrected)
-      setPreviewUrl(URL.createObjectURL(corrected))
-      runVlmAnalysis(corrected)
+      const resized = await resizeImage(corrected)
+      setImageFile(resized)
+      setPreviewUrl(URL.createObjectURL(resized))
+      runVlmAnalysis(resized)
     }
   }
 
