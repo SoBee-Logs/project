@@ -1,0 +1,68 @@
+name: Deploy to AWS
+
+# develop 브랜치에 푸시되면 두 EC2에 SSH로 접속해
+# 현행 수동 배포(git pull + docker compose up -d --build)를 그대로 실행한다.
+# 코드/Dockerfile/compose는 변경하지 않으며, 이미지는 기존처럼 각 EC2에서 빌드한다.
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:   # Actions 탭에서 수동 실행도 가능
+
+# 배포가 겹치지 않도록 직렬화 (먼저 돌던 배포는 취소)
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── FastAPI-Airflow EC2 (퍼블릭, Amazon Linux) ─────────────────────────
+  deploy-fastapi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy FastAPI + Airflow + Dashboard
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.FASTAPI_HOST }}        # 예: 43.202.64.162
+          username: ${{ secrets.FASTAPI_USER }}    # 예: ec2-user
+          key: ${{ secrets.SSH_PRIVATE_KEY }}      # sobee-prd-key.pem 내용
+          command_timeout: 30m                     # 이미지 빌드 시간 고려
+          script: |
+            set -euo pipefail
+            cd ~/project
+            git fetch origin develop
+            git reset --hard origin/develop        # .env는 gitignore라 보존됨
+            # FastAPI EC2의 compose 버전 자동 판별 (v2 'docker compose' / v1 'docker-compose')
+            if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
+            # 재빌드 대상은 서버접속가이드라인.md(일상 재배포) 기준.
+            # airflow-init은 최초 배포(deploy2.md)용 일회성 초기화라 routine 재배포에서는 제외.
+            $DC up -d --build \
+              fastapi \
+              airflow-api-server \
+              airflow-scheduler \
+              postgres-airflow \
+              dashboard
+            $DC ps
+            docker image prune -f                  # 빌드 누적 레이어 정리 (디스크 보호)
+
+  # ── Spring EC2 (프라이빗, Ubuntu) — Bastion ProxyJump 경유 ────────────
+  deploy-spring:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Spring + Frontend + Elasticsearch
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SPRING_HOST }}             # 예: 10.250.3.6 (프라이빗 IP)
+          username: ${{ secrets.SPRING_USER }}         # 예: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.BASTION_HOST }}      # Bastion 퍼블릭 IP
+          proxy_username: ${{ secrets.BASTION_USER }}  # 예: ec2-user
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 30m                         # Spring 빌드 5~10분
+          script: |
+            set -euo pipefail
+            cd ~/project
+            git fetch origin develop
+            git reset --hard origin/develop
+            if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
+            $DC -f docker-compose.spring.yml up -d --build
+            $DC -f docker-compose.spring.yml ps
+            docker image prune -f
