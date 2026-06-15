@@ -58,15 +58,21 @@ function DetailModal({ title, items, kind, onClose }) {
   )
 }
 
+const PAGE_SIZE = 10
+
 export default function CategoryOverrides() {
   const { data, error, loading, reload } = useFetch('/admin/category-overrides')
   const [modal, setModal] = useState(null) // 'moved' | 'remaining'
+  const [page, setPage] = useState(1)
 
   if (error) return <ErrorBox message={error} onRetry={reload} />
   if (loading) return <p style={{ color: '#888', padding: 24 }}>불러오는 중...</p>
 
   // 변경 전/후 그래프가 같은 x축 범위를 쓰도록 공유 최댓값 계산
   const distMax = Math.max(1, ...(data.category_dist || []).flatMap(c => [c.before, c.after]))
+
+  const totalPages = Math.max(1, Math.ceil(data.items.length / PAGE_SIZE))
+  const paginatedItems = data.items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <div>
@@ -168,7 +174,7 @@ export default function CategoryOverrides() {
               </tr>
             </thead>
             <tbody>
-              {data.items.map((t) => (
+              {paginatedItems.map((t) => (
                 <tr key={t.payment_id} style={styles.tr}>
                   <td style={{ color: '#888', fontSize: 12, whiteSpace: 'nowrap' }}>{t.date?.slice(0, 10)}</td>
                   <td style={{ fontWeight: 500 }}>{t.place || '-'}</td>
@@ -184,6 +190,13 @@ export default function CategoryOverrides() {
               ))}
             </tbody>
           </table>
+        )}
+        {data.items.length > 0 && totalPages > 1 && (
+          <div style={styles.pagination}>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={styles.pageBtn}>←</button>
+            <span style={styles.pageInfo}>{page} / {totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={styles.pageBtn}>→</button>
+          </div>
         )}
       </div>
 
@@ -226,6 +239,13 @@ const styles = {
   tr: { borderBottom: '1px solid #f0f0f0' },
   vlmBadge: { display: 'inline-block', background: '#0ea5e920', color: '#0ea5e9', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 600 },
   newBadge: { display: 'inline-block', background: '#10b98120', color: '#10b981', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 700 },
+  pagination: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginTop: 20 },
+  pageBtn: {
+    width: 36, height: 36, borderRadius: 8, border: '1px solid #ddd',
+    background: '#fff', fontSize: 16, cursor: 'pointer', color: '#444',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  pageInfo: { fontSize: 14, color: '#555', minWidth: 60, textAlign: 'center' },
 }
 
 const ds = {

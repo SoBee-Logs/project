@@ -9,6 +9,20 @@ from app.core.prompt_store import list_prompts, set_prompt, reset_prompt, get_pr
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+# 생애주기 코드 → 한글 라벨 (lifecycle_service.py의 LIFECYCLE_KO와 동일하게 유지)
+LIFECYCLE_KO = {
+    "TEEN": "십대",
+    "UNI": "대학생",
+    "NEW_JOB": "사회초년생",
+    "NEW_WED": "신혼",
+    "CHILD_BABY": "자녀영유아",
+    "CHILD_TEEN": "자녀의무교육",
+    "CHILD_UNI": "자녀대학생",
+    "GOLLIFE": "중년기타",
+    "SECLIFE": "2nd Life",
+    "RETIR": "은퇴",
+}
+
 
 @router.get("/overview")
 async def overview():
@@ -516,16 +530,20 @@ async def lifecycle():
         async with conn.cursor() as cur:
             await cur.execute("""
                 SELECT COALESCE(life_stage_code, '미분류') as stage, COUNT(*) as cnt
-                FROM users GROUP BY stage ORDER BY cnt DESC
+                FROM users GROUP BY stage
             """)
-            distribution = [{"stage": r[0], "count": r[1]} for r in await cur.fetchall()]
+            counts = {r[0]: r[1] for r in await cur.fetchall()}
 
-            stage_labels = {
-                "UNI": "대학생", "CHILD_BABY": "영유아 자녀", "NEW_WED": "신혼부부",
-                "SINGLE": "1인 가구", "SENIOR": "시니어", "미분류": "미분류"
-            }
-            for d in distribution:
-                d["label"] = stage_labels.get(d["stage"], d["stage"])
+    # 정의된 10개 생애주기를 항상 고정 순서로 노출 (데이터에 없으면 0명)
+    distribution = [
+        {"stage": code, "label": label, "count": counts.get(code, 0)}
+        for code, label in LIFECYCLE_KO.items()
+    ]
+    # 미분류 및 정의에 없는 코드는 뒤에 덧붙임
+    for stage, cnt in counts.items():
+        if stage not in LIFECYCLE_KO:
+            label = "미분류" if stage == "미분류" else stage
+            distribution.append({"stage": stage, "label": label, "count": cnt})
 
     return distribution
 
@@ -535,8 +553,15 @@ async def lifecycle_stage_detail(stage: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            condition = "life_stage_code IS NULL" if stage == "미분류" else "life_stage_code = %s"
-            params = () if stage == "미분류" else (stage,)
+            if stage in ("ALL", "전체"):
+                condition = "1=1"
+                params = ()
+            elif stage == "미분류":
+                condition = "life_stage_code IS NULL"
+                params = ()
+            else:
+                condition = "life_stage_code = %s"
+                params = (stage,)
 
             await cur.execute(f"""
                 SELECT u.user_id, u.name, u.age, u.gender,
@@ -572,13 +597,15 @@ async def lifecycle_stage_detail(stage: str):
             """, params)
             top_cats = [{"category": r[0], "count": r[1], "total": int(r[2])} for r in await cur.fetchall()]
 
-    stage_labels = {
-        "UNI": "대학생", "CHILD_BABY": "영유아 자녀", "NEW_WED": "신혼부부",
-        "SINGLE": "1인 가구", "SENIOR": "시니어", "미분류": "미분류"
-    }
+    if stage in ("ALL", "전체"):
+        label = "전체"
+    elif stage == "미분류":
+        label = "미분류"
+    else:
+        label = LIFECYCLE_KO.get(stage, stage)
     return {
         "stage": stage,
-        "label": stage_labels.get(stage, stage),
+        "label": label,
         "users": users,
         "top_categories": top_cats,
     }

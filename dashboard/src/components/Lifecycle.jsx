@@ -50,12 +50,16 @@ export default function Lifecycle() {
   if (error) return <ErrorBox message={error} onRetry={reload} />
   if (loading) return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>{Array(10).fill(0).map((_, i) => <CardSkeleton key={i} />)}</div>
 
-  if (!activeStage && data?.length > 0) {
-    setActiveStage(data[0].stage)
+  // 전체 탭을 맨 앞에 추가 (모든 생애주기 합산)
+  const total = (data || []).reduce((s, d) => s + (d.count || 0), 0)
+  const tabs = [{ stage: 'ALL', label: '전체', count: total }, ...(data || [])]
+
+  if (!activeStage) {
+    setActiveStage('ALL')
     return null
   }
 
-  const active = data?.find(d => d.stage === activeStage)
+  const active = tabs.find(d => d.stage === activeStage)
 
   return (
     <div>
@@ -65,7 +69,7 @@ export default function Lifecycle() {
 
       {/* 탭 */}
       <div style={styles.tabWrap}>
-        {data.map((d, i) => (
+        {tabs.map((d, i) => (
           <button
             key={d.stage}
             onClick={() => setActiveStage(d.stage)}
