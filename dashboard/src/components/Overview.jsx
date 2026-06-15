@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from 'recharts'
 import { useFetch } from '../hooks/useFetch'
 import { CardSkeleton, ErrorBox } from './common/StatusViews'
@@ -19,10 +19,16 @@ const LINES = [
   { key: '거래내역수',  color: '#a855f7' },
 ]
 
-export default function Overview() {
+export default function Overview({ onReloadRef, onRefresh }) {
   const { data, error, loading, reload } = useFetch('/admin/overview', 30000)
-  const [lastRefresh, setLastRefresh] = useState(new Date())
   const [activeLines, setActiveLines] = useState(new Set(LINES.map(l => l.key)))
+  const mountedRef = useRef(false)
+
+  useEffect(() => {
+    if (!data) return
+    if (!mountedRef.current) { mountedRef.current = true; return }
+    onRefresh?.(new Date())
+  }, [data])
 
   const toggleLine = (key) => {
     setActiveLines(prev => {
@@ -33,7 +39,11 @@ export default function Overview() {
     })
   }
 
-  const handleReload = () => { reload(); setLastRefresh(new Date()) }
+  const handleReload = () => { reload(); onRefresh?.(new Date()) }
+
+  useEffect(() => {
+    if (onReloadRef) onReloadRef.current = handleReload
+  }, [onReloadRef])
 
   if (error) return <ErrorBox message={error} onRetry={handleReload} />
 
@@ -54,9 +64,8 @@ export default function Overview() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div style={{ marginBottom: 20 }}>
         <h2 style={styles.heading}>전체 현황</h2>
-        <span style={{ fontSize: 12, color: '#aaa' }}>30초마다 자동갱신 · 마지막: {lastRefresh.toLocaleTimeString()}</span>
       </div>
 
       <div style={styles.grid}>
