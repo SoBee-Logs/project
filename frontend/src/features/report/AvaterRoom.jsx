@@ -156,9 +156,9 @@ export default function AvaterRoom() {
               })
               .sort((a, b) => parseInt(a) - parseInt(b))
 
-            const defaultWeek = navDirectionRef.current === 'prev'
-              ? (sorted[sorted.length - 1] ?? '1주')
-              : (sorted[0] ?? '1주')
+            const defaultWeek = navDirectionRef.current === 'next'
+              ? (sorted[0] ?? '1주')
+              : (sorted[sorted.length - 2] ?? '1주')
             navDirectionRef.current = 'none'
             setSelectedWeek(defaultWeek)
           }
