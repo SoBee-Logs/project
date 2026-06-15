@@ -107,24 +107,34 @@ export default function PromptManager() {
     setActiveTab('edit')
   }
 
-  const save = async () => {
-    setSaving(true)
-    await fetch(`/admin/prompts/${selected}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: editValue }),
-    })
-    setMsg({ text: '✓ 저장됐어요.', type: 'success' })
-    setSaving(false)
-    load()
+  // 발표용: 저장/초기화는 실제 동작하지 않도록 비활성화. 누르면 안내 팝업만 표시.
+  const save = () => {
+    window.alert('실제 기능은 정상 동작하지만, 발표를 위해 일시적으로 막아두었습니다.')
   }
 
-  const reset = async () => {
-    if (!window.confirm('기본값으로 초기화할까요?')) return
-    await fetch(`/admin/prompts/${selected}`, { method: 'DELETE' })
-    setMsg({ text: '✓ 초기화됐어요.', type: 'info' })
-    load()
+  const reset = () => {
+    window.alert('실제 기능은 정상 동작하지만, 발표를 위해 일시적으로 막아두었습니다.')
   }
+
+  // 발표용으로 비활성화한 실제 동작 (추후 복구 시 위 stub 제거 후 아래 주석 해제)
+  // const save = async () => {
+  //   setSaving(true)
+  //   await fetch(`/admin/prompts/${selected}`, {
+  //     method: 'PUT',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({ value: editValue }),
+  //   })
+  //   setMsg({ text: '✓ 저장됐어요.', type: 'success' })
+  //   setSaving(false)
+  //   load()
+  // }
+  //
+  // const reset = async () => {
+  //   if (!window.confirm('기본값으로 초기화할까요?')) return
+  //   await fetch(`/admin/prompts/${selected}`, { method: 'DELETE' })
+  //   setMsg({ text: '✓ 초기화됐어요.', type: 'info' })
+  //   load()
+  // }
 
   const restore = (value) => {
     setEditValue(value)
