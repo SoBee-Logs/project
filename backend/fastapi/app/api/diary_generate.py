@@ -1,11 +1,13 @@
 import json
 import time as _time
+import asyncio
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import settings
 from app.core.constants import MOOD_LABEL
 from app.models.schemas import DiaryRequest, DiaryResponse
 from app.core.prompt_store import register, get_prompt
+from app.core.life_stage_prompt import get_system_prompt
 
 from langsmith import traceable
 from google import genai
@@ -40,37 +42,6 @@ def _get_line_guide(photo_count: int) -> str:
             "The result must feel like one continuous diary monologue, not a list."
         )
 
-SYSTEM_PROMPT_TEMPLATE = """\
-너는 인스타 스토리에 하루동안 소비한 사진을 바탕으로 일기를 작성하는 소비 일기 작가야.
-짧고 툭툭 던지는 문장으로, 20대가 친구한테 이야기하는 말투처럼 써줘.
-
-[규칙]
-1. 전체 한국어로 작성.
-2. {line_guide}
-3. 문장은 짧고 간결하게. 한 문장에 너무 많은 내용 넣지 말 것.
-4. 이모지·ㅋㅋ·ㅠㅠ 자연스럽게 1-2개씩.
-5. 유행어·줄임말은 전체 기준 2~3개만. 억지로 넣지 말 것.
-   - 감탄 표현: ㄹㅇ, 찐, 존맛, 미쳤다, 실화냐
-6. "~을 샀습니다" 같은 기계적 표현 절대 금지.
-7. 사용자 기분·메모의 말투를 일기 전체 톤에 자연스럽게 녹여줘.
-   - 메모가 짧고 구어체면 일기도 그 느낌으로.
-   - 감탄사·줄임말이 있으면 그 느낌을 살려서 써.
-   - 기분을 직접 언급하지 말고 문체에 녹여낼 것.
-8. 욕설·비속어는 사용하지 않는다. 단, "미쳤다", "레전드", "존맛" 등 일반적인 감탄 표현은 허용.
-9. 일기에 절대 가격은 포함하지 말 것. (비싸다, 싸다는 허용)
-10. 아래 JSON만 출력 (마크다운 백틱 제외).
-
-[예시]
-"오늘 점심 부찌 ㄹㅇ 맛남"
-"라면사리까지 존맛 🔥"
-"지갑 털렸는데 후회는 없음 ㅋㅋ"
-
-{{
-  "title": "제목 (이모지 1개 포함, 10자 이내, 임팩트 있게)",
-  "diary_lines": ["짧은 문장1", "짧은 문장2", ...]
-}}
-"""
-
 USER_PROMPT_TEMPLATE = """\
 [Today's Consumption Info]
 - Item: {item_name}
@@ -103,7 +74,6 @@ AI 사진 분석과 사용자 감정·메모만을 근거로 감정 위주의 �
 Write a JSON consumption diary based on the above.
 """
 
-register("diary_system", SYSTEM_PROMPT_TEMPLATE)
 register("diary_user_matched", USER_PROMPT_TEMPLATE)
 register("diary_user_unmatched", USER_PROMPT_UNMATCHED_TEMPLATE)
 
@@ -118,7 +88,6 @@ def _get_client() -> genai.Client:
 async def generate_diary(req: DiaryRequest) -> DiaryResponse:
     client = _get_client()
 
-    mood_label = MOOD_LABEL.get(req.mood or "", "평범한")
     line_guide = _get_line_guide(req.photo_count or 1)
 
     room_theme = ROOM_CATEGORY_THEME.get(
@@ -126,7 +95,10 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
         ROOM_CATEGORY_THEME["DEFAULT"]
     )
 
-    system_content = get_prompt("diary_system").format(line_guide=line_guide)
+    # life_stage_code로 시스템 프롬프트 선택
+    system_content = get_system_prompt(
+        getattr(req, "life_stage_code", None)
+    ).format(line_guide=line_guide)
 
     is_matched = req.matched is True
     if is_matched:
@@ -151,12 +123,10 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
         )
 
     _t0 = _time.monotonic()
-    # Gemini는 sync 클라이언트만 있어서 asyncio로 스레드 분리
-    import asyncio
     response = await asyncio.get_event_loop().run_in_executor(
         None,
         lambda: client.models.generate_content(
-            model="gemini-3.5-flash",
+            model="gemini-2.5-flash",
             contents=user_content,
             config=types.GenerateContentConfig(
                 temperature=0.75,
@@ -174,7 +144,6 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
     if not content:
         raise HTTPException(status_code=500, detail="Gemini 응답이 비어있습니다.")
 
-    # 백틱 감싸진 경우 제거
     if content.startswith("```"):
         content = content.split("```")[1]
         if content.startswith("json"):
