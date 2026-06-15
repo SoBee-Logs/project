@@ -1,6 +1,7 @@
 # 키 파일 (절대 커밋 금지)
 *.pem
 *.key
+airflow/passwords.json
 
 # 환경변수 (절대 커밋 금지)
 .env
