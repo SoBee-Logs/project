@@ -60,7 +60,11 @@ async def internal_auth_middleware(request: Request, call_next):
     if request.url.path.startswith("/internal/"):
         token = request.headers.get("X-Internal-Secret")
         if not token or token != settings.INTERNAL_SECRET_KEY:
-            return JSONResponse(status_code=403, content={"detail": "접근 불가"})
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "접근 불가"},
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
     return await call_next(request)
 
 app.include_router(avatar.router, prefix="/api/avatar", tags=["avatar"])
