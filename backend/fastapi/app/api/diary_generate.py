@@ -1,5 +1,5 @@
 import json
-from openai import AsyncOpenAI
+import time as _time
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import settings
@@ -8,12 +8,11 @@ from app.models.schemas import DiaryRequest, DiaryResponse
 from app.core.prompt_store import register, get_prompt
 
 from langsmith import traceable
-from langsmith.wrappers import wrap_openai
+from google import genai
+from google.genai import types
 
 router = APIRouter()
 
-# 모임방 카테고리별 일기 작성 테마 지침
-# room_category 값이 없거나 알 수 없는 경우 DEFAULT 사용
 ROOM_CATEGORY_THEME = {
     "EXERCISE": "이 방은 운동 기록 방이야. 운동 후의 뿌듯함, 땀, 근육통, 성취감을 역동적이고 생동감 있게 표현해줘. 건강한 에너지가 느껴지도록.",
     "HOBBY":    "이 방은 취미 생활 방이야. 취미에 빠져드는 몰입감, 설렘, 소소한 행복을 위트 있고 감성적으로 표현해줘.",
@@ -41,7 +40,6 @@ def _get_line_guide(photo_count: int) -> str:
             "The result must feel like one continuous diary monologue, not a list."
         )
 
-# ── 프롬프트 템플릿 ───────────────────────────────────────────────
 SYSTEM_PROMPT_TEMPLATE = """\
 너는 인스타 스토리에 하루동안 소비한 사진을 바탕으로 일기를 작성하는 소비 일기 작가야.
 짧고 툭툭 던지는 문장으로, 20대가 친구한테 이야기하는 말투처럼 써줘.
@@ -73,7 +71,6 @@ SYSTEM_PROMPT_TEMPLATE = """\
 }}
 """
 
-# 매핑된 사진(결제 내역 연결 완료) 프롬프트
 USER_PROMPT_TEMPLATE = """\
 [Today's Consumption Info]
 - Item: {item_name}
@@ -89,8 +86,6 @@ USER_PROMPT_TEMPLATE = """\
 Write a JSON consumption diary based on the above.
 """
 
-# 미매핑 사진(결제 내역 미연결) 프롬프트
-# 가격·가게명 등 결제 정보가 없으므로 환각 방지를 위해 장면·감정 위주로만 작성하도록 안내
 USER_PROMPT_UNMATCHED_TEMPLATE = """\
 [주의] 이 사진은 결제 내역과 아직 연결되지 않은 소비 사진이에요.
 item, price, store 정보를 사실인 것처럼 언급하거나 추측하지 마세요.
@@ -113,10 +108,10 @@ register("diary_user_matched", USER_PROMPT_TEMPLATE)
 register("diary_user_unmatched", USER_PROMPT_UNMATCHED_TEMPLATE)
 
 
-def _get_client() -> AsyncOpenAI:
-    if not settings.OPENAI_API_KEY:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY가 설정되지 않았습니다.")
-    return wrap_openai(AsyncOpenAI(api_key=settings.OPENAI_API_KEY))  # wrap_openai 추가
+def _get_client() -> genai.Client:
+    if not settings.GEMINI_API_KEY:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY가 설정되지 않았습니다.")
+    return genai.Client(api_key=settings.GEMINI_API_KEY)
 
 
 @traceable(name="일기 생성")
@@ -126,7 +121,6 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
     mood_label = MOOD_LABEL.get(req.mood or "", "평범한")
     line_guide = _get_line_guide(req.photo_count or 1)
 
-    # room_category로 테마 지침 조회 — 없으면 DEFAULT 사용
     room_theme = ROOM_CATEGORY_THEME.get(
         (req.room_category or "").upper(),
         ROOM_CATEGORY_THEME["DEFAULT"]
@@ -134,22 +128,20 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
 
     system_content = get_prompt("diary_system").format(line_guide=line_guide)
 
-    # 미매핑 사진(matched=False 또는 None)은 장면·감정 위주 프롬프트로 대체
     is_matched = req.matched is True
     if is_matched:
         user_content = get_prompt("diary_user_matched").format(
-        item_name=req.item_name or "알 수 없음",
-        category=req.category or "기타",
-        price=f"{int(req.price):,}" if req.price is not None else "0",
-        store_name=req.store_name or "알 수 없음",
-        mood=req.mood or "",
-        emotion_text=req.emotion_text or "없음",
-        group_description=req.group_description or "일반 소비",
-        room_theme=room_theme,
-        description=req.description or "특이사항 없음",
-    )
+            item_name=req.item_name or "알 수 없음",
+            category=req.category or "기타",
+            price=f"{int(req.price):,}" if req.price is not None else "0",
+            store_name=req.store_name or "알 수 없음",
+            mood=req.mood or "",
+            emotion_text=req.emotion_text or "없음",
+            group_description=req.group_description or "일반 소비",
+            room_theme=room_theme,
+            description=req.description or "특이사항 없음",
+        )
     else:
-        # 미매핑: 결제 정보 없이 사진 분석·감정만으로 일기 생성
         user_content = get_prompt("diary_user_unmatched").format(
             mood=req.mood or "",
             emotion_text=req.emotion_text or "없음",
@@ -158,24 +150,36 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
             description=req.description or "특이사항 없음",
         )
 
-    import time as _time
     _t0 = _time.monotonic()
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_content},
-            {"role": "user", "content": user_content},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.75,
-        max_tokens=600,
+    # Gemini는 sync 클라이언트만 있어서 asyncio로 스레드 분리
+    import asyncio
+    response = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: client.models.generate_content(
+            model="gemini-3.5-flash",
+            contents=user_content,
+            config=types.GenerateContentConfig(
+                temperature=0.75,
+                max_output_tokens=2048,
+                response_mime_type="application/json",
+                system_instruction=system_content,
+            ),
+        )
     )
     from app.core.metrics import record
     record("diary", round((_time.monotonic() - _t0) * 1000))
 
-    content = response.choices[0].message.content
+    content = response.text.strip() if response.text else ""
+    print(f"[Gemini diary 응답] {repr(content[:300])}")
     if not content:
-        raise HTTPException(status_code=500, detail="OpenAI 응답이 비어있습니다.")
+        raise HTTPException(status_code=500, detail="Gemini 응답이 비어있습니다.")
+
+    # 백틱 감싸진 경우 제거
+    if content.startswith("```"):
+        content = content.split("```")[1]
+        if content.startswith("json"):
+            content = content[4:]
+        content = content.strip()
 
     try:
         data = json.loads(content)
@@ -185,10 +189,10 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
             tags=req.tags or [],
         )
     except (json.JSONDecodeError, KeyError) as e:
+        print(f"[일기 생성 에러] {e} | raw: {content[:500]}")
         raise HTTPException(status_code=500, detail=f"일기 생성 파싱 실패: {e} | raw: {content[:200]}")
 
 
-# POST /api/diary/generate
 @router.post("/generate", response_model=DiaryResponse)
 async def generate_diary_endpoint(req: DiaryRequest):
     return await generate_diary(req)
