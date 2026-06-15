@@ -222,7 +222,7 @@ export default function UserDataStats() {
           <table style={styles.table}>
             <thead>
               <tr style={styles.thead}>
-                <th>유저</th><th>나이</th><th>성별</th><th>생애주기</th>
+                <th>유저</th><th>닉네임</th><th>나이</th><th>성별</th><th>생애주기</th>
                 <th>카드</th><th>계좌</th><th>거래 내역</th>
                 <th>사진</th><th>일기</th><th>마지막 일기</th><th></th>
               </tr>
@@ -230,7 +230,11 @@ export default function UserDataStats() {
             <tbody>
               {filtered.map(u => (
                 <tr key={u.user_id} style={styles.tr}>
-                  <td style={{ fontWeight: 600 }}>{u.name}</td>
+                  <td style={{ fontWeight: 600 }}>
+                    {u.name}
+                    {u.is_active === 0 && <span style={{ marginLeft: 6, fontSize: 10, background: '#fee2e2', color: '#ef4444', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>탈퇴</span>}
+                  </td>
+                  <td style={{ color: '#888', fontSize: 12 }}>{u.nickname || '-'}</td>
                   <td>{u.age ?? '-'}</td>
                   <td>{u.gender?.toLowerCase() === 'm' ? '남' : u.gender?.toLowerCase() === 'f' ? '여' : '-'}</td>
                   <td><span style={styles.badge}>{LIFE_STAGE[u.life_stage_code] || u.life_stage_code || '미분류'}</span></td>

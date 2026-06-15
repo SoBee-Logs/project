@@ -7,7 +7,6 @@ import VlmStats from './components/VlmStats.jsx'
 import CategoryOverrides from './components/CategoryOverrides.jsx'
 import Lifecycle from './components/Lifecycle.jsx'
 import PromptManager from './components/PromptManager.jsx'
-import SystemHealth from './components/SystemHealth.jsx'
 
 const TABS = [
   { id: 'overview', label: '개요' },
@@ -18,7 +17,6 @@ const TABS = [
   { id: 'diary', label: '사진·일기 매핑' },
   { id: 'lifecycle', label: '생애주기' },
   { id: 'prompts', label: '프롬프트 관리' },
-  { id: 'health', label: '🩺 시스템' },
 ]
 
 export default function App() {
@@ -60,7 +58,6 @@ export default function App() {
         {tab === 'lifecycle' && <Lifecycle />}
 
         {tab === 'prompts' && <PromptManager />}
-        {tab === 'health' && <SystemHealth />}
       </main>
     </div>
   )

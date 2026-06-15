@@ -144,7 +144,7 @@ async def user_data():
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            await cur.execute("SELECT user_id, name, age, gender, life_stage_code FROM users ORDER BY user_id")
+            await cur.execute("SELECT user_id, name, age, gender, life_stage_code, nickname, is_active FROM users ORDER BY user_id")
             users = await cur.fetchall()
             result = []
             for u in users:
@@ -164,7 +164,7 @@ async def user_data():
 
                 result.append({
                     "user_id": uid, "name": u[1], "age": u[2],
-                    "gender": u[3], "life_stage_code": u[4],
+                    "gender": u[3], "life_stage_code": u[4], "nickname": u[5], "is_active": u[6],
                     "card_count": card_count, "bank_count": bank_count,
                     "tx_count": tx_count,
                     "photo_count": photo_count, "diary_count": diary_count,
