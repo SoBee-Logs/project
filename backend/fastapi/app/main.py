@@ -38,11 +38,20 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+# 허용할 출처(도메인) 리스트
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://localhost:5173",  # 로컬 개발 환경용 (Vite 등)
+    "https://sobee-logs.duckdns.org",  # ✅ 프론트엔드의 실제 배포 도메인 추가!
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],  # GET, POST, OPTIONS 등 모든 메서드 허용
+    allow_headers=["*"],  # 모든 헤더 허용
 )
 
 

@@ -27,6 +27,7 @@ desktop.ini
 *.log
 logs/
 
+.venv/
 venv/
 tmp/
 
