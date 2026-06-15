@@ -1,12 +1,54 @@
-import React, { useState } from 'react'
-import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import React, { useState, useEffect } from 'react'
+import { ScatterChart, Scatter, Cell, XAxis, YAxis, ZAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { useFetch } from '../hooks/useFetch'
 import { CardSkeleton, ErrorBox } from './common/StatusViews'
 import DrillDownModal from './common/DrillDownModal'
+import { lifecycleColor } from '../constants/lifecycleColors'
 
 const LIFE_STAGE = {
-  UNI: '대학생', CHILD_BABY: '영유아 자녀', NEW_WED: '신혼부부',
-  SINGLE: '1인 가구', SENIOR: '시니어',
+  TEEN: '십대', UNI: '대학생', NEW_JOB: '사회초년생', NEW_WED: '신혼',
+  CHILD_BABY: '자녀영유아', CHILD_TEEN: '자녀의무교육', CHILD_UNI: '자녀대학생',
+  GOLLIFE: '중년기타', SECLIFE: '2nd Life', RETIR: '은퇴',
+}
+
+const LIFECYCLE_FILTERS = [
+  { value: 'ALL', label: '전체' },
+  ...Object.entries(LIFE_STAGE).map(([code, label]) => ({ value: code, label })),
+]
+
+// 클릭 정렬 가능한 컬럼 (생애주기는 정렬 대신 필터로 처리하므로 제외)
+const SORT_COLUMNS = [
+  { field: 'name', label: '유저', type: 'str' },
+  { field: 'nickname', label: '닉네임', type: 'str' },
+  { field: 'age', label: '나이', type: 'num' },
+  { field: 'gender', label: '성별', type: 'str' },
+  { field: null, label: '생애주기', type: null },
+  { field: 'card_count', label: '카드', type: 'num' },
+  { field: 'bank_count', label: '계좌', type: 'num' },
+  { field: 'tx_count', label: '거래 내역', type: 'num' },
+  { field: 'photo_count', label: '사진', type: 'num' },
+  { field: 'diary_count', label: '일기', type: 'num' },
+  { field: 'last_diary', label: '마지막 일기', type: 'date' },
+]
+
+const PAGE_SIZE = 10
+
+function sortUsers(rows, field, dir, type) {
+  if (!field) return rows
+  const sign = dir === 'asc' ? 1 : -1
+  return [...rows].sort((a, b) => {
+    let va = a[field], vb = b[field]
+    if (type === 'num') {
+      va = Number(va) || 0; vb = Number(vb) || 0
+      return (va - vb) * sign
+    }
+    // str / date 모두 문자열 비교 (빈 값은 항상 뒤로)
+    va = va == null ? '' : String(va)
+    vb = vb == null ? '' : String(vb)
+    if (!va && vb) return 1
+    if (va && !vb) return -1
+    return va.localeCompare(vb) * sign
+  })
 }
 
 const TABS = ['소비', '일기', '사진', '카드']
@@ -149,23 +191,51 @@ function downloadCsv(data) {
 export default function UserDataStats() {
   const { data, error, loading, reload } = useFetch('/admin/user-data')
   const [filter, setFilter] = useState('all')
+  const [lifecycleFilter, setLifecycleFilter] = useState('ALL')
+  const [sortField, setSortField] = useState(null)
+  const [sortDir, setSortDir] = useState('asc')
+  const [page, setPage] = useState(1)
   const [selectedUser, setSelectedUser] = useState(null)
+
+  // 필터/정렬이 바뀌면 첫 페이지로
+  useEffect(() => { setPage(1) }, [filter, lifecycleFilter, sortField, sortDir])
 
   if (error) return <ErrorBox message={error} onRetry={reload} />
 
+  const handleSort = field => {
+    if (!field) return
+    if (field === sortField) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortField(field); setSortDir('asc') }
+  }
+
   const filtered = (() => {
     if (!data) return []
-    if (filter === 'inactive') return data.filter(u => !u.last_diary)
-    if (filter === 'no_photo') return data.filter(u => u.photo_count === 0)
-    return data
+    let rows = data
+    if (filter === 'inactive') rows = rows.filter(u => !u.last_diary)
+    else if (filter === 'no_photo') rows = rows.filter(u => u.photo_count === 0)
+    if (lifecycleFilter !== 'ALL') rows = rows.filter(u => u.life_stage_code === lifecycleFilter)
+    return rows
   })()
+
+  const sortType = SORT_COLUMNS.find(c => c.field === sortField)?.type
+  const sorted = sortUsers(filtered, sortField, sortDir, sortType)
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const bubbleData = filtered.map(u => ({
     x: Number(u.diary_count) || 0,
     y: Number(u.photo_count) || 0,
     z: Number(u.tx_count) || 1,
     name: u.name,
+    code: u.life_stage_code,
+    stage: LIFE_STAGE[u.life_stage_code] || '미분류',
   }))
+
+  // 차트에 실제로 나타나는 생애주기만 범례로 표시
+  const presentStages = LIFECYCLE_FILTERS.slice(1).filter(
+    f => filtered.some(u => u.life_stage_code === f.value)
+  )
+  const hasUnclassified = filtered.some(u => !LIFE_STAGE[u.life_stage_code])
 
   return (
     <div>
@@ -180,6 +250,18 @@ export default function UserDataStats() {
             <button onClick={() => downloadCsv(data)} style={styles.csvBtn}>⬇ CSV</button>
           )}
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+        {LIFECYCLE_FILTERS.map(f => (
+          <button
+            key={f.value}
+            onClick={() => setLifecycleFilter(f.value)}
+            style={lifecycleFilter === f.value ? styles.lifeBtnActive : styles.lifeBtn}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       <div style={styles.chartBox}>
@@ -201,15 +283,36 @@ export default function UserDataStats() {
                 return (
                   <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: '8px 12px', fontSize: 12, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
                     <div style={{ fontWeight: 700, marginBottom: 6 }}>{d.name}</div>
+                    <div style={{ color: lifecycleColor(d.code), fontWeight: 600, marginBottom: 4 }}>{d.stage}</div>
                     <div>일기: {d.x}</div>
                     <div>사진: {d.y}</div>
                     <div>거래내역: {d.z === 1 ? 0 : d.z}</div>
                   </div>
                 )
               }} />
-              <Scatter data={bubbleData} fill="#6c63ff" fillOpacity={0.7} />
+              <Scatter data={bubbleData} fillOpacity={0.75}>
+                {bubbleData.map((d, i) => (
+                  <Cell key={i} fill={lifecycleColor(d.code)} />
+                ))}
+              </Scatter>
             </ScatterChart>
           </ResponsiveContainer>
+        )}
+        {!loading && bubbleData.length > 0 && (presentStages.length > 0 || hasUnclassified) && (
+          <div style={styles.legend}>
+            {presentStages.map(f => (
+              <span key={f.value} style={styles.legendItem}>
+                <span style={{ ...styles.legendDot, background: lifecycleColor(f.value) }} />
+                {f.label}
+              </span>
+            ))}
+            {hasUnclassified && (
+              <span style={styles.legendItem}>
+                <span style={{ ...styles.legendDot, background: lifecycleColor(null) }} />
+                미분류
+              </span>
+            )}
+          </div>
         )}
       </div>
 
@@ -222,13 +325,23 @@ export default function UserDataStats() {
           <table style={styles.table}>
             <thead>
               <tr style={styles.thead}>
-                <th>유저</th><th>닉네임</th><th>나이</th><th>성별</th><th>생애주기</th>
-                <th>카드</th><th>계좌</th><th>거래 내역</th>
-                <th>사진</th><th>일기</th><th>마지막 일기</th><th></th>
+                {SORT_COLUMNS.map(col => (
+                  <th
+                    key={col.label}
+                    onClick={() => handleSort(col.field)}
+                    style={col.field ? styles.thSortable : undefined}
+                  >
+                    {col.label}
+                    {col.field === sortField && (
+                      <span style={styles.sortArrow}>{sortDir === 'asc' ? ' ↑' : ' ↓'}</span>
+                    )}
+                  </th>
+                ))}
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(u => (
+              {paginated.map(u => (
                 <tr key={u.user_id} style={styles.tr}>
                   <td style={{ fontWeight: 600 }}>
                     {u.name}
@@ -256,6 +369,14 @@ export default function UserDataStats() {
         )}
       </div>
 
+      {!loading && totalPages > 1 && (
+        <div style={styles.pagination}>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={styles.pageBtn}>←</button>
+          <span style={styles.pageInfo}>{page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={styles.pageBtn}>→</button>
+        </div>
+      )}
+
       {selectedUser && (
         <UserDetailModal userId={selectedUser} onClose={() => setSelectedUser(null)} />
       )}
@@ -278,6 +399,32 @@ const styles = {
     background: '#fff', cursor: 'pointer', fontSize: 13, color: '#666',
   },
   filterActive: { background: '#6c63ff', color: '#fff', border: '1px solid #6c63ff' },
+  lifeBtn: {
+    padding: '5px 14px', borderRadius: 20, border: '1px solid #ddd',
+    background: '#fff', fontSize: 13, color: '#555', cursor: 'pointer',
+  },
+  lifeBtnActive: {
+    padding: '5px 14px', borderRadius: 20, border: '1px solid #6c63ff',
+    background: '#6c63ff', fontSize: 13, color: '#fff', cursor: 'pointer', fontWeight: 600,
+  },
+  thSortable: { cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' },
+  sortArrow: { color: '#6c63ff', fontWeight: 700 },
+  pagination: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    gap: 16, marginTop: 20,
+  },
+  pageBtn: {
+    width: 36, height: 36, borderRadius: 8, border: '1px solid #ddd',
+    background: '#fff', fontSize: 16, cursor: 'pointer', color: '#444',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  pageInfo: { fontSize: 14, color: '#555', minWidth: 60, textAlign: 'center' },
+  legend: {
+    display: 'flex', flexWrap: 'wrap', gap: '8px 16px',
+    justifyContent: 'center', marginTop: 16,
+  },
+  legendItem: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555' },
+  legendDot: { width: 10, height: 10, borderRadius: '50%', display: 'inline-block' },
   csvBtn: {
     padding: '5px 14px', borderRadius: 16, border: '1px solid #10b981',
     background: '#fff', cursor: 'pointer', fontSize: 13, color: '#10b981',

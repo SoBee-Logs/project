@@ -3,9 +3,18 @@ import soBee from '../assets/so-bee.png'
 import { categoryColor } from '../constants/categoryColors'
 
 const LIFE_STAGE = {
-  UNI: '대학생', CHILD_BABY: '영유아 자녀', NEW_WED: '신혼부부',
-  SINGLE: '1인 가구', SENIOR: '시니어',
+  TEEN: '십대', UNI: '대학생', NEW_JOB: '사회초년생', NEW_WED: '신혼',
+  CHILD_BABY: '자녀영유아', CHILD_TEEN: '자녀의무교육', CHILD_UNI: '자녀대학생',
+  GOLLIFE: '중년기타', SECLIFE: '2nd Life', RETIR: '은퇴',
 }
+
+const LIFECYCLE_FILTERS = [
+  { value: 'ALL', label: '전체' },
+  ...Object.entries(LIFE_STAGE).map(([code, label]) => ({ value: code, label })),
+]
+
+const FAVORITES = new Set([13, 114, 115, 116, 119])
+const PAGE_SIZE = 12
 
 const SORT_OPTIONS = [
   { value: 'avatar_created_at', label: '아바타 생성일' },
@@ -36,6 +45,12 @@ function sortData(data, field, dir) {
       : (b.name || '').localeCompare(a.name || '', 'ko'))
     default: return d
   }
+}
+
+function applyFavorites(sorted) {
+  const favs = sorted.filter(u => FAVORITES.has(u.user_id))
+  const rest = sorted.filter(u => !FAVORITES.has(u.user_id))
+  return [...favs, ...rest]
 }
 
 function Bar({ label, value, max, color, suffix, highlight }) {
@@ -85,13 +100,12 @@ function _addDays(dateStr, n) {
 }
 
 function AvatarModal({ user, onClose }) {
-  const [history, setHistory] = useState(null)   // 사용자별 모든 아바타
+  const [history, setHistory] = useState(null)
   const [idx, setIdx] = useState(0)
   const [histErr, setHistErr] = useState(null)
-  const [d, setD] = useState(null)               // 현재 아바타의 근거 데이터
+  const [d, setD] = useState(null)
   const [detErr, setDetErr] = useState(null)
 
-  // 모든 아바타 이력 로드 (최신순)
   useEffect(() => {
     fetch(`/admin/user-avatars/${user.user_id}`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
@@ -102,8 +116,6 @@ function AvatarModal({ user, onClose }) {
   const current = history?.[idx]
   const total = history?.length || 0
 
-  // 현재 아바타의 근거 데이터 로드.
-  // 생성 로직상 avatar_created_at = 생성 기간 시작이고 기간은 7일이므로 [created_at, created_at+6].
   useEffect(() => {
     const created = current?.avatar_created_at
     if (!created) { setD(null); return }
@@ -129,16 +141,13 @@ function AvatarModal({ user, onClose }) {
 
         {current && (
           <>
-            {/* 아바타 헤더 + 이전/다음 페르소나 화살표 */}
             <div style={{ position: 'relative', textAlign: 'center', marginBottom: 8 }}>
               {total > 1 && (
                 <>
                   <button onClick={() => setIdx(i => Math.min(total - 1, i + 1))} disabled={idx >= total - 1}
-                    title="이전 페르소나"
-                    style={{ ...styles.arrow, position: 'absolute', left: 0, top: 44, opacity: idx >= total - 1 ? 0.3 : 1 }}>←</button>
+                    style={{ ...styles.arrow, position: 'absolute', left: 0, top: 44, opacity: idx >= total - 1 ? 0.3 : 1 }}>← 이전</button>
                   <button onClick={() => setIdx(i => Math.max(0, i - 1))} disabled={idx <= 0}
-                    title="다음 페르소나"
-                    style={{ ...styles.arrow, position: 'absolute', right: 0, top: 44, opacity: idx <= 0 ? 0.3 : 1 }}>→</button>
+                    style={{ ...styles.arrow, position: 'absolute', right: 0, top: 44, opacity: idx <= 0 ? 0.3 : 1 }}>다음 →</button>
                 </>
               )}
               <img src={current.avatar_img_url || soBee} alt={current.avatar_name}
@@ -149,12 +158,14 @@ function AvatarModal({ user, onClose }) {
                 {user.name} · {user.age}세 · {genderKo} · {LIFE_STAGE[user.life_stage_code] || '미분류'}
               </div>
               <div style={{ fontSize: 12, color: '#bbb', marginTop: 2 }}>
-                {current.avatar_created_at ? `${current.avatar_created_at.slice(0, 10)} 주차` : '-'} · {idx + 1}/{total}
+                {current.avatar_created_at
+                  ? `${current.avatar_created_at.slice(0, 10)} ~ ${_addDays(current.avatar_created_at.slice(0, 10), 6)}`
+                  : '-'}
+                {total > 1 && <span style={{ marginLeft: 8, color: '#ccc' }}>총 {total}개</span>}
               </div>
             </div>
             {current.avatar_explain && <p style={ds.explain}>{current.avatar_explain}</p>}
 
-            {/* 이 아바타의 근거 데이터 */}
             {detErr && <p style={{ color: 'red', fontSize: 13 }}>근거 로드 오류: {detErr}</p>}
             {!d && !detErr && <p style={ds.empty}>근거 데이터 불러오는 중...</p>}
             {d && d.evidence.total_tx === 0 && (
@@ -249,6 +260,8 @@ export default function AvatarGallery() {
   const [selected, setSelected] = useState(null)
   const [sortField, setSortField] = useState('avatar_created_at')
   const [sortDir, setSortDir] = useState('desc')
+  const [lifecycleFilter, setLifecycleFilter] = useState('ALL')
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     fetch('/admin/avatars')
@@ -267,16 +280,23 @@ export default function AvatarGallery() {
       .catch(e => setError(e.message))
   }, [])
 
+  useEffect(() => { setPage(1) }, [sortField, sortDir, lifecycleFilter])
+
   if (error) return <p style={{ color: 'red', padding: 24 }}>오류: {error}</p>
   if (!data) return <p style={{ color: '#888', padding: 24 }}>불러오는 중...</p>
 
-  const sorted = sortData(data, sortField, sortDir)
+  const filtered = lifecycleFilter === 'ALL' ? data : data.filter(u => u.life_stage_code === lifecycleFilter)
+  const sorted = applyFavorites(sortData(filtered, sortField, sortDir))
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE)
+  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <h2 style={{ ...styles.heading, marginBottom: 0 }}>아바타 갤러리 <span style={{ fontSize: 14, color: '#aaa', fontWeight: 400 }}>{data.length}명</span></h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <h2 style={{ ...styles.heading, marginBottom: 0 }}>
+          아바타 갤러리 <span style={{ fontSize: 14, color: '#aaa', fontWeight: 400 }}>{filtered.length}명</span>
+        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <select value={sortField} onChange={e => setSortField(e.target.value)} style={styles.select}>
             {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -290,20 +310,44 @@ export default function AvatarGallery() {
         </div>
       </div>
 
-      <div style={styles.grid}>
-        {sorted.map(u => (
-          <div key={u.user_id} style={styles.card} onClick={() => setSelected(u)}>
-            {u.avatar_img_url ? (
-              <img src={u.avatar_img_url} alt={u.avatar_name} style={styles.img} onError={e => { e.target.style.display='none' }} />
-            ) : (
-              <img src={soBee} alt="default" style={styles.img} />
-            )}
-            <div style={styles.name}>{u.avatar_name || u.name}</div>
-            <div style={styles.meta}>{u.name} · {u.age}세 · {u.gender?.toLowerCase() === 'm' ? '남' : u.gender?.toLowerCase() === 'f' ? '여' : '-'}</div>
-            <div style={styles.badge}>{LIFE_STAGE[u.life_stage_code] || u.life_stage_code || '미분류'}</div>
-          </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+        {LIFECYCLE_FILTERS.map(f => (
+          <button
+            key={f.value}
+            onClick={() => setLifecycleFilter(f.value)}
+            style={lifecycleFilter === f.value ? styles.filterBtnActive : styles.filterBtn}
+          >
+            {f.label}
+          </button>
         ))}
       </div>
+
+      <div style={styles.grid}>
+        {paginated.map(u => {
+          const isFav = FAVORITES.has(u.user_id)
+          return (
+            <div key={u.user_id} style={{ ...styles.card, ...(isFav ? styles.favCard : {}) }} onClick={() => setSelected(u)}>
+              {isFav && <span style={styles.favBadge}>★</span>}
+              {u.avatar_img_url ? (
+                <img src={u.avatar_img_url} alt={u.avatar_name} style={styles.img} onError={e => { e.target.style.display='none' }} />
+              ) : (
+                <img src={soBee} alt="default" style={styles.img} />
+              )}
+              <div style={styles.name}>{u.avatar_name || u.name}</div>
+              <div style={styles.meta}>{u.name} · {u.age}세 · {u.gender?.toLowerCase() === 'm' ? '남' : u.gender?.toLowerCase() === 'f' ? '여' : '-'}</div>
+              <div style={styles.badge}>{LIFE_STAGE[u.life_stage_code] || u.life_stage_code || '미분류'}</div>
+            </div>
+          )
+        })}
+      </div>
+
+      {totalPages > 1 && (
+        <div style={styles.pagination}>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={styles.pageBtn}>←</button>
+          <span style={styles.pageInfo}>{page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={styles.pageBtn}>→</button>
+        </div>
+      )}
 
       {selected && <AvatarModal user={selected} onClose={() => setSelected(null)} />}
     </div>
@@ -312,6 +356,14 @@ export default function AvatarGallery() {
 
 const styles = {
   heading: { fontSize: 20, fontWeight: 700, marginBottom: 20 },
+  filterBtn: {
+    padding: '5px 14px', borderRadius: 20, border: '1px solid #ddd',
+    background: '#fff', fontSize: 13, color: '#555', cursor: 'pointer',
+  },
+  filterBtnActive: {
+    padding: '5px 14px', borderRadius: 20, border: '1px solid #6c63ff',
+    background: '#6c63ff', fontSize: 13, color: '#fff', cursor: 'pointer', fontWeight: 600,
+  },
   select: {
     padding: '6px 12px', borderRadius: 8, border: '1px solid #ddd',
     fontSize: 13, color: '#444', cursor: 'pointer', background: '#fff',
@@ -325,7 +377,15 @@ const styles = {
   card: {
     background: '#fff', borderRadius: 12, padding: 20, textAlign: 'center',
     boxShadow: '0 2px 8px rgba(0,0,0,.06)', cursor: 'pointer',
-    transition: 'transform .15s',
+    transition: 'transform .15s', position: 'relative',
+  },
+  favCard: {
+    border: '2px solid #f59e0b',
+    boxShadow: '0 2px 12px rgba(245,158,11,.2)',
+  },
+  favBadge: {
+    position: 'absolute', top: 10, right: 12,
+    fontSize: 14, color: '#f59e0b',
   },
   img: { width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', marginBottom: 10 },
   name: { fontWeight: 700, fontSize: 15, marginBottom: 4 },
@@ -334,6 +394,16 @@ const styles = {
     display: 'inline-block', padding: '2px 10px', borderRadius: 12,
     background: '#ede9fe', color: '#6c63ff', fontSize: 12, marginBottom: 6,
   },
+  pagination: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    gap: 16, marginTop: 28,
+  },
+  pageBtn: {
+    width: 36, height: 36, borderRadius: 8, border: '1px solid #ddd',
+    background: '#fff', fontSize: 16, cursor: 'pointer', color: '#444',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  pageInfo: { fontSize: 14, color: '#555', minWidth: 60, textAlign: 'center' },
   modal: {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
@@ -347,8 +417,8 @@ const styles = {
     border: 'none', fontSize: 18, cursor: 'pointer', color: '#888',
   },
   arrow: {
-    width: 36, height: 36, borderRadius: '50%', border: '1px solid #ddd',
-    background: '#fff', fontSize: 18, cursor: 'pointer', color: '#444',
+    padding: '6px 10px', borderRadius: 8, border: '1px solid #ddd',
+    background: '#fff', fontSize: 12, cursor: 'pointer', color: '#555',
     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   catRow: {

@@ -23,6 +23,13 @@ export default function App() {
   const [tab, setTab] = useState('overview')
   const overviewReloadRef = useRef(null)
   const [lastRefresh, setLastRefresh] = useState(new Date())
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  function handleRefresh() {
+    overviewReloadRef.current?.()
+    setRefreshKey(k => k + 1)
+    setLastRefresh(new Date())
+  }
 
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -42,7 +49,7 @@ export default function App() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 12, color: '#888' }}>30초마다 자동갱신 · 마지막: {lastRefresh.toLocaleTimeString()}</span>
-            <button onClick={() => overviewReloadRef.current?.()} style={styles.refreshBtn}>
+            <button onClick={handleRefresh} style={styles.refreshBtn}>
               ↻ 새로고침
             </button>
           </div>
@@ -50,14 +57,13 @@ export default function App() {
       </header>
       <main style={styles.main}>
         {tab === 'overview' && <Overview onReloadRef={overviewReloadRef} onRefresh={setLastRefresh} />}
-        {tab === 'avatar' && <AvatarGallery />}
-        {tab === 'user-data' && <UserDataStats />}
-        {tab === 'diary' && <DiaryMapping />}
-        {tab === 'vlm' && <VlmStats />}
-        {tab === 'category-overrides' && <CategoryOverrides />}
-        {tab === 'lifecycle' && <Lifecycle />}
-
-        {tab === 'prompts' && <PromptManager />}
+        {tab === 'avatar' && <AvatarGallery key={refreshKey} />}
+        {tab === 'user-data' && <UserDataStats key={refreshKey} />}
+        {tab === 'diary' && <DiaryMapping key={refreshKey} />}
+        {tab === 'vlm' && <VlmStats key={refreshKey} />}
+        {tab === 'category-overrides' && <CategoryOverrides key={refreshKey} />}
+        {tab === 'lifecycle' && <Lifecycle key={refreshKey} />}
+        {tab === 'prompts' && <PromptManager key={refreshKey} />}
       </main>
     </div>
   )
