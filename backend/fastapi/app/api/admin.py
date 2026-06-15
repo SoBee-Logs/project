@@ -82,36 +82,35 @@ async def avatars():
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
-                SELECT u.user_id, u.name, u.age, u.gender, u.life_stage_code, u.created_at as user_created_at,
-                       a.avatar_name, a.avatar_img_url, a.avatar_explain, a.avatar_created_at
+                SELECT u.user_id, u.name, u.age, u.gender, u.life_stage_code,
+                       u.created_at as user_created_at,
+                       la.avatar_name, la.avatar_img_url, la.avatar_explain, la.avatar_created_at,
+                       COALESCE(pt.persona_tx_count, 0) as persona_tx_count
                 FROM users u
-                LEFT JOIN avatar a ON u.user_id = a.user_id
-                ORDER BY a.avatar_created_at DESC
+                LEFT JOIN (
+                    SELECT a.*
+                    FROM avatar a
+                    INNER JOIN (
+                        SELECT user_id, MAX(avatar_created_at) as max_created
+                        FROM avatar GROUP BY user_id
+                    ) mx ON a.user_id = mx.user_id AND a.avatar_created_at = mx.max_created
+                ) la ON u.user_id = la.user_id
+                LEFT JOIN (
+                    SELECT user_id, COUNT(*) as persona_tx_count
+                    FROM persona_transaction GROUP BY user_id
+                ) pt ON u.user_id = pt.user_id
+                ORDER BY la.avatar_created_at DESC
             """)
             rows = await cur.fetchall()
             cols = [d[0] for d in cur.description]
-            avatars_list = [dict(zip(cols, r)) for r in rows]
-
             result = []
-            for av in avatars_list:
-                uid = av["user_id"]
-                await cur.execute("""
-                    SELECT cm.category_name, SUM(t.payment_out) as total
-                    FROM transactions t
-                    LEFT JOIN category_master cm ON t.payment_category_id = cm.payment_category_id
-                    WHERE t.user_id=%s AND t.payment_out > 0
-                    GROUP BY cm.category_name ORDER BY total DESC LIMIT 3
-                """, (uid,))
-                top_cats = await cur.fetchall()
-                av["top_categories"] = [{"category": r[0], "amount": int(r[1])} for r in top_cats]
-
-                await cur.execute("SELECT COUNT(*) FROM persona_transaction WHERE user_id=%s", (uid,))
-                av["persona_tx_count"] = (await cur.fetchone())[0]
-
+            for r in rows:
+                av = dict(zip(cols, r))
                 if av.get("avatar_created_at"):
                     av["avatar_created_at"] = str(av["avatar_created_at"])
                 if av.get("user_created_at"):
                     av["user_created_at"] = str(av["user_created_at"])
+                av["top_categories"] = []
                 result.append(av)
 
     return result
@@ -146,28 +145,30 @@ async def user_data():
         async with conn.cursor() as cur:
             await cur.execute("SELECT user_id, name, age, gender, life_stage_code, nickname, is_active FROM users ORDER BY user_id")
             users = await cur.fetchall()
+
+            # 테이블별로 user_id 기준 집계를 한 번에 조회 (기존 유저별 6쿼리 N+1 → 테이블당 1쿼리)
+            async def count_by_user(table):
+                await cur.execute(f"SELECT user_id, COUNT(*) FROM {table} GROUP BY user_id")
+                return {row[0]: row[1] for row in await cur.fetchall()}
+
+            card_counts = await count_by_user("cards")
+            bank_counts = await count_by_user("bank_accounts")
+            tx_counts = await count_by_user("transactions")
+            photo_counts = await count_by_user("photos")
+
+            await cur.execute("SELECT user_id, COUNT(*), MAX(created_at) FROM diary GROUP BY user_id")
+            diary_stats = {row[0]: (row[1], row[2]) for row in await cur.fetchall()}
+
             result = []
             for u in users:
                 uid = u[0]
-                await cur.execute("SELECT COUNT(*) FROM cards WHERE user_id=%s", (uid,))
-                card_count = (await cur.fetchone())[0]
-                await cur.execute("SELECT COUNT(*) FROM bank_accounts WHERE user_id=%s", (uid,))
-                bank_count = (await cur.fetchone())[0]
-                await cur.execute("SELECT COUNT(*) FROM transactions WHERE user_id=%s", (uid,))
-                tx_count = (await cur.fetchone())[0]
-                await cur.execute("SELECT COUNT(*) FROM photos WHERE user_id=%s", (uid,))
-                photo_count = (await cur.fetchone())[0]
-                await cur.execute("SELECT COUNT(*) FROM diary WHERE user_id=%s", (uid,))
-                diary_count = (await cur.fetchone())[0]
-                await cur.execute("SELECT MAX(created_at) FROM diary WHERE user_id=%s", (uid,))
-                last_diary = (await cur.fetchone())[0]
-
+                diary_count, last_diary = diary_stats.get(uid, (0, None))
                 result.append({
                     "user_id": uid, "name": u[1], "age": u[2],
                     "gender": u[3], "life_stage_code": u[4], "nickname": u[5], "is_active": u[6],
-                    "card_count": card_count, "bank_count": bank_count,
-                    "tx_count": tx_count,
-                    "photo_count": photo_count, "diary_count": diary_count,
+                    "card_count": card_counts.get(uid, 0), "bank_count": bank_counts.get(uid, 0),
+                    "tx_count": tx_counts.get(uid, 0),
+                    "photo_count": photo_counts.get(uid, 0), "diary_count": diary_count,
                     "last_diary": str(last_diary) if last_diary else None,
                 })
     return result
