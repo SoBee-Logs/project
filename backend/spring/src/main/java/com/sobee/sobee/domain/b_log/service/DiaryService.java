@@ -64,6 +64,9 @@ public class DiaryService {
         Group group = groupRepository.findById(req.getGroupId())
                 .orElseThrow(() -> new RuntimeException("모임방을 찾을 수 없습니다. groupId=" + req.getGroupId()));
 
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
         LocalDate targetDate = LocalDate.parse(req.getDate(), DateTimeFormatter.ISO_LOCAL_DATE);
 
         List<PhotoGroups> pgList = photoGroupsRepository.findByIdGroupId(req.getGroupId());
@@ -177,6 +180,7 @@ public class DiaryService {
                 .tags(Collections.singletonList("#" + group.getGroupName()))
                 .group_description(group.getGroupDescription())
                 .room_category(group.getCategory() != null ? group.getCategory().name() : null)
+                .life_stage_code(user.getLifeStageCode()) 
                 .build();
 
         FastApiDiaryResponse faRes;
@@ -408,6 +412,7 @@ public class DiaryService {
         private List<String> tags;
         private String group_description;
         private String room_category;
+        private String life_stage_code;
     }
 
     @Getter

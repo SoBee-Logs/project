@@ -45,4 +45,6 @@ public class User {
     @Builder.Default
     private Boolean isActive = true;
 
+    @Column(name = "life_stage_code")
+    private String lifeStageCode;
 }
