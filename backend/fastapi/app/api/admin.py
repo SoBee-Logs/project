@@ -1107,7 +1107,7 @@ async def avatar_detail(user_id: int, start: str = Query(None), end: str = Query
     from app.core.emotion import pick_top_mood_name
     from app.db.transaction_repository import (
         get_transactions_by_date_range, get_mapped_transactions_with_vlm,
-        get_photo_emotions_by_taken_at,
+        get_photo_emotions_by_payment_date,
     )
     from app.db.user_repository import get_user_life_stage
 
@@ -1158,21 +1158,24 @@ async def avatar_detail(user_id: int, start: str = Query(None), end: str = Query
     # 3) 생성기와 동일 소스 조회
     transactions = await get_transactions_by_date_range(user_id, start_date, end_date)
     mapped = await get_mapped_transactions_with_vlm(user_id, start_date, end_date)
-    photo_emotions = await get_photo_emotions_by_taken_at(user_id, start_date, end_date)
+    photo_emotions = await get_photo_emotions_by_payment_date(user_id, start_date, end_date)
     life_stage_code = (await get_user_life_stage(user_id)) or "NEW_JOB"
 
-    # 매핑 사진(소품/표정 근거, url 포함) — taken_at 기준, 사진 단위 dedupe
+    # 매핑 사진(소품/표정 근거, url 포함) — payment_date 기준, 사진 단위 dedupe
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
                 SELECT p.photo_id, MAX(p.image_url), MAX(pvr.vlm_item_name),
                        MAX(pvr.vlm_category), MAX(pvr.vlm_description), MAX(et.emoji)
-                FROM (SELECT DISTINCT photo_id, vlm_id FROM persona_transaction WHERE user_id=%s) pt
+                FROM (
+                    SELECT DISTINCT pt.photo_id, pt.vlm_id
+                    FROM persona_transaction pt
+                    JOIN transactions t ON pt.payment_id = t.payment_id
+                    WHERE pt.user_id=%s AND t.payment_date BETWEEN %s AND %s
+                ) pt
                 JOIN photos p ON pt.photo_id = p.photo_id
                 JOIN photo_vlm_results pvr ON pt.vlm_id = pvr.vlm_id
-                JOIN photo_metadata pm ON p.photo_id = pm.photo_id
                 LEFT JOIN emotions_text et ON pt.photo_id = et.photo_id
-                WHERE DATE(pm.taken_at) BETWEEN %s AND %s
                 GROUP BY p.photo_id
             """, (user_id, start_date, end_date))
             prows = await cur.fetchall()

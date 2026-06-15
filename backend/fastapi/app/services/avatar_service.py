@@ -21,7 +21,7 @@ from app.core.constants import MOOD_EXPRESSION_EN, MOOD_KO, MOOD_NAME_TO_EMOJI
 from app.core.prompt_store import register, get_prompt
 from app.db.transaction_repository import (
     get_transactions_by_date_range, get_mapped_transactions_with_vlm,
-    get_photo_emotions_by_taken_at,
+    get_photo_emotions_by_payment_date,
 )
 from app.core.emotion import pick_top_mood_name
 from app.db.user_repository import update_user_avatar, get_user_life_stage
@@ -82,12 +82,17 @@ Personality vibe (derived from the user's most frequently used emoji): {personal
 3. POSE/MOTION: One dynamic pose reflecting the time pattern and personality.
    Examples: walking confidently, sitting relaxed, holding something up, waving, stretching.
 
-4. PROPS: ONE iconic prop the character is holding or interacting with.
-   Must represent the user's actual consumed item: {top_items}.
-   Choose the single most visually iconic object from the item name above.
-   If the item above is empty, ambiguous, or hard to depict, fall back to a category-based prop: {props_hint}.
-   Immediately recognizable. Occupies less than 15% of the image area.
-   Never cover the bee mascot's body.
+4. PROPS: The character must visibly feature EVERY item listed here: {top_items}.
+   These are the user's actual consumed items (one or two items, separated by " & ").
+   - If only ONE item is listed: the character holds it in its hands or arms, clearly visible.
+   - If TWO items are listed: BOTH must appear and be individually recognizable.
+     Distribute them — the character holds one item in its hand/arms, and the second appears
+     as a smaller accompanying prop right beside the character (on a surface next to it,
+     floating nearby, or tucked under its other arm), or it holds one item in each hand.
+     Do NOT merge the two items into a single hybrid object, and do NOT drop either one.
+   If an item is empty, ambiguous, or hard to depict, fall back to a category-based prop: {props_hint}.
+   Each item must be immediately recognizable. All props together occupy less than 20% of the image area.
+   Props must never cover or hide the bee mascot's body or face.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 2. BACKGROUND
@@ -436,7 +441,7 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
     transactions, mapped, photo_emotions, life_stage_code_raw = await asyncio.gather(
         get_transactions_by_date_range(user_id, start_date, end_date),
         get_mapped_transactions_with_vlm(user_id, start_date, end_date),
-        get_photo_emotions_by_taken_at(user_id, start_date, end_date),
+        get_photo_emotions_by_payment_date(user_id, start_date, end_date),
         get_user_life_stage(user_id),
     )
     if not transactions:
@@ -449,8 +454,8 @@ async def _generate_and_save_avatar(user_id: int, start_date: str, end_date: str
     # 2. VLM 데이터 추출
     vlm_items = list(dict.fromkeys(r["vlm_item_name"] for r in mapped if r.get("vlm_item_name")))
     vlm_descriptions = [r["vlm_description"] for r in mapped if r.get("vlm_description")]
-    # 감정 집계: 리포트 주차별 감정(weekly_top_emotion)과 동일한 모집단(taken_at 기준, 사진 단위)·
-    # 동일한 동률 규칙(최빈, 동률 시 최근 사진 우선)을 공유 함수로 적용해 화면 표기와 통일한다.
+    # 감정 집계: 아바타의 다른 소스(거래·VLM)와 동일하게 payment_date 기준·사진 단위로 통일.
+    # 동률 규칙(최빈, 동률 시 최근 사진 우선)은 공유 함수(pick_top_mood_name)로 적용한다.
     top_mood = pick_top_mood_name(photo_emotions)  # emotions_text.emoji는 enum 이름(HAPPY/SAD...)
     # enum 이름 → 실제 이모지 글자 변환 (report_service와 동일 규칙). 미등록 enum이면 경고 후 무시.
     if top_mood and top_mood not in MOOD_NAME_TO_EMOJI:
