@@ -50,9 +50,10 @@ async def get_mapped_transactions_with_vlm(user_id: int, start_date: str, end_da
     return [dict(row) for row in rows]
 
 
-async def get_photo_emotions_by_taken_at(user_id: int, start_date: str, end_date: str) -> list[tuple]:
-    """기간 내(taken_at 기준) 매핑된 사진들의 (감정 enum 이름, 촬영시각) 조회.
-    리포트 주차별 감정 집계(weekly_top_emotion)와 동일한 모집단 — 사진 단위 1행.
+async def get_photo_emotions_by_payment_date(user_id: int, start_date: str, end_date: str) -> list[tuple]:
+    """기간 내(매핑된 결제의 payment_date 기준) 사진들의 (감정 enum 이름, 촬영시각) 조회.
+    아바타 생성의 다른 소스(거래·VLM)와 동일하게 payment_date 기준으로 통일 — 사진 단위 1행.
+    taken_at은 동률 시 최근 사진 우선 정렬용으로만 함께 반환한다.
     start_date, end_date: 'YYYY-MM-DD' 형식 문자열"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -60,11 +61,16 @@ async def get_photo_emotions_by_taken_at(user_id: int, start_date: str, end_date
             await cur.execute(
                 """
                 SELECT et.emoji AS mood, pm.taken_at
-                FROM (SELECT DISTINCT photo_id FROM persona_transaction WHERE user_id = %s) pt
+                FROM (
+                    SELECT DISTINCT pt.photo_id
+                    FROM persona_transaction pt
+                    JOIN transactions t ON pt.payment_id = t.payment_id
+                    WHERE pt.user_id = %s
+                      AND t.payment_date BETWEEN %s AND %s
+                ) pt
                 JOIN photo_metadata pm ON pt.photo_id = pm.photo_id
                 JOIN emotions_text et ON pt.photo_id = et.photo_id
-                WHERE DATE(pm.taken_at) BETWEEN %s AND %s
-                  AND et.emoji IS NOT NULL AND et.emoji != ''
+                WHERE et.emoji IS NOT NULL AND et.emoji != ''
                 """,
                 (user_id, start_date, end_date),
             )

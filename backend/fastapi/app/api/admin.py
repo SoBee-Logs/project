@@ -1078,3 +1078,209 @@ async def reprocess_all(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(run_all)
     return {"ok": True, "queued": len(photo_ids)}
+
+
+@router.get("/avatar-detail/{user_id}")
+async def avatar_detail(user_id: int, start: str = Query(None), end: str = Query(None)):
+    """
+    아바타가 '왜' 이렇게 생성됐는지 근거 데이터를 반환한다.
+    아바타 생성기(avatar_service)와 동일한 헬퍼·기간 로직을 재사용해 실제 생성 근거와 일치시킨다.
+
+    프롬프트 요소 ↔ 근거 데이터:
+      - 표정       ← 사진 감정(emotion_distribution + photos)
+      - 소품       ← VLM 아이템(top_items + photos)
+      - 옷/소비    ← top 카테고리(category_spend + category_transactions)
+      - 배경/시간  ← 결제 시간대(time_distribution)
+      - 생애주기   ← life_stage
+
+    기간 미지정 시: 최신 아바타 생성 주(avatar_created_at 직전 주, 없으면 지난주).
+    """
+    from collections import defaultdict
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+    from app.services.avatar_service import (
+        CATEGORY_ID_MAP, TIME_SLOTS, _classify_time_slot, _extract_hour,
+        _extract_persona_elements, _LIFE_STAGE_VIBE,
+    )
+    from app.services.ai_insight_service import LIFE_STAGE_KO
+    from app.core.constants import MOOD_NAME_TO_EMOJI, MOOD_KO
+    from app.core.emotion import pick_top_mood_name
+    from app.db.transaction_repository import (
+        get_transactions_by_date_range, get_mapped_transactions_with_vlm,
+        get_photo_emotions_by_payment_date,
+    )
+    from app.db.user_repository import get_user_life_stage
+
+    # 감정 enum 이름(HAPPY) → 이모지(☺️) → 한글(행복/만족). MOOD_KO는 이모지 키.
+    def _mko(name):
+        return MOOD_KO.get(MOOD_NAME_TO_EMOJI.get(name or "", ""), name)
+
+    pool = await get_pool()
+
+    # 1) 사용자 + 최신 아바타
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT name FROM users WHERE user_id=%s", (user_id,))
+            urow = await cur.fetchone()
+            if not urow:
+                return {"error": "user not found"}
+            user_name = urow[0]
+            await cur.execute("""
+                SELECT avatar_name, avatar_img_url, avatar_explain, avatar_created_at
+                FROM avatar WHERE user_id=%s ORDER BY avatar_created_at DESC LIMIT 1
+            """, (user_id,))
+            arow = await cur.fetchone()
+
+    avatar = None
+    ref_date = None
+    if arow:
+        avatar = {
+            "name": arow[0], "img_url": arow[1], "explain": arow[2],
+            "created_at": str(arow[3]) if arow[3] else None,
+        }
+        if arow[3] and hasattr(arow[3], "date"):
+            ref_date = arow[3].date()
+
+    # 2) 기간: 명시값 > 아바타가 대표하는 주 > 지난주(now)
+    #   avatar_created_at은 해당 아바타가 대표하는 주의 시작(월요일 00:00)으로 저장된다.
+    #   따라서 created_at이 속한 주(월~일)가 곧 페르소나 기간이다.
+    if start and end:
+        start_date, end_date = start, end
+    elif ref_date:
+        # 생성 로직상 avatar_created_at = 생성 기간 시작(start_date), end_date = start_date + 6일.
+        start_date, end_date = str(ref_date), str(ref_date + timedelta(days=6))
+    else:
+        base = datetime.now(ZoneInfo("Asia/Seoul")).date()
+        this_monday = base - timedelta(days=base.weekday())
+        last_monday = this_monday - timedelta(days=7)
+        start_date, end_date = str(last_monday), str(last_monday + timedelta(days=6))
+
+    # 3) 생성기와 동일 소스 조회
+    transactions = await get_transactions_by_date_range(user_id, start_date, end_date)
+    mapped = await get_mapped_transactions_with_vlm(user_id, start_date, end_date)
+    photo_emotions = await get_photo_emotions_by_payment_date(user_id, start_date, end_date)
+    life_stage_code = (await get_user_life_stage(user_id)) or "NEW_JOB"
+
+    # 매핑 사진(소품/표정 근거, url 포함) — payment_date 기준, 사진 단위 dedupe
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+                SELECT p.photo_id, MAX(p.image_url), MAX(pvr.vlm_item_name),
+                       MAX(pvr.vlm_category), MAX(pvr.vlm_description), MAX(et.emoji)
+                FROM (
+                    SELECT DISTINCT pt.photo_id, pt.vlm_id
+                    FROM persona_transaction pt
+                    JOIN transactions t ON pt.payment_id = t.payment_id
+                    WHERE pt.user_id=%s AND t.payment_date BETWEEN %s AND %s
+                ) pt
+                JOIN photos p ON pt.photo_id = p.photo_id
+                JOIN photo_vlm_results pvr ON pt.vlm_id = pvr.vlm_id
+                LEFT JOIN emotions_text et ON pt.photo_id = et.photo_id
+                GROUP BY p.photo_id
+            """, (user_id, start_date, end_date))
+            prows = await cur.fetchall()
+
+    mapped_photos = [
+        {
+            "photo_id": r[0], "url": r[1], "vlm_item_name": r[2],
+            "vlm_category": r[3], "vlm_description": r[4],
+            "emotion": r[5], "emotion_ko": _mko(r[5]),
+            "emotion_emoji": MOOD_NAME_TO_EMOJI.get(r[5]),
+        }
+        for r in prows
+    ]
+
+    # 4) 페르소나 핵심값 — 생성기와 동일 헬퍼 사용
+    top_mood = pick_top_mood_name(photo_emotions)
+    emoji = MOOD_NAME_TO_EMOJI.get(top_mood) if top_mood else None
+    # 생성기와 동일하게 매핑 거래(payment_date 기준)에서 vlm 아이템 추출
+    vlm_items = list(dict.fromkeys(r["vlm_item_name"] for r in mapped if r.get("vlm_item_name")))
+    elements = _extract_persona_elements(transactions, vlm_items, emoji or "")
+    top_category = elements["top_category"]
+    dominant_slot = elements["dominant_slot"]
+    top_items = vlm_items[:2] if vlm_items else [top_category]
+
+    # 5) 근거 집계 (금액·가맹점은 실제 소비 payment_out>0 기준, 시간대는 전체)
+    category_spend: dict[str, int] = defaultdict(int)
+    category_count: dict[str, int] = defaultdict(int)
+    slot_count: dict[str, int] = defaultdict(int)
+    place_count: dict[str, int] = defaultdict(int)
+    for t in transactions:
+        out = int(t.get("payment_out") or 0)
+        cat = CATEGORY_ID_MAP.get(t.get("payment_category_id"), "기타") if t.get("payment_category_id") else "기타"
+        hour = _extract_hour(t.get("payment_time"))
+        if hour is not None:
+            slot_count[_classify_time_slot(hour)] += 1
+        if out > 0:
+            category_spend[cat] += out
+            category_count[cat] += 1
+            place = (t.get("payment_place") or "").strip()
+            if place:
+                place_count[place] += 1
+
+    category_spend_list = [
+        {"category": c, "amount": a, "count": category_count[c]}
+        for c, a in sorted(category_spend.items(), key=lambda x: x[1], reverse=True)
+    ]
+    category_transactions = sorted(
+        [
+            {
+                "place": (t.get("payment_place") or "").strip() or "가맹점 미상",
+                "amount": int(t.get("payment_out") or 0),
+                "date": str(t.get("payment_date")) if t.get("payment_date") else None,
+                "time": str(t.get("payment_time")) if t.get("payment_time") else None,
+            }
+            for t in transactions
+            if int(t.get("payment_out") or 0) > 0
+            and (CATEGORY_ID_MAP.get(t.get("payment_category_id"), "기타") if t.get("payment_category_id") else "기타") == top_category
+        ],
+        key=lambda x: x["amount"], reverse=True,
+    )[:20]
+    time_distribution = [
+        {"slot": s, "emoji": TIME_SLOTS[s]["emoji"], "count": slot_count.get(s, 0)}
+        for s in TIME_SLOTS
+    ]
+    emo_count: dict[str, int] = defaultdict(int)
+    for mood, _taken in photo_emotions:
+        if mood:
+            emo_count[mood] += 1
+    emotion_distribution = [
+        {"name": m, "ko": _mko(m), "emoji": MOOD_NAME_TO_EMOJI.get(m, ""), "count": c}
+        for m, c in sorted(emo_count.items(), key=lambda x: x[1], reverse=True)
+    ]
+    top_places = [
+        {"place": p, "count": c}
+        for p, c in sorted(place_count.items(), key=lambda x: x[1], reverse=True)[:5]
+    ]
+
+    return {
+        "user_id": user_id,
+        "name": user_name,
+        "period": {"start": start_date, "end": end_date},
+        "avatar": avatar,
+        "life_stage": {
+            "code": life_stage_code,
+            "label": LIFE_STAGE_KO.get(life_stage_code, life_stage_code),
+            "vibe": _LIFE_STAGE_VIBE.get(life_stage_code, ""),
+        },
+        "persona": {
+            "top_category": top_category,
+            "dominant_slot": dominant_slot,
+            "dominant_slot_emoji": TIME_SLOTS.get(dominant_slot, {}).get("emoji", ""),
+            "top_emotion": (
+                {"name": top_mood, "ko": _mko(top_mood), "emoji": emoji}
+                if top_mood else None
+            ),
+            "top_items": top_items,
+        },
+        "evidence": {
+            "total_tx": len(transactions),
+            "total_spend": sum(category_spend.values()),
+            "category_spend": category_spend_list,
+            "category_transactions": category_transactions,
+            "time_distribution": time_distribution,
+            "emotion_distribution": emotion_distribution,
+            "top_places": top_places,
+            "photos": mapped_photos,
+        },
+    }
