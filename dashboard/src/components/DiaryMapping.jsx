@@ -5,6 +5,7 @@ import { ErrorBox } from './common/StatusViews'
 import DrillDownModal from './common/DrillDownModal'
 
 const COLORS = ['#6c63ff', '#e2e8f0']
+const PAGE_SIZE = 10
 
 function UserMappingDetail({ userId, name, onClose }) {
   const { data, error, loading } = useFetch(`/admin/diary-user/${userId}`)
@@ -83,6 +84,7 @@ function UserMappingDetail({ userId, name, onClose }) {
 export default function DiaryMapping() {
   const { data, error, loading, reload } = useFetch('/admin/diary-mapping')
   const [selectedUser, setSelectedUser] = useState(null)
+  const [page, setPage] = useState(1)
 
   if (error) return <ErrorBox message={error} onRetry={reload} />
   if (loading) return <p style={{ color: '#888', padding: 24 }}>불러오는 중...</p>
@@ -91,6 +93,9 @@ export default function DiaryMapping() {
     { name: '결제 매핑 사진', value: data.tx_mapped },
     { name: '미매핑 사진', value: data.total_photos - data.tx_mapped },
   ]
+
+  const totalPages = Math.max(1, Math.ceil(data.per_user.length / PAGE_SIZE))
+  const paginated = data.per_user.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <div>
@@ -137,6 +142,7 @@ export default function DiaryMapping() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ background: '#f8f9fa' }}>
+              <th style={th}>번호</th>
               <th style={th}>유저</th>
               <th style={th}>전체 사진</th>
               <th style={th}>일기 등록</th>
@@ -147,16 +153,17 @@ export default function DiaryMapping() {
             </tr>
           </thead>
           <tbody>
-            {data.per_user.map(u => (
+            {paginated.map((u, i) => (
               <tr key={u.user_id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td style={{ ...th, color: '#aaa', fontVariantNumeric: 'tabular-nums' }}>{(page - 1) * PAGE_SIZE + i + 1}</td>
                 <td style={{ ...th, fontWeight: 600 }}>{u.name}</td>
-                <td style={{ ...th, textAlign: 'right' }}>{u.total_photos}</td>
-                <td style={{ ...th, textAlign: 'right', color: '#0ea5e9', fontWeight: 600 }}>{u.diary_photos}</td>
-                <td style={{ ...th, textAlign: 'right', color: '#6c63ff', fontWeight: 600 }}>{u.mapped_photos}</td>
-                <td style={{ ...th, textAlign: 'right' }}>
+                <td style={th}>{u.total_photos}</td>
+                <td style={{ ...th, color: '#0ea5e9', fontWeight: 600 }}>{u.diary_photos}</td>
+                <td style={{ ...th, color: '#6c63ff', fontWeight: 600 }}>{u.mapped_photos}</td>
+                <td style={th}>
                   {u.total_photos > 0 ? `${((u.diary_photos / u.total_photos) * 100).toFixed(0)}%` : '-'}
                 </td>
-                <td style={{ ...th, textAlign: 'right' }}>
+                <td style={th}>
                   {u.total_photos > 0 ? `${((u.mapped_photos / u.total_photos) * 100).toFixed(0)}%` : '-'}
                 </td>
                 <td style={th}>
@@ -171,6 +178,14 @@ export default function DiaryMapping() {
         </table>
       </div>
 
+      {totalPages > 1 && (
+        <div style={styles.pagination}>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={styles.pageBtn}>←</button>
+          <span style={styles.pageInfo}>{page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={styles.pageBtn}>→</button>
+        </div>
+      )}
+
       {selectedUser && (
         <UserMappingDetail userId={selectedUser.id} name={selectedUser.name} onClose={() => setSelectedUser(null)} />
       )}
@@ -178,7 +193,7 @@ export default function DiaryMapping() {
   )
 }
 
-const th = { padding: '10px 14px', textAlign: 'left' }
+const th = { padding: '10px 14px', textAlign: 'center', verticalAlign: 'middle' }
 
 const styles = {
   heading: { fontSize: 20, fontWeight: 700, marginBottom: 20 },
@@ -189,6 +204,13 @@ const styles = {
   statLabel: { fontSize: 13, color: '#888', marginTop: 4 },
   rate: { fontSize: 18, fontWeight: 700, color: '#10b981', marginTop: 4 },
   chartBox: { background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,.06)', maxWidth: 480 },
+  pagination: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginTop: 20 },
+  pageBtn: {
+    width: 36, height: 36, borderRadius: 8, border: '1px solid #ddd',
+    background: '#fff', fontSize: 16, cursor: 'pointer', color: '#444',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  pageInfo: { fontSize: 14, color: '#555', minWidth: 60, textAlign: 'center' },
 }
 
 const ds = {

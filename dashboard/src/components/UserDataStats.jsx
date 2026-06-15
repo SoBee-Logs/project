@@ -51,7 +51,7 @@ function sortUsers(rows, field, dir, type) {
   })
 }
 
-const TABS = ['소비', '일기', '사진', '카드']
+const TABS = ['소비', '일기', '사진']
 
 function UserDetailModal({ userId, onClose }) {
   const { data, error, loading } = useFetch(`/admin/user-detail/${userId}`)
@@ -154,18 +154,6 @@ function UserDetailModal({ userId, onClose }) {
             </>
           )}
 
-          {tab === '카드' && (
-            <>
-              <div style={ms.sectionTitle}>보유 카드 ({data.cards.length}개)</div>
-              {data.cards.length === 0 && <p style={{ color: '#aaa', fontSize: 13 }}>카드 없음</p>}
-              {data.cards.map(c => (
-                <div key={c.card_id} style={ms.cardRow}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{c.name || '카드명 없음'}</div>
-                  <div style={{ fontSize: 12, color: '#888' }}>{c.type}</div>
-                </div>
-              ))}
-            </>
-          )}
         </>
       )}
     </DrillDownModal>
@@ -322,9 +310,10 @@ export default function UserDataStats() {
             {[...Array(5)].map((_, i) => <CardSkeleton key={i} />)}
           </div>
         ) : (
-          <table style={styles.table}>
+          <table className="udt" style={styles.table}>
             <thead>
               <tr style={styles.thead}>
+                <th>번호</th>
                 {SORT_COLUMNS.map(col => (
                   <th
                     key={col.label}
@@ -341,8 +330,9 @@ export default function UserDataStats() {
               </tr>
             </thead>
             <tbody>
-              {paginated.map(u => (
+              {paginated.map((u, i) => (
                 <tr key={u.user_id} style={styles.tr}>
+                  <td style={{ color: '#aaa', fontVariantNumeric: 'tabular-nums' }}>{(page - 1) * PAGE_SIZE + i + 1}</td>
                   <td style={{ fontWeight: 600 }}>
                     {u.name}
                     {u.is_active === 0 && <span style={{ marginLeft: 6, fontSize: 10, background: '#fee2e2', color: '#ef4444', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>탈퇴</span>}
@@ -392,7 +382,7 @@ const styles = {
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 14 },
   thead: { background: '#f8f9fa' },
   tr: { borderBottom: '1px solid #f0f0f0' },
-  num: { textAlign: 'right', fontVariantNumeric: 'tabular-nums', paddingRight: 16 },
+  num: { textAlign: 'center', fontVariantNumeric: 'tabular-nums' },
   badge: { background: '#ede9fe', color: '#6c63ff', padding: '2px 8px', borderRadius: 8, fontSize: 12 },
   filterBtn: {
     padding: '5px 14px', borderRadius: 16, border: '1px solid #ddd',
@@ -451,6 +441,6 @@ const ms = {
 if (typeof document !== 'undefined' && !document.getElementById('table-style')) {
   const s = document.createElement('style')
   s.id = 'table-style'
-  s.textContent = 'table th, table td { padding: 10px 14px; text-align: left; }'
+  s.textContent = 'table th, table td { padding: 10px 14px; text-align: left; } table.udt th, table.udt td { text-align: center; vertical-align: middle; }'
   document.head.appendChild(s)
 }
