@@ -124,6 +124,7 @@ export default function ConsumptionLog() {
       state: {
         ...location.state,
         selectedRooms,
+        selectedDate,
       },
     })
   }

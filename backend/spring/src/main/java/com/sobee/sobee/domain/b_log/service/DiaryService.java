@@ -40,6 +40,7 @@ public class DiaryService {
     private final DiaryRepository diaryRepository;
     private final DiaryPhotoRepository diaryPhotoRepository;
     private final PhotoRepository photoRepository;
+    private final PhotoMetadataRepository photoMetadataRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final TransactionRepository transactionRepository;
@@ -71,12 +72,19 @@ public class DiaryService {
 
         List<PhotoGroups> pgList = photoGroupsRepository.findByIdGroupId(req.getGroupId());
 
-        // 오늘 날짜 + 본인 사진 필터
+        // 대상 날짜 + 본인 사진 필터
+        // 소비로그 목록(타임라인)이 photo_metadata.takenAt 기준으로 필터링되므로,
+        // 일기도 같은 기준(taken_at)으로 "그날 사진"을 모아야 화면과 일치한다.
+        // (업로드 시각=created_at으로 거르면 자정 넘겨 업로드한 사진의 날짜가 어긋남)
         List<Photo> todayPhotos = pgList.stream()
                 .map(PhotoGroups::getPhoto)
                 .filter(photo -> photo.getUserId().equals(userId))
-                .filter(photo -> photo.getCreatedAt() != null
-                        && photo.getCreatedAt().toLocalDate().equals(targetDate))
+                .filter(photo -> {
+                    PhotoMetadata metadata = photoMetadataRepository.findByPhoto(photo).orElse(null);
+                    LocalDateTime takenAt = metadata != null ? metadata.getTakenAt() : null;
+                    LocalDateTime reference = takenAt != null ? takenAt : photo.getCreatedAt();
+                    return reference != null && reference.toLocalDate().equals(targetDate);
+                })
                 .sorted(Comparator.comparing(Photo::getCreatedAt).reversed())
                 .collect(Collectors.toList());
 
@@ -228,10 +236,25 @@ public class DiaryService {
     @Transactional
     public void saveDiary(DiarySaveRequest req, Long userId) {
 
+        // 일기 피드에 노출되는 작성일시도 사진의 taken_at 기준으로 맞춘다.
+        // (실제 저장 시각=서버 now로 두면, 자정 넘겨 저장하거나 과거 날짜로 시연할 때
+        //  내용은 그날 사진인데 피드에 찍히는 날짜만 오늘로 나오는 불일치가 생김)
+        LocalDateTime takenAt = null;
+        if (req.getPhotoIds() != null) {
+            takenAt = req.getPhotoIds().stream()
+                    .map(id -> photoMetadataRepository.findByPhotoPhotoId(id).orElse(null))
+                    .filter(Objects::nonNull)
+                    .map(PhotoMetadata::getTakenAt)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+        }
+
         Diary diary = Diary.builder()
                 .userId(userId)
                 .groupId(req.getGroupId())
                 .diaryContent(req.getDiaryContent())
+                .createdAt(takenAt)
                 .build();
         diaryRepository.save(diary);
 
