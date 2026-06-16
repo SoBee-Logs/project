@@ -5,7 +5,7 @@ import 'react-calendar/dist/Calendar.css'
 import { jwtDecode } from 'jwt-decode'
 import calendarIcon from '../../assets/calendar_icon.png'
 
-const LIMIT_DIARY_PER_DAY = true
+const LIMIT_DIARY_PER_DAY = false
 
 const toLocalDateStr = (date) => {
   const y = date.getFullYear()
