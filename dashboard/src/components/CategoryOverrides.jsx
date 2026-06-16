@@ -82,7 +82,7 @@ export default function CategoryOverrides() {
         카드를 누르면 사진과 매핑 내역을 볼 수 있습니다.
       </p>
 
-      <div style={styles.statRow}>
+      <div className="dash-stat-row-1col" style={styles.statRow}>
         <div style={styles.statCard}>
           <div style={{ ...styles.statVal, color: '#64748b' }}>{data.before_count.toLocaleString()}</div>
           <div style={styles.statLabel}>보정 전 기타·미분류 (전체)</div>
@@ -111,7 +111,7 @@ export default function CategoryOverrides() {
           <p style={{ fontSize: 12, color: '#888', marginTop: -8, marginBottom: 16 }}>
             보정된 거래는 보정 전 모두 <strong>기타</strong>였다고 가정한 분포입니다. (입금내역 제외)
           </p>
-          <div style={styles.charts}>
+          <div className="dash-charts-1col" style={styles.charts}>
             <div style={styles.chartBox}>
               <h4 style={styles.chartTitle}>변경 전</h4>
               <ResponsiveContainer width="100%" height={400}>
@@ -162,6 +162,7 @@ export default function CategoryOverrides() {
         {data.items.length === 0 ? (
           <p style={{ color: '#888', fontSize: 14 }}>보정된 거래가 없습니다.</p>
         ) : (
+          <div className="dash-scroll-wrap" style={{ overflowX: 'auto' }}>
           <table style={styles.table}>
             <thead>
               <tr style={styles.thead}>
@@ -190,6 +191,7 @@ export default function CategoryOverrides() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
         {data.items.length > 0 && totalPages > 1 && (
           <div style={styles.pagination}>

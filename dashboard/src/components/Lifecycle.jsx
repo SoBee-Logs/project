@@ -14,7 +14,7 @@ function StagePanel({ stage }) {
   const max = data.top_categories[0]?.total || 1
 
   return (
-    <div style={ps.wrap}>
+    <div className="dash-sidebar-layout" style={ps.wrap}>
       {/* 유저 수 */}
       <div style={ps.statBox}>
         <div style={ps.statNum}>{data.users.length}<span style={ps.statUnit}>명</span></div>
@@ -30,11 +30,11 @@ function StagePanel({ stage }) {
           data.top_categories.map((c, i) => (
             <div key={i} style={ps.catRow}>
               <div style={ps.rank}>{i + 1}</div>
-              <div style={ps.catName}>{c.category || '기타'}</div>
+              <div className="dash-cat-name" style={ps.catName}>{c.category || '기타'}</div>
               <div style={ps.barWrap}>
                 <div style={{ ...ps.bar, width: `${(c.total / max) * 100}%`, background: COLORS[i] }} />
               </div>
-              <div style={ps.catAmt}>{c.total.toLocaleString()}원</div>
+              <div className="dash-cat-amt" style={ps.catAmt}>{c.total.toLocaleString()}원</div>
             </div>
           ))
         )}

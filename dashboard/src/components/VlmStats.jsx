@@ -195,6 +195,7 @@ function SpendingCategoryDetail({ category, onClose }) {
             </div>
           )}
           <div style={ds.sectionTitle}>최근 거래 ({data.transactions.length}건)</div>
+          <div className="dash-scroll-wrap" style={{ overflowX: 'auto' }}>
           <table style={ds.table}>
             <thead>
               <tr style={ds.thead}>
@@ -212,6 +213,7 @@ function SpendingCategoryDetail({ category, onClose }) {
               ))}
             </tbody>
           </table>
+          </div>
         </>
       )}
     </DrillDownModal>
@@ -414,7 +416,7 @@ export default function VlmStats() {
       {/* ── VLM 분석 ── */}
       <h2 style={styles.heading}>VLM 분석</h2>
 
-      <div style={styles.statRow}>
+      <div className="dash-stat-row-3" style={styles.statRow}>
         <div style={styles.statCard}>
           <div style={{ ...styles.statVal, color: '#0ea5e9' }}>{vlm.total_photos.toLocaleString()}</div>
           <div style={styles.statLabel}>전체 사진</div>
@@ -433,7 +435,7 @@ export default function VlmStats() {
         </div>
       </div>
 
-      <div style={styles.charts}>
+      <div className="dash-charts-1col" style={styles.charts}>
         <div style={styles.chartBox}>
           <h3 style={styles.subheading}>
             VLM 분석 카테고리 분포
@@ -480,7 +482,7 @@ export default function VlmStats() {
         </div>
       </div>
 
-      <div style={{ ...styles.charts, marginTop: 16 }}>
+      <div className="dash-charts-1col" style={{ ...styles.charts, marginTop: 16 }}>
         <div style={styles.chartBox}>
           <h3 style={{ ...styles.subheading, marginBottom: 16 }}>연령대별 TOP 소비 품목</h3>
           <div style={styles.ageGrid}>

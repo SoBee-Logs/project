@@ -54,7 +54,7 @@ function Register() {
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      minHeight: "100vh",
+      minHeight: "100dvh",
       padding: "20px",
       backgroundColor: "white",
       position: "relative",

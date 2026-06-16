@@ -10,7 +10,7 @@ import PromptManager from './components/PromptManager.jsx'
 
 const TABS = [
   { id: 'overview', label: '개요' },
-  { id: 'avatar', label: '아바타' },
+  { id: 'avatar', label: '페르소나' },
   { id: 'user-data', label: '사용자 데이터' },
   { id: 'vlm', label: 'VLM 분석' },
   { id: 'category-overrides', label: '카테고리 보정' },
@@ -33,10 +33,10 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <header style={styles.header}>
+      <header className="dash-header" style={styles.header}>
         <h1 style={styles.title}>🗂 SobeeLog 관리자 대시보드</h1>
-        <nav style={{ ...styles.nav, justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <nav className="dash-nav" style={{ ...styles.nav, justifyContent: 'space-between' }}>
+          <div className="dash-tabs-row" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {TABS.map(t => (
               <button
                 key={t.id}
@@ -48,14 +48,14 @@ export default function App() {
             ))}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 12, color: '#888' }}>30초마다 자동갱신 · 마지막: {lastRefresh.toLocaleTimeString()}</span>
+            <span className="dash-refresh-caption" style={{ fontSize: 12, color: '#888' }}>30초마다 자동갱신 · 마지막: {lastRefresh.toLocaleTimeString()}</span>
             <button onClick={handleRefresh} style={styles.refreshBtn}>
               ↻ 새로고침
             </button>
           </div>
         </nav>
       </header>
-      <main style={styles.main}>
+      <main className="dash-main" style={styles.main}>
         {tab === 'overview' && <Overview onReloadRef={overviewReloadRef} onRefresh={setLastRefresh} />}
         {tab === 'avatar' && <AvatarGallery key={refreshKey} />}
         {tab === 'user-data' && <UserDataStats key={refreshKey} />}
