@@ -27,9 +27,9 @@ export default defineConfig({
     allowedHosts: true,
     watch: { usePolling: true },
     hmr: {
-      protocol: 'wss',
+      protocol: 'ws',
       host: 'localhost',
-      clientPort: 3000,
+      clientPort: 80,
     },
     proxy: {
       '/api/vlm': {

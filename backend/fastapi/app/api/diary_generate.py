@@ -130,7 +130,7 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
             contents=user_content,
             config=types.GenerateContentConfig(
                 temperature=0.75,
-                max_output_tokens=2048,
+                max_output_tokens=4096,
                 response_mime_type="application/json",
                 system_instruction=system_content,
             ),
