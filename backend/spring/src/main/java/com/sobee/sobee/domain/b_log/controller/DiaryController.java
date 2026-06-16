@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -112,5 +113,14 @@ public class DiaryController {
     ) {
         Long userId = extractUserId(authHeader);
         return ResponseEntity.ok(diaryService.getMyDiaryList(userId));
+    }
+
+    @GetMapping("/today")
+    public ResponseEntity<Map<String, Boolean>> hasTodayDiary(
+        @RequestHeader("Authorization") String token
+    ) {
+        Long userId = jwtUtil.getUserId(token.replace("Bearer ", ""));
+        boolean exists = diaryService.hasTodayDiary(userId);
+        return ResponseEntity.ok(Map.of("exists", exists));
     }
 }

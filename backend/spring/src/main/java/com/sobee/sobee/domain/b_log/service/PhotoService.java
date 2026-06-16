@@ -15,6 +15,8 @@ import com.sobee.sobee.domain.b_log.entity.PhotoGroupsId;
 import com.sobee.sobee.domain.b_log.entity.PhotoMetadata;
 import com.sobee.sobee.domain.b_log.entity.PhotoVlmResult;
 import com.sobee.sobee.domain.b_log.entity.Transaction;
+import com.sobee.sobee.domain.b_log.entity.Diary;
+import com.sobee.sobee.domain.b_log.repository.DiaryRepository;
 import com.sobee.sobee.domain.b_log.repository.EmotionsTextRepository;
 import com.sobee.sobee.domain.b_log.repository.PersonaTransactionRepository;
 import com.sobee.sobee.domain.b_log.repository.PhotoGroupsRepository;
@@ -55,6 +57,7 @@ import org.springframework.web.client.RestTemplate;
 public class PhotoService {
 
     private final PhotoRepository photoRepository;
+    private final DiaryRepository diaryRepository;
     private final PhotoMetadataRepository photoMetadataRepository;
     private final EmotionsTextRepository emotionsTextRepository;
     private final PhotoGroupsRepository photoGroupsRepository;
@@ -161,41 +164,68 @@ public class PhotoService {
 
         List<Photo> photos = photoRepository.findByUserIdAndDate(userId, startOfDay, endOfDay);
 
-        List<PhotoResponse> responses = photos.stream().map(photo -> {
-
-            PhotoMetadata metadata = photoMetadataRepository.findByPhoto(photo).orElse(null);
-            String photoDate = metadata != null
-                    ? metadata.getTakenAt().format(DATE_FORMATTER) : "";
-            String photoTime = metadata != null
-                    ? metadata.getTakenAt().format(TIME_FORMATTER) : "";
-
-            EmotionsText emotionsText = emotionsTextRepository.findByPhotoId(photo.getPhotoId()).orElse(null);
-            String emoji = emotionsText != null && emotionsText.getEmoji() != null
-                    ? emotionsText.getEmoji().getEmoji() : null;
-            String text = emotionsText != null ? emotionsText.getText() : null;
-
-            List<Long> groupIds = photoGroupsRepository.findByPhoto(photo)
-                    .stream()
-                    .map(pg -> pg.getId().getGroupId())
-                    .collect(Collectors.toList());
-
-            boolean mapped = personaTransactionRepository.existsByPhotoId(photo.getPhotoId());
-
-            return PhotoResponse.builder()
-                    .id(photo.getPhotoId())
-                    .url(photo.getImageUrl())
-                    .date(photoDate)
-                    .time(photoTime)
-                    .emoji(emoji)
-                    .text(text)
-                    .group(groupIds)
-                    .mapped(mapped)
-                    .build();
-
-        }).collect(Collectors.toList());
+        List<PhotoResponse> responses = photos.stream()
+                .map(this::buildPhotoResponse)
+                .collect(Collectors.toList());
 
         return PhotoListResponse.builder()
                 .photos(responses)
+                .build();
+    }
+
+    // 일기 1일 1회 제한 때문에 오늘 날짜로만 필터링하면, 그날 일기 생성 이후 올라온 사진이
+    // 다음날에도 매핑 기회를 못 얻는 문제가 있어 추가.
+    // 매핑 실패로 누락된 과거 사진까지 매번 다시 시도하면 쌓일수록 느려지므로,
+    // "마지막 일기 생성 시각 이후" 올라온 사진만 매핑 대상으로 한정 (실패한 건 재시도하지 않음)
+    @Transactional(readOnly = true)
+    public PhotoListResponse getUnmappedPhotos(Long userId) {
+        LocalDateTime cutoff = diaryRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .findFirst()
+                .map(Diary::getCreatedAt)
+                .orElse(null);
+
+        List<Photo> photos = photoRepository.findByUserId(userId);
+
+        List<PhotoResponse> responses = photos.stream()
+                .filter(photo -> cutoff == null || photo.getCreatedAt().isAfter(cutoff))
+                .filter(photo -> !personaTransactionRepository.existsByPhotoId(photo.getPhotoId()))
+                .map(this::buildPhotoResponse)
+                .collect(Collectors.toList());
+
+        return PhotoListResponse.builder()
+                .photos(responses)
+                .build();
+    }
+
+    private PhotoResponse buildPhotoResponse(Photo photo) {
+        PhotoMetadata metadata = photoMetadataRepository.findByPhoto(photo).orElse(null);
+        String photoDate = metadata != null
+                ? metadata.getTakenAt().format(DATE_FORMATTER) : "";
+        String photoTime = metadata != null
+                ? metadata.getTakenAt().format(TIME_FORMATTER) : "";
+
+        EmotionsText emotionsText = emotionsTextRepository.findByPhotoId(photo.getPhotoId()).orElse(null);
+        String emoji = emotionsText != null && emotionsText.getEmoji() != null
+                ? emotionsText.getEmoji().getEmoji() : null;
+        String text = emotionsText != null ? emotionsText.getText() : null;
+
+        List<Long> groupIds = photoGroupsRepository.findByPhoto(photo)
+                .stream()
+                .map(pg -> pg.getId().getGroupId())
+                .collect(Collectors.toList());
+
+        boolean mapped = personaTransactionRepository.existsByPhotoId(photo.getPhotoId());
+
+        return PhotoResponse.builder()
+                .id(photo.getPhotoId())
+                .url(photo.getImageUrl())
+                .date(photoDate)
+                .time(photoTime)
+                .emoji(emoji)
+                .text(text)
+                .group(groupIds)
+                .mapped(mapped)
                 .build();
     }
 

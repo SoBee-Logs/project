@@ -86,6 +86,16 @@ public class PhotoController {
         return ResponseEntity.ok(response);
     }
 
+    // 날짜 무관, 아직 결제 매핑 안 된 사진 전체 — 일기생성 mapping 단계에서 사용
+    @GetMapping("/unmapped")
+    public ResponseEntity<PhotoListResponse> getUnmappedPhotos(
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        Long userId = extractUserId(authHeader);
+        PhotoListResponse response = photoService.getUnmappedPhotos(userId);
+        return ResponseEntity.ok(response);
+    }
+
     // 특정 그룹의 가장 최신 사진 URL 반환 — 홈 피드 미리보기용
     @GetMapping("/group/{groupId}/latest")
     public ResponseEntity<Map<String, String>> getLatestPhotoByGroup(

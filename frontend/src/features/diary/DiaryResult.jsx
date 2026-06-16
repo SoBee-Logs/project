@@ -138,7 +138,7 @@ export default function DiaryResult() {
           title: d.title,
           lines: d.diaryLines,
         })
-        await fetch('/api/diary/save', {
+        const res = await fetch('/api/diary/save', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -150,8 +150,11 @@ export default function DiaryResult() {
             photoIds: d.photoIds ?? [],
           }),
         })
-      } catch {
-        // 저장 실패해도 피드 이동은 계속 진행
+        console.log(`[저장] roomId=${d.roomId} status=${res.status} ok=${res.ok}`)
+        const body = await res.text().catch(() => null)
+        console.log(`[저장] body=`, body)
+      } catch (e) {
+        console.error(`[저장 실패] roomId=${d.roomId}`, e)
       }
     }
 
