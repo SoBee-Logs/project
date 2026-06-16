@@ -28,7 +28,7 @@ services:
       - backend/spring/.env
     environment:
       # 팀원 피드백 반영: 실제 값 대신 환경변수(${...}) 처리
-      - DB_HOST=${DB_HOST}
+      - DB_HOST=${DB_HOST}    
       - DB_PORT=${DB_PORT}
       - FASTAPI_BASE_URL=${FASTAPI_BASE_URL}
       - ES_URI=${ES_URI}
@@ -48,7 +48,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3000:80"
     restart: unless-stopped
     depends_on:
       - spring
