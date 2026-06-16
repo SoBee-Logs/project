@@ -11,8 +11,11 @@ import java.util.List;
 
 public interface PhotoRepository extends JpaRepository<Photo, Long> {
 
-    @Query("SELECT p FROM Photo p WHERE p.userId = :userId " +
-            "AND p.createdAt >= :startOfDay AND p.createdAt < :endOfDay")
+    // 소비로그 목록은 촬영시각(photo_metadata.taken_at) 기준으로 거른다.
+    // 카드에 표시되는 날짜·시간도 taken_at이라, 목록 필터와 표시값이 일치한다.
+    @Query("SELECT pm.photo FROM PhotoMetadata pm " +
+            "WHERE pm.photo.userId = :userId " +
+            "AND pm.takenAt >= :startOfDay AND pm.takenAt < :endOfDay")
     List<Photo> findByUserIdAndDate(
             @Param("userId") Long userId,
             @Param("startOfDay") LocalDateTime startOfDay,
