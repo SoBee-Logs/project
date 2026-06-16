@@ -10,7 +10,7 @@ import PromptManager from './components/PromptManager.jsx'
 
 const TABS = [
   { id: 'overview', label: '개요' },
-  { id: 'avatar', label: '아바타' },
+  { id: 'avatar', label: '페르소나' },
   { id: 'user-data', label: '사용자 데이터' },
   { id: 'vlm', label: 'VLM 분석' },
   { id: 'category-overrides', label: '카테고리 보정' },

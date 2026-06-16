@@ -17,7 +17,7 @@ const FAVORITES = new Set([13, 114, 115, 116, 119, 17])
 const PAGE_SIZE = 12
 
 const SORT_OPTIONS = [
-  { value: 'avatar_created_at', label: '아바타 생성일' },
+  { value: 'avatar_created_at', label: '페르소나 생성일' },
   { value: 'user_created_at',   label: '가입일' },
   { value: 'persona_tx',        label: '이용 횟수' },
   { value: 'age',               label: '나이' },
@@ -57,11 +57,11 @@ function Bar({ label, value, max, color, suffix, highlight }) {
   const pct = max > 0 ? Math.max(2, (value / max) * 100) : 0
   return (
     <div style={ds.barRow}>
-      <div style={{ ...ds.barLabel, fontWeight: highlight ? 700 : 400, color: highlight ? '#222' : '#666' }}>{label}</div>
+      <div className="dash-bar-label" style={{ ...ds.barLabel, fontWeight: highlight ? 700 : 400, color: highlight ? '#222' : '#666' }}>{label}</div>
       <div style={ds.barTrack}>
         <div style={{ ...ds.barFill, width: `${pct}%`, background: color }} />
       </div>
-      <div style={ds.barVal}>{value.toLocaleString()}{suffix || ''}</div>
+      <div className="dash-bar-val" style={ds.barVal}>{value.toLocaleString()}{suffix || ''}</div>
     </div>
   )
 }
@@ -132,12 +132,12 @@ function AvatarModal({ user, onClose }) {
 
   return (
     <div style={styles.modal} onClick={onClose}>
-      <div style={styles.modalBox} onClick={e => e.stopPropagation()}>
+      <div className="dash-avatar-modal-box" style={styles.modalBox} onClick={e => e.stopPropagation()}>
         <button style={styles.close} onClick={onClose}>✕</button>
 
         {histErr && <p style={{ color: 'red', fontSize: 13 }}>오류: {histErr}</p>}
         {!history && !histErr && <p style={{ color: '#aaa', fontSize: 13 }}>불러오는 중...</p>}
-        {history && total === 0 && <p style={{ color: '#aaa', fontSize: 13 }}>아바타 없음</p>}
+        {history && total === 0 && <p style={{ color: '#aaa', fontSize: 13 }}>페르소나 없음</p>}
 
         {current && (
           <>
@@ -294,7 +294,7 @@ export default function AvatarGallery() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <h2 style={{ ...styles.heading, marginBottom: 0 }}>
-          아바타 갤러리 <span style={{ fontSize: 14, color: '#aaa', fontWeight: 400 }}>{filtered.length}명</span>
+          페르소나 갤러리 <span style={{ fontSize: 14, color: '#aaa', fontWeight: 400 }}>{filtered.length}명</span>
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <select value={sortField} onChange={e => setSortField(e.target.value)} style={styles.select}>
