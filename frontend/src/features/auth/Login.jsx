@@ -27,7 +27,7 @@ function Login() {
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      height: "100vh",
+      height: "100dvh",
       padding: "20px",
       backgroundColor: "white",
     }}>

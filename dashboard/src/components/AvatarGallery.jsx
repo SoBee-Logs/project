@@ -322,20 +322,20 @@ export default function AvatarGallery() {
         ))}
       </div>
 
-      <div style={styles.grid}>
+      <div className="dash-avatar-grid" style={styles.grid}>
         {paginated.map(u => {
           const isFav = FAVORITES.has(u.user_id)
           return (
-            <div key={u.user_id} style={{ ...styles.card, ...(isFav ? styles.favCard : {}) }} onClick={() => setSelected(u)}>
+            <div key={u.user_id} className="dash-avatar-card" style={{ ...styles.card, ...(isFav ? styles.favCard : {}) }} onClick={() => setSelected(u)}>
               {isFav && <span style={styles.favBadge}>★</span>}
               {u.avatar_img_url ? (
-                <img src={u.avatar_img_url} alt={u.avatar_name} style={styles.img} onError={e => { e.target.style.display='none' }} />
+                <img src={u.avatar_img_url} alt={u.avatar_name} className="dash-avatar-img" style={styles.img} onError={e => { e.target.style.display='none' }} />
               ) : (
-                <img src={soBee} alt="default" style={styles.img} />
+                <img src={soBee} alt="default" className="dash-avatar-img" style={styles.img} />
               )}
-              <div style={styles.name}>{u.avatar_name || u.name}</div>
-              <div style={styles.meta}>{u.name} · {u.age}세 · {u.gender?.toLowerCase() === 'm' ? '남' : u.gender?.toLowerCase() === 'f' ? '여' : '-'}</div>
-              <div style={styles.badge}>{LIFE_STAGE[u.life_stage_code] || u.life_stage_code || '미분류'}</div>
+              <div className="dash-avatar-name" style={styles.name}>{u.avatar_name || u.name}</div>
+              <div className="dash-avatar-meta" style={styles.meta}>{u.name} · {u.age}세 · {u.gender?.toLowerCase() === 'm' ? '남' : u.gender?.toLowerCase() === 'f' ? '여' : '-'}</div>
+              <div className="dash-avatar-badge" style={styles.badge}>{LIFE_STAGE[u.life_stage_code] || u.life_stage_code || '미분류'}</div>
             </div>
           )
         })}

@@ -139,6 +139,7 @@ export default function DiaryMapping() {
       </div>
 
       <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,.06)', marginTop: 16 }}>
+        <div className="dash-scroll-wrap" style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ background: '#f8f9fa' }}>
@@ -176,6 +177,7 @@ export default function DiaryMapping() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {totalPages > 1 && (

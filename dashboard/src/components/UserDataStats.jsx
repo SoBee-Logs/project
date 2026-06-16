@@ -310,6 +310,7 @@ export default function UserDataStats() {
             {[...Array(5)].map((_, i) => <CardSkeleton key={i} />)}
           </div>
         ) : (
+          <div className="dash-scroll-wrap" style={{ overflowX: 'auto' }}>
           <table className="udt" style={styles.table}>
             <thead>
               <tr style={styles.thead}>
@@ -356,6 +357,7 @@ export default function UserDataStats() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

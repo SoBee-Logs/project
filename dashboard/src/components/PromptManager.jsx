@@ -208,7 +208,7 @@ export default function PromptManager() {
   return (
     <div>
       <h2 style={s.heading}>프롬프트 관리</h2>
-      <div style={s.layout}>
+      <div className="dash-sidebar-layout" style={s.layout}>
 
         {/* 사이드바 */}
         <div style={s.sidebar}>
@@ -299,7 +299,7 @@ export default function PromptManager() {
                     </button>
                   </div>
                 </div>
-                <div style={s.metaRow}>
+                <div className="dash-meta-row" style={s.metaRow}>
                   <MetaField label="사용 위치" value={meta.location || '-'} />
                   <MetaField label="입력" value={meta.input || '-'} />
                   <MetaField label="출력 형식" value={meta.output || '-'} />
@@ -352,7 +352,7 @@ export default function PromptManager() {
               </div>
 
               {/* 테스트 패널 */}
-              <div style={ts.wrapper}>
+              <div className="dash-test-wrapper" style={ts.wrapper}>
                 {/* 프롬프트 테스트 */}
                 <div style={ts.panel}>
                   <div style={ts.panelHeader}>

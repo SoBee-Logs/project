@@ -46,7 +46,7 @@ function Layout() {
   }
 
   return (
-    <div className="flex flex-col w-[375px] h-[100dvh] mx-auto bg-white overflow-hidden shadow-xl relative">
+    <div className="flex flex-col w-full max-w-[375px] h-[100dvh] mx-auto bg-white overflow-hidden shadow-xl relative">
 {config.appBar && <AppBar title={config.title} onBack={config.backTo ? () => navigate(config.backTo) : undefined} />}
       <div className={`flex-1 min-h-0 ${config.noScroll ? 'overflow-hidden' : 'overflow-y-auto'} ${config.floatingNav ? 'pb-0' : ''}`}>
         <Routes>
