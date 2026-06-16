@@ -5,6 +5,7 @@ import 'react-calendar/dist/Calendar.css'
 import { jwtDecode } from 'jwt-decode'
 import calendarIcon from '../../assets/calendar_icon.png'
 
+const LIMIT_DIARY_PER_DAY = true
 
 const toLocalDateStr = (date) => {
   const y = date.getFullYear()
@@ -26,6 +27,7 @@ export default function ConsumptionLog() {
   const [tempDate, setTempDate] = useState(new Date())
   const [joinedAt, setJoinedAt] = useState(null)
   const isToday = selectedDate === toLocalDateStr(new Date())
+  const [hasTodayDiary, setHasTodayDiary] = useState(false)
 
   const today = new Date()
   today.setHours(23, 59, 59, 999)
@@ -50,6 +52,17 @@ export default function ConsumptionLog() {
           setJoinedAt(new Date(data.createdAt.substring(0, 10) + 'T00:00:00'))
         }
       })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!LIMIT_DIARY_PER_DAY) return  // false면 체크 안 함
+    const token = localStorage.getItem('token')
+    fetch('/api/diary/today', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => setHasTodayDiary(data.exists))
       .catch(() => {})
   }, [])
 
@@ -799,12 +812,18 @@ export default function ConsumptionLog() {
           </p>
         )}
         
+        {/* 버튼 */}
+        {LIMIT_DIARY_PER_DAY && hasTodayDiary && (
+          <p className="text-center text-[11px] text-gray-400 mb-2">
+            오늘 일기는 이미 생성됐어요
+          </p>
+        )}
+
         <button
           type="button"
           onClick={handleGenerate}
-          // TODO: 테스트 완료 후 disabled={!isToday} 로 되돌리기
-          disabled={false}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white text-[14px] font-bold bg-[#2F7DF6]"
+          disabled={LIMIT_DIARY_PER_DAY && hasTodayDiary}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white text-[14px] font-bold bg-[#2F7DF6] disabled:opacity-40"
         >
           <span className="text-[11px]">▶</span> LLM 일기 생성
         </button>

@@ -523,4 +523,11 @@ public class DiaryService {
                     .build();
         }).collect(Collectors.toList());
     }
+    
+    public boolean hasTodayDiary(Long userId) {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
+        return diaryRepository.existsByUserIdAndCreatedAtBetween(userId, start, end);
+    }
 }

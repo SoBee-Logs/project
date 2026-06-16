@@ -77,4 +77,6 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             "  SELECT MAX(d2.created_at) FROM diary d2 WHERE d2.group_id = d.group_id" +
             ") GROUP BY d.group_id", nativeQuery = true)
     List<Object[]> findLatestImageUrlsByGroupIds(@Param("groupIds") List<Long> groupIds);
+
+    boolean existsByUserIdAndCreatedAtBetween(Long userId, LocalDateTime start, LocalDateTime end);
 }
