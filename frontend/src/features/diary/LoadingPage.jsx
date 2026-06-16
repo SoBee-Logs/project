@@ -25,6 +25,8 @@ export default function LoadingPage() {
   const imageFile = location.state?.imageFile ?? null
   const photoId   = location.state?.photoId   ?? null
   const mood      = location.state?.mood       ?? null
+  // 소비로그 캘린더에서 고른 날짜 — 없으면(카메라 업로드 직후 흐름) 서버 오늘 날짜로 fallback
+  const targetDate = location.state?.selectedDate ?? getTodayKST()
 
   const [messageIndex, setMessageIndex] = useState(0)
   const [userPhotos, setUserPhotos] = useState(imageUrl ? [imageUrl] : [])
@@ -36,13 +38,12 @@ export default function LoadingPage() {
     const fetchUserPhotos = async () => {
       try {
         const token = localStorage.getItem('token')
-        const today = getTodayKST()
         const decoded = JSON.parse(atob(token.split('.')[1]))
         const userId = decoded.sub
 
         const [avatarRes, photosRes] = await Promise.all([
           fetch(`/api/avatar/${userId}`, { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`/api/photos?date=${today}`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`/api/photos?date=${targetDate}`, { headers: { Authorization: `Bearer ${token}` } }),
         ])
 
         if (avatarRes.ok) {
@@ -76,8 +77,7 @@ export default function LoadingPage() {
 
     const runPipeline = async () => {
       const token = localStorage.getItem('token')
-      const today = getTodayKST()
-    
+
       let roomIds = selectedRooms
       let roomMap = {}
     
@@ -104,10 +104,10 @@ export default function LoadingPage() {
         } catch {}
       }
     
-      // 오늘 사진이 있는 그룹만 필터링
+      // 대상 날짜 사진이 있는 그룹만 필터링
       let photoList = []
       try {
-        const photosRes = await fetch(`/api/photos?date=${today}`, {
+        const photosRes = await fetch(`/api/photos?date=${targetDate}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (photosRes.ok) {
@@ -121,14 +121,14 @@ export default function LoadingPage() {
       } catch {}
     
       // 1. sync — 최신 결제 내역 업데이트
-      try {
-        await fetch('/api/diary/sync', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      } catch {
-        // sync 실패해도 계속 진행
-      }
+      // try {
+      //   await fetch('/api/diary/sync', {
+      //     method: 'POST',
+      //     headers: { Authorization: `Bearer ${token}` },
+      //   })
+      // } catch {
+      //   // sync 실패해도 계속 진행
+      // }
     
       // 2. mapping — 미매핑 사진 매핑
       try {
@@ -155,7 +155,7 @@ export default function LoadingPage() {
               },
               body: JSON.stringify({
                 groupId: roomId,
-                date:    today,
+                date:    targetDate,
                 mood:    mood,
               }),
             })
