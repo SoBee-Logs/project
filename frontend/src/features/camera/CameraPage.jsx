@@ -391,13 +391,7 @@ export default function CameraPage() {
         {(vlmLoading || vlmData) && (
           <div className="mt-2">
             <div className="relative">
-              <div
-                className="rounded-2xl bg-[#F0F7FF] border border-sky-100 px-4 pt-2 pb-3 overflow-hidden"
-                style={{
-                  maxHeight: vlmLoading ? '44px' : '400px',
-                  transition: 'max-height 0.5s ease-out',
-                }}
-              >
+              <div className="rounded-2xl bg-[#F0F7FF] border border-sky-100 px-4 pt-2 pb-3 overflow-hidden">
                 {vlmLoading && (
                   <div className="flex items-center gap-2.5 text-sky-500 pl-2">
                     <span className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin shrink-0" />
@@ -406,19 +400,53 @@ export default function CameraPage() {
                 )}
                 {vlmData && (
                   <>
-                    <p className="text-[11px] font-bold text-sky-600 mb-2 mt-1">🤖 AI가 분석한 소비 항목</p>
+                    <div className="flex items-center justify-between mb-2 mt-1">
+                      <p className="text-[11px] font-bold text-sky-600 m-0">🤖 AI 분석 결과</p>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${vlmData.is_valid ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {vlmData.is_valid ? '소비 감지' : '소비 없음'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1 mb-3">
+                      {[
+                        ['카테고리', vlmData.category],
+                        ['품목명', vlmData.item_name],
+                        ['금액', vlmData.price != null ? `${Number(vlmData.price).toLocaleString()}원` : '-'],
+                        ['장소 유형', vlmData.location_type ?? '-'],
+                        ['가게명', vlmData.store_name ?? '-'],
+                        ['설명', vlmData.description],
+                        ['신뢰도', vlmData.confidence],
+                        ['판단 근거', vlmData.reasoning],
+                      ].map(([label, value]) => (
+                        <div key={label} className="flex gap-1 text-[11px]">
+                          <span className="font-bold text-sky-700 shrink-0">{label}:</span>
+                          <span className="text-gray-700 break-all">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+
                     {vlmData.groups && vlmData.groups.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {(() => {
-                          const counts = vlmData.groups.flatMap(g => g.items)
-                            .reduce((acc, item) => { acc[item] = (acc[item] || 0) + 1; return acc }, {})
-                          return Object.entries(counts).map(([item, count], i) => (
-                            <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-sky-100 text-[#0073BC] font-semibold">
-                              {item}{count > 1 ? `×${count}` : ''}
-                            </span>
-                          ))
-                        })()}
-                      </div>
+                      <>
+                        <p className="text-[11px] font-bold text-sky-600 mb-1">소비 그룹</p>
+                        <div className="space-y-2">
+                          {vlmData.groups.map((g) => (
+                            <div key={g.group_id} className="bg-white rounded-xl border border-sky-100 px-3 py-2">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-[11px] font-bold text-[#0073BC]">그룹 {g.group_id} · {g.category}</span>
+                                <span className="text-[11px] font-bold text-gray-700">{Number(g.price).toLocaleString()}원</span>
+                              </div>
+                              {g.store && <p className="text-[10px] text-gray-500 mb-1">가게: {g.store}</p>}
+                              <div className="flex flex-wrap gap-1">
+                                {g.items.map((item, i) => (
+                                  <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-sky-50 border border-sky-100 text-[#0073BC] font-semibold">
+                                    {item}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     )}
                   </>
                 )}
