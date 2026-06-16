@@ -174,6 +174,8 @@ services:
       AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: 'true'
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: /opt/airflow/passwords.json
+      # Airflow 3.0.0 SimpleAuthManager 무한 리다이렉트 버그 우회: 실제 접속 주소로 지정 (issue #49495)
+      AIRFLOW__API__BASE_URL: http://54.180.148.224:8082
       AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-api-server:8080/execution/
       SOBEE_FASTAPI_URL: http://fastapi:8000
       TZ: Asia/Seoul
