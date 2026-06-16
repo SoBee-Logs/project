@@ -124,14 +124,18 @@ export default function CameraPage() {
     )
   }
 
-  const runVlmAnalysis = (file) => {
+  const runVlmAnalysis = (file, gps = null) => {
     setVlmLoading(true)
     setVlmData(null)
-
+  
     const promise = (async () => {
       try {
         const formData = new FormData()
         formData.append('image', file)
+        if (gps?.latitude && gps?.longitude) {
+          formData.append('latitude', String(gps.latitude))
+          formData.append('longitude', String(gps.longitude))
+        }
         const res = await fetch('/api/vlm/analyze', { method: 'POST', body: formData })
         if (res.ok) {
           const data = await res.json()
@@ -145,31 +149,33 @@ export default function CameraPage() {
         setVlmLoading(false)
       }
     })()
-
+  
     vlmPromiseRef.current = promise
   }
 
   const handleImageChange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-
+  
     // EXIF 전체 파싱 (Orientation + GPS + 시간 동시에)
     const exifData = await exifr.parse(file, {
       translateKeys: true,
       translateValues: true,
       gps: true,
     }).catch(() => null)
-
+  
     const orientation = exifData?.Orientation ?? 1
-
+  
+    // EXIF GPS 변수로 저장
+    const exifGps = (exifData?.latitude && exifData?.longitude)
+      ? { latitude: exifData.latitude, longitude: exifData.longitude }
+      : null
+  
     // EXIF GPS 있으면 기기 GPS보다 우선 적용
-    if (exifData?.latitude && exifData?.longitude) {
-      setGpsCoords({
-        latitude: exifData.latitude,
-        longitude: exifData.longitude,
-      })
+    if (exifGps) {
+      setGpsCoords(exifGps)
     }
-
+  
     // EXIF 촬영 시간 저장
     const extractedDate = exifData?.DateTimeOriginal ?? exifData?.CreateDate ?? exifData?.ModifyDate
     if (extractedDate) {
@@ -179,7 +185,7 @@ export default function CameraPage() {
       setExifTakenAt(null)
       console.log('⚠️ EXIF 시간 없음 → 현재 시간 사용')
     }
-
+  
     const ext = file.name.toLowerCase().split('.').pop()
     if (ext === 'heic' || ext === 'heif') {
       try {
@@ -192,18 +198,18 @@ export default function CameraPage() {
         const corrected = await correctOrientation(convertedFile, orientation)
         setImageFile(corrected)
         setPreviewUrl(URL.createObjectURL(corrected))
-        runVlmAnalysis(corrected)
+        runVlmAnalysis(corrected, exifGps)  // ← gps 전달
       } catch {
         setImageFile(file)
         setPreviewUrl(null)
-        runVlmAnalysis(file)
+        runVlmAnalysis(file, exifGps)  // ← gps 전달
       }
     } else {
       const corrected = await correctOrientation(file, orientation)
       const resized = await resizeImage(corrected)
       setImageFile(resized)
       setPreviewUrl(URL.createObjectURL(resized))
-      runVlmAnalysis(resized)
+      runVlmAnalysis(resized, exifGps)  // ← gps 전달
     }
   }
 
