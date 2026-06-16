@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts'
 import { useFetch } from '../hooks/useFetch'
 import { ErrorBox } from './common/StatusViews'
 import DrillDownModal from './common/DrillDownModal'
@@ -122,13 +122,17 @@ export default function CategoryOverrides() {
             <div style={styles.chartBox}>
               <h4 style={styles.chartTitle}>변경 전</h4>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={sortedDist} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <BarChart data={sortedDist} layout="vertical" margin={{ left: 20, right: 48 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" domain={[0, distMax]} tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis dataKey="category" type="category" tick={{ fontSize: 11 }} width={72} />
                   <Tooltip formatter={v => `${v.toLocaleString()}건`} />
                   <Bar dataKey="before" radius={[0, 4, 4, 0]}>
-                    {data.category_dist.map((c, i) => <Cell key={i} fill={categoryColor(c.category, i)} />)}
+                    {sortedDist.map((c, i) => <Cell key={i} fill={categoryColor(c.category, i)} />)}
+                    <LabelList dataKey="before" position="right" content={({ x, y, width, height, value, index }) => {
+                      if (sortedDist[index]?.category !== '기타' || !value) return null
+                      return <text x={x + width + 4} y={y + height / 2} dy="0.35em" fontSize={11} fill="#555">{value}건</text>
+                    }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -136,13 +140,17 @@ export default function CategoryOverrides() {
             <div style={styles.chartBox}>
               <h4 style={styles.chartTitle}>변경 후</h4>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={sortedDist} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <BarChart data={sortedDist} layout="vertical" margin={{ left: 20, right: 48 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" domain={[0, distMax]} tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis dataKey="category" type="category" tick={{ fontSize: 11 }} width={72} />
                   <Tooltip formatter={v => `${v.toLocaleString()}건`} />
                   <Bar dataKey="after" radius={[0, 4, 4, 0]}>
-                    {data.category_dist.map((c, i) => <Cell key={i} fill={categoryColor(c.category, i)} />)}
+                    {sortedDist.map((c, i) => <Cell key={i} fill={categoryColor(c.category, i)} />)}
+                    <LabelList dataKey="after" position="right" content={({ x, y, width, height, value, index }) => {
+                      if (sortedDist[index]?.category !== '기타' || !value) return null
+                      return <text x={x + width + 4} y={y + height / 2} dy="0.35em" fontSize={11} fill="#555">{value}건</text>
+                    }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

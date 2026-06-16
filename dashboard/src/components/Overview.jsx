@@ -83,8 +83,8 @@ export default function Overview({ onReloadRef, onRefresh }) {
       </div>
 
       <div style={styles.chartBox}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 0', marginBottom: 16 }}>
-          <h3 style={{ ...styles.subheading, marginBottom: 0 }}>최근 7일 서비스 이용 추이</h3>
+        <div style={{ marginBottom: 16 }}>
+          <h3 style={{ ...styles.subheading, marginBottom: 8, whiteSpace: 'nowrap' }}>최근 7일 서비스 이용 추이</h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {LINES.map(l => (
               <button key={l.key} onClick={() => toggleLine(l.key)} style={{

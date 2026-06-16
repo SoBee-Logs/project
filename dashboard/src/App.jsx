@@ -36,7 +36,7 @@ export default function App() {
       <header className="dash-header" style={styles.header}>
         <h1 style={styles.title}>🗂 SobeeLog 관리자 대시보드</h1>
         <nav className="dash-nav" style={{ ...styles.nav, justifyContent: 'space-between' }}>
-          <div className="dash-tabs-row" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="dash-tabs-row" style={{ display: 'flex', gap: 8 }}>
             {TABS.map(t => (
               <button
                 key={t.id}
