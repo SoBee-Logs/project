@@ -161,8 +161,7 @@ services:
     networks:
       - sobee-net
 
-  # [Airflow UI] http://<EC2_PUBLIC_IP>:8082  |  ID: admin  |  PW: admin1234
-  # Public IP 확인: aws ec2 describe-instances --filters "Name=private-ip-address,Values=10.250.1.252" --query "Reservations[].Instances[].PublicIpAddress" --output text --region ap-northeast-2
+  # [Airflow UI] api-server. 접속 주소/계정 정보는 airflow/.env 참고 (gitignore)
   airflow-api-server:
     image: apache/airflow:3.0.0
     container_name: sobee-airflow
@@ -174,6 +173,9 @@ services:
       AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: 'true'
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: /opt/airflow/passwords.json
+      # Airflow 3.0.0 SimpleAuthManager 무한 리다이렉트 버그 우회 (issue #49495):
+      # AIRFLOW__API__BASE_URL 을 실제 접속 주소로 지정해야 함. 값은 airflow/.env 에 설정
+      # (Public IP 변경 시 .env만 수정. .env 는 gitignore 되어 IP가 git에 노출되지 않음)
       AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-api-server:8080/execution/
       SOBEE_FASTAPI_URL: http://fastapi:8000
       TZ: Asia/Seoul
