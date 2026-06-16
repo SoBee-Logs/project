@@ -13,7 +13,7 @@ const LIFECYCLE_FILTERS = [
   ...Object.entries(LIFE_STAGE).map(([code, label]) => ({ value: code, label })),
 ]
 
-const FAVORITES = new Set([13, 114, 115, 116, 119])
+const FAVORITES = new Set([13, 114, 115, 116, 119, 17])
 const PAGE_SIZE = 12
 
 const SORT_OPTIONS = [
