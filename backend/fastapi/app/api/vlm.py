@@ -216,7 +216,7 @@ async def _analyze_with_gemini(client, image_bytes: bytes, mime_type: str, max_r
         try:
             start = time.time()
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3.5-flash",
                 contents=[image_part, get_prompt("vlm_extraction")],
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
