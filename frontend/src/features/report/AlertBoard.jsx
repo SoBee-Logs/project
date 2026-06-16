@@ -9,14 +9,11 @@ const CATEGORY_MAP = {
 }
 
 function buildSummary(alerts) {
-  const dangerBudget  = alerts.filter(a => a.budgetStatus === 'DANGER').length
-  const warningBudget = alerts.filter(a => a.budgetStatus === 'WARNING').length
-  const dangerDiary   = alerts.filter(a => a.diaryStatus === 'DANGER').length
-  const warningDiary  = alerts.filter(a => a.diaryStatus === 'WARNING').length
+  const dangerBudget = alerts.filter(a => a.budgetStatus === 'DANGER').length
+  const dangerDiary  = alerts.filter(a => a.diaryStatus === 'DANGER').length
   const parts = []
-  if (dangerBudget > 0)               parts.push(`🚨 예산 ${dangerBudget}건 초과`)
-  if (warningBudget > 0)              parts.push(`⚠️ 예산 ${warningBudget}건 임박`)
-  if (dangerDiary + warningDiary > 0) parts.push(`✍️ 목표 ${dangerDiary + warningDiary}건 미달`)
+  if (dangerBudget > 0) parts.push(`🚨 예산 ${dangerBudget}건 초과`)
+  if (dangerDiary > 0)  parts.push(`✍️ 목표 ${dangerDiary}건 미달`)
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
@@ -39,8 +36,7 @@ export function hasCurrentWeekDanger(alerts) {
 }
 
 function statusChip(status) {
-  if (status === 'DANGER')  return { label: '초과', bg: '#fef2f2', color: '#ef4444' }
-  if (status === 'WARNING') return { label: '임박', bg: '#fffbeb', color: '#f59e0b' }
+  if (status === 'DANGER') return { label: '초과', bg: '#fef2f2', color: '#ef4444' }
   return { label: '안전', bg: '#f0fdf4', color: '#22c55e' }
 }
 
@@ -91,8 +87,7 @@ function GroupAlert({ alert, isCurrentMonth }) {
   const weeks = alert.weeklyData ?? []
   const currentWeek = weeks[weeks.length - 1]
   const currentWeekWorst = !isCurrentMonth ? 'SAFE'
-    : (currentWeek?.budgetStatus === 'DANGER' || currentWeek?.diaryStatus === 'DANGER') ? 'DANGER'
-    : (currentWeek?.budgetStatus === 'WARNING' || currentWeek?.diaryStatus === 'WARNING') ? 'WARNING' : 'SAFE'
+    : (currentWeek?.budgetStatus === 'DANGER' || currentWeek?.diaryStatus === 'DANGER') ? 'DANGER' : 'SAFE'
   const hasIssue = currentWeekWorst !== 'SAFE'
 
   const handleOpen = () => {
@@ -101,8 +96,7 @@ function GroupAlert({ alert, isCurrentMonth }) {
   }
 
   const activeWeek = weeks.find(w => w.week === selectedWeek)
-  const worstStatus = (activeWeek?.budgetStatus === 'DANGER' || activeWeek?.diaryStatus === 'DANGER') ? 'DANGER'
-    : (activeWeek?.budgetStatus === 'WARNING' || activeWeek?.diaryStatus === 'WARNING') ? 'WARNING' : 'SAFE'
+  const worstStatus = (activeWeek?.budgetStatus === 'DANGER' || activeWeek?.diaryStatus === 'DANGER') ? 'DANGER' : 'SAFE'
   const chip = statusChip(worstStatus)
 
   return (
@@ -114,7 +108,7 @@ function GroupAlert({ alert, isCurrentMonth }) {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '11px', fontWeight: '700', color: '#374151' }}>{alert.groupName}</span>
-          {hasIssue && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: currentWeekWorst === 'DANGER' ? '#ef4444' : '#f59e0b', display: 'inline-block' }} />}
+          {hasIssue && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />}
         </div>
         <span style={{ fontSize: '10px', color: '#d1d5db' }}>{open ? '∧' : '∨'}</span>
       </button>
@@ -132,8 +126,7 @@ function GroupAlert({ alert, isCurrentMonth }) {
           <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2">
             {weeks.map((w, idx) => {
               const isCurrentWeek = isCurrentMonth && idx === weeks.length - 1
-              const wWorst = (w.budgetStatus === 'DANGER' || w.diaryStatus === 'DANGER') ? 'DANGER'
-                : (w.budgetStatus === 'WARNING' || w.diaryStatus === 'WARNING') ? 'WARNING' : 'SAFE'
+              const wWorst = (w.budgetStatus === 'DANGER' || w.diaryStatus === 'DANGER') ? 'DANGER' : 'SAFE'
               const isActive = selectedWeek === w.week
               return (
                 <button
@@ -146,7 +139,7 @@ function GroupAlert({ alert, isCurrentMonth }) {
                 >
                   {w.week}
                   {isCurrentWeek && wWorst !== 'SAFE' && (
-                    <span style={{ fontSize: '7px', color: isActive ? 'white' : wWorst === 'DANGER' ? '#ef4444' : '#f59e0b', lineHeight: 1 }}>●</span>
+                    <span style={{ fontSize: '7px', color: isActive ? 'white' : '#ef4444', lineHeight: 1 }}>●</span>
                   )}
                 </button>
               )
@@ -203,7 +196,6 @@ export default function AlertBoard({ year, month }) {
       if (weeks.length === 0) continue
       const cur = weeks[weeks.length - 1]
       if (cur.budgetStatus === 'DANGER' || cur.diaryStatus === 'DANGER') return 'DANGER'
-      if (cur.budgetStatus === 'WARNING' || cur.diaryStatus === 'WARNING') worst = 'WARNING'
     }
     return worst
   })()
@@ -227,7 +219,7 @@ export default function AlertBoard({ year, month }) {
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-semibold text-gray-700">🎯 이번 달 목표 현황</span>
             {currentWeekHeaderStatus !== 'SAFE' && (
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${currentWeekHeaderStatus === 'DANGER' ? 'bg-red-500' : 'bg-yellow-400'}`} />
+              <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-red-500" />
             )}
           </div>
           <span className="text-gray-300 text-xs">{isOpen ? '∧' : '∨'}</span>
