@@ -131,8 +131,14 @@ export default function LoadingPage() {
       }
     
       // 2. mapping — 미매핑 사진 매핑
+      // 일기는 하루 1회만 생성되므로, 오늘 날짜로만 필터링하면 그 이후 올라온 사진이나
+      // 어제 매핑을 못 받은 사진이 영영 매핑 기회를 못 얻음 → 날짜 무관 미매핑 사진 전체를 대상으로 매핑
       try {
-        const unmappedPhotos = photoList.filter((p) => !p.mapped)
+        const unmappedRes = await fetch('/api/photos/unmapped', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const unmappedData = unmappedRes.ok ? await unmappedRes.json() : null
+        const unmappedPhotos = unmappedData?.photos ?? unmappedData ?? []
         await Promise.all(
           unmappedPhotos.map((p) =>
             fetch(`/api/photos/${p.id}/mapping`, {

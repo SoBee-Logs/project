@@ -18,4 +18,6 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
             @Param("startOfDay") LocalDateTime startOfDay,
             @Param("endOfDay") LocalDateTime endOfDay
     );
+
+    List<Photo> findByUserId(@Param("userId") Long userId);
 }
