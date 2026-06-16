@@ -41,7 +41,7 @@ export default function App() {
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                style={{ ...styles.tab, ...(tab === t.id ? styles.activeTab : {}) }}
+                style={{ ...styles.tab, ...(tab === t.id ? styles.activeTab : {}), flexShrink: 0 }}
               >
                 {t.label}
               </button>

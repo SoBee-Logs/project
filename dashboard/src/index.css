@@ -26,7 +26,8 @@ button { white-space: nowrap; }
   .dash-cat-amt { width: 80px !important; }
 
   .dash-nav { flex-direction: column !important; justify-content: flex-start !important; align-items: stretch !important; gap: 10px !important; }
-  .dash-tabs-row { flex-wrap: nowrap !important; overflow-x: auto !important; }
+  .dash-tabs-row { flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .dash-tabs-row::-webkit-scrollbar { display: none; }
   .dash-refresh-caption { display: none !important; }
 
   .dash-avatar-modal-box { padding: 18px !important; }
