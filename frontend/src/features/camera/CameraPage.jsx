@@ -75,11 +75,11 @@ export default function CameraPage() {
   const [gpsCoords, setGpsCoords] = useState(null)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [gpsError, setGpsError] = useState(null)
+  const [exifTakenAt, setExifTakenAt] = useState(null)  // ← 추가
   const vlmPromiseRef = useRef(null)
   const fileInputRef = useRef(null)
-  const albumInputRef = useRef(null)
-  const originalFileRef = useRef(null)  // ← 원본 파일 저장용
   const hasUploaded = useRef(false)
+  const gpsInitialized = useRef(false)
 
   useEffect(() => {
     if (groupsFromState.length > 0) return
@@ -91,6 +91,9 @@ export default function CameraPage() {
   }, [])
 
   useEffect(() => {
+    if (gpsInitialized.current) return
+    gpsInitialized.current = true
+
     if (!navigator.geolocation) {
       setGpsError('이 기기는 위치 정보를 지원하지 않아요. 기본 위치로 대체합니다.')
       return
@@ -98,7 +101,8 @@ export default function CameraPage() {
     setGpsLoading(true)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setGpsCoords({
+        // EXIF GPS가 이미 세팅됐으면 덮어쓰지 않음
+        setGpsCoords(prev => prev ?? {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
         })
@@ -149,10 +153,32 @@ export default function CameraPage() {
     const file = e.target.files[0]
     if (!file) return
 
-    originalFileRef.current = file  // ← 원본 저장 (EXIF 추출용)
+    // EXIF 전체 파싱 (Orientation + GPS + 시간 동시에)
+    const exifData = await exifr.parse(file, {
+      translateKeys: true,
+      translateValues: true,
+      gps: true,
+    }).catch(() => null)
 
-    const exifData = await exifr.parse(file, ['Orientation']).catch(() => null)
     const orientation = exifData?.Orientation ?? 1
+
+    // EXIF GPS 있으면 기기 GPS보다 우선 적용
+    if (exifData?.latitude && exifData?.longitude) {
+      setGpsCoords({
+        latitude: exifData.latitude,
+        longitude: exifData.longitude,
+      })
+    }
+
+    // EXIF 촬영 시간 저장
+    const extractedDate = exifData?.DateTimeOriginal ?? exifData?.CreateDate ?? exifData?.ModifyDate
+    if (extractedDate) {
+      setExifTakenAt(new Date(extractedDate).toISOString())
+      console.log('✅ EXIF 촬영 시간:', new Date(extractedDate).toISOString())
+    } else {
+      setExifTakenAt(null)
+      console.log('⚠️ EXIF 시간 없음 → 현재 시간 사용')
+    }
 
     const ext = file.name.toLowerCase().split('.').pop()
     if (ext === 'heic' || ext === 'heif') {
@@ -189,29 +215,12 @@ export default function CameraPage() {
 
     setIsLoading(true)
     try {
-      const token = localStorage.getItem("token")
+      const token = localStorage.getItem('token')
       setLoadingStep('upload')
-
-      // EXIF는 원본 파일에서 추출 — resized 파일은 EXIF 없음
-      let takenAt = null
-      try {
-        const sourceFile = originalFileRef.current ?? imageFile
-        const exif = await exifr.parse(sourceFile)
-        console.log("🔍 원본 파일 EXIF 데이터:", exif)
-        if (exif) {
-          const extractedDate = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate
-          if (extractedDate) {
-            takenAt = new Date(extractedDate).toISOString()
-            console.log("✅ 최종 결정된 촬영 시간:", takenAt)
-          }
-        }
-      } catch (error) {
-        console.log("EXIF 데이터가 없거나 읽을 수 없습니다.", error)
-      }
 
       const formData = new FormData()
       formData.append('image', imageFile)
-      formData.append('takenAt', takenAt ?? new Date().toISOString())
+      formData.append('takenAt', exifTakenAt ?? new Date().toISOString())
       formData.append('latitude', String(gpsCoords?.latitude ?? 37.5665))
       formData.append('longitude', String(gpsCoords?.longitude ?? 126.9780))
       if (text) formData.append('text', text)
@@ -220,7 +229,7 @@ export default function CameraPage() {
 
       const res = await fetch('/api/photos', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       })
 
@@ -290,26 +299,16 @@ export default function CameraPage() {
 
       <section className="flex-1 overflow-y-auto px-5 pb-8 space-y-6">
         <figure
-          className={`w-full rounded-[28px] m-0 relative overflow-hidden ${
-            previewUrl ? 'bg-gray-100' : ''
-          }`}
+          className={`w-full rounded-[28px] m-0 relative overflow-hidden ${previewUrl ? 'bg-gray-100' : ''}`}
           style={{
             height: '300px',
-            background: previewUrl
-              ? '#F3F4F6'
-              : 'linear-gradient(180deg, #F3F8FF 0%, #EAF3FF 100%)',
+            background: previewUrl ? '#F3F4F6' : 'linear-gradient(180deg, #F3F8FF 0%, #EAF3FF 100%)',
             border: previewUrl ? '0' : '1.5px solid #DCEBFF',
-            boxShadow: previewUrl
-              ? 'none'
-              : '0 8px 22px rgba(31, 122, 244, 0.08)',
+            boxShadow: previewUrl ? 'none' : '0 8px 22px rgba(31, 122, 244, 0.08)',
           }}
         >
           {previewUrl ? (
-            <img
-              src={previewUrl}
-              alt="선택한 사진"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            <img src={previewUrl} alt="선택한 사진" className="absolute inset-0 w-full h-full object-cover" />
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
               <input
@@ -320,56 +319,24 @@ export default function CameraPage() {
                 className="hidden"
                 onChange={handleImageChange}
               />
-
-              <img
-                src={cameraPageImg}
-                alt="카메라"
-                className="w-[118px] h-auto object-contain mb-1"
-              />
-
-              <p
-                className="m-0 text-[17px] font-extrabold tracking-[-0.4px]"
-                style={{ color: '#0F2A4D' }}
-              >
+              <img src={cameraPageImg} alt="카메라" className="w-[118px] h-auto object-contain mb-1" />
+              <p className="m-0 text-[17px] font-extrabold tracking-[-0.4px]" style={{ color: '#0F2A4D' }}>
                 소비 사진 찍기
               </p>
-
-              <p
-                className="mt-2 mb-5 text-[12px] font-medium text-center leading-snug tracking-[-0.3px]"
-                style={{ color: '#7B8BA3' }}
-              >
-                오늘의 소비 순간을<br />
-                카메라로 기록해보세요
+              <p className="mt-2 mb-5 text-[12px] font-medium text-center leading-snug tracking-[-0.3px]" style={{ color: '#7B8BA3' }}>
+                오늘의 소비 순간을<br />카메라로 기록해보세요
               </p>
-
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="h-[44px] px-7 rounded-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-                style={{
-                  minWidth: '220px',
-                  background: '#2F7DF6',
-                  color: '#FFFFFF',
-                  boxShadow: '0 8px 18px rgba(47, 125, 246, 0.25)',
-                }}
+                style={{ minWidth: '220px', background: '#2F7DF6', color: '#FFFFFF', boxShadow: '0 8px 18px rgba(47, 125, 246, 0.25)' }}
               >
-                <svg
-                  width="19"
-                  height="19"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H8l1.4-1.8A2 2 0 0 1 11 3.5h2a2 2 0 0 1 1.6.7L16 6h1.5A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8Z" />
                   <circle cx="12" cy="12.5" r="3.2" />
                 </svg>
-
-                <span className="text-[14px] font-extrabold tracking-[-0.3px]">
-                  카메라 열기
-                </span>
+                <span className="text-[14px] font-extrabold tracking-[-0.3px]">카메라 열기</span>
               </button>
             </div>
           )}
@@ -393,10 +360,7 @@ export default function CameraPage() {
             <div className="relative">
               <div
                 className="rounded-2xl bg-[#F0F7FF] border border-sky-100 px-4 pt-2 pb-3 overflow-hidden"
-                style={{
-                  maxHeight: vlmLoading ? '44px' : '400px',
-                  transition: 'max-height 0.5s ease-out',
-                }}
+                style={{ maxHeight: vlmLoading ? '44px' : '400px', transition: 'max-height 0.5s ease-out' }}
               >
                 {vlmLoading && (
                   <div className="flex items-center gap-2.5 text-sky-500 pl-2">
@@ -436,10 +400,7 @@ export default function CameraPage() {
             placeholder="사진에 대해 설명해주세요!"
             maxLength={50}
             className="w-full px-4 py-2.5 rounded-2xl border text-[14px] text-gray-700 placeholder:text-[#8EA4C2] focus:outline-none focus:ring-2 focus:ring-[#BBD8FF]"
-            style={{
-              background: '#F3F8FF',
-              borderColor: '#DCEBFF',
-            }}
+            style={{ background: '#F3F8FF', borderColor: '#DCEBFF' }}
           />
         </label>
 
@@ -451,9 +412,7 @@ export default function CameraPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedMood(i)}
-                  className={`text-[28px] transition-transform ${
-                    selectedMood === i ? 'scale-110' : 'opacity-50'
-                  }`}
+                  className={`text-[28px] transition-transform ${selectedMood === i ? 'scale-110' : 'opacity-50'}`}
                 >
                   {emoji}
                 </button>
@@ -479,18 +438,10 @@ export default function CameraPage() {
                       style={{
                         background: checked ? '#E7F1FF' : '#F3F8FF',
                         borderColor: checked ? '#8CBFFF' : '#DCEBFF',
-                        boxShadow: checked
-                          ? '0 4px 12px rgba(31, 122, 224, 0.10)'
-                          : 'none',
+                        boxShadow: checked ? '0 4px 12px rgba(31, 122, 224, 0.10)' : 'none',
                       }}
                     >
-                      <span
-                        className="text-[14px] font-bold"
-                        style={{ color: '#1F7AE0' }}
-                      >
-                        {room.label}
-                      </span>
-
+                      <span className="text-[14px] font-bold" style={{ color: '#1F7AE0' }}>{room.label}</span>
                       <span
                         className="w-5 h-5 rounded-md border-2 border-dashed flex items-center justify-center"
                         style={{
@@ -498,9 +449,7 @@ export default function CameraPage() {
                           background: checked ? '#FFFFFF' : 'transparent',
                         }}
                       >
-                        {checked && (
-                          <span className="text-[10px] text-[#1F7AE0] font-bold">✓</span>
-                        )}
+                        {checked && <span className="text-[10px] text-[#1F7AE0] font-bold">✓</span>}
                       </span>
                     </button>
                   </li>
@@ -518,9 +467,7 @@ export default function CameraPage() {
         >
           {isLoading
             ? (loadingStep === 'analyze' ? '분석 중...' : '업로드 중...')
-            : vlmLoading
-              ? 'AI 분석 중...'
-              : '다음'}
+            : vlmLoading ? 'AI 분석 중...' : '다음'}
         </button>
       </section>
     </main>
