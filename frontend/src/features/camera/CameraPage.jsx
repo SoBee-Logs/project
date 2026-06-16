@@ -376,7 +376,12 @@ export default function CameraPage() {
                 )}
                 {vlmData && (
                   <>
-                    <p className="text-[11px] font-bold text-sky-600 mb-2 mt-1">🤖 AI가 분석한 소비 항목</p>
+                    <div className="flex items-center justify-between mb-2 mt-1">
+                      <p className="text-[11px] font-bold text-sky-600 m-0">🤖 AI가 분석한 소비 항목</p>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${vlmData.is_valid ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {vlmData.is_valid ? '소비 감지' : '소비 없음'}
+                      </span>
+                    </div>
                     {vlmData.groups && vlmData.groups.length > 0 && (
                       <div className="flex flex-wrap gap-1">
                         {(() => {
