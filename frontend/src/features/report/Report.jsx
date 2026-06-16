@@ -685,7 +685,7 @@ export default function Report() {
         {/* AI 상품 추천 */}
         <div ref={aiRecommendRef} className="flex flex-col gap-2">
           <div className="flex items-center gap-1">
-            <p className="text-xs text-gray-500 font-semibold">🤖 AI 상품 추천</p>
+            <p className="text-xs text-gray-500 font-semibold">🤖 맞춤 상품</p>
             <button
               onClick={fetchRecommend}
               disabled={recommendRefreshing}

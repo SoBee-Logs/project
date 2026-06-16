@@ -393,7 +393,7 @@ export default function Home() {
               }}
             >
               <span className="block text-[13px] font-bold leading-tight self-start pt-2" style={{ color: '#003B72' }}>
-                상품 추천
+                맞춤 상품
               </span>
               <img
                 src={productBag}
