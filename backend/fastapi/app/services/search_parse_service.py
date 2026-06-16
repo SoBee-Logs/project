@@ -78,7 +78,7 @@ def _detect_proper_noun_category(query: str) -> str | None:
 async def parse_search_query(query: str) -> dict:
     try:
         response = await _client.aio.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.5-flash",
             contents=f"{_SYSTEM_PROMPT}\n\n검색어: {query}",
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
