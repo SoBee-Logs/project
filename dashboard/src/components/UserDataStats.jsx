@@ -227,9 +227,9 @@ export default function UserDataStats() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 0', marginBottom: 20 }}>
         <h2 style={styles.heading}>사용자별 데이터 현황</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[['all', '전체'], ['inactive', '일기 없음'], ['no_photo', '사진 없음']].map(([v, l]) => (
             <button key={v} onClick={() => setFilter(v)}
               style={{ ...styles.filterBtn, ...(filter === v ? styles.filterActive : {}) }}>{l}</button>
@@ -380,7 +380,7 @@ const styles = {
   heading: { fontSize: 20, fontWeight: 700, margin: 0 },
   subheading: { fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#444' },
   chartBox: { background: '#fff', borderRadius: 12, padding: 24, marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,.06)' },
-  tableWrap: { background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,.06)' },
+  tableWrap: { background: '#fff', borderRadius: 12, overflow: 'visible', boxShadow: '0 2px 8px rgba(0,0,0,.06)' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 14 },
   thead: { background: '#f8f9fa' },
   tr: { borderBottom: '1px solid #f0f0f0' },

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts'
 import { useFetch } from '../hooks/useFetch'
 import { ErrorBox } from './common/StatusViews'
 import DrillDownModal from './common/DrillDownModal'
@@ -68,8 +68,15 @@ export default function CategoryOverrides() {
   if (error) return <ErrorBox message={error} onRetry={reload} />
   if (loading) return <p style={{ color: '#888', padding: 24 }}>불러오는 중...</p>
 
+  // '기타'를 맨 앞으로, 나머지는 보정 전 건수 내림차순
+  const sortedDist = [...(data.category_dist || [])].sort((a, b) => {
+    if (a.category === '기타') return -1
+    if (b.category === '기타') return 1
+    return b.before - a.before
+  })
+
   // 변경 전/후 그래프가 같은 x축 범위를 쓰도록 공유 최댓값 계산
-  const distMax = Math.max(1, ...(data.category_dist || []).flatMap(c => [c.before, c.after]))
+  const distMax = Math.max(1, ...sortedDist.flatMap(c => [c.before, c.after]))
 
   const totalPages = Math.max(1, Math.ceil(data.items.length / PAGE_SIZE))
   const paginatedItems = data.items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -115,13 +122,17 @@ export default function CategoryOverrides() {
             <div style={styles.chartBox}>
               <h4 style={styles.chartTitle}>변경 전</h4>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={data.category_dist} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <BarChart data={sortedDist} layout="vertical" margin={{ left: 20, right: 48 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" domain={[0, distMax]} tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis dataKey="category" type="category" tick={{ fontSize: 11 }} width={72} />
                   <Tooltip formatter={v => `${v.toLocaleString()}건`} />
                   <Bar dataKey="before" radius={[0, 4, 4, 0]}>
-                    {data.category_dist.map((c, i) => <Cell key={i} fill={categoryColor(c.category, i)} />)}
+                    {sortedDist.map((c, i) => <Cell key={i} fill={categoryColor(c.category, i)} />)}
+                    <LabelList dataKey="before" position="right" content={({ x, y, width, height, value, index }) => {
+                      if (sortedDist[index]?.category !== '기타' || !value) return null
+                      return <text x={x + width + 4} y={y + height / 2} dy="0.35em" fontSize={11} fill="#555">{value}건</text>
+                    }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -129,13 +140,17 @@ export default function CategoryOverrides() {
             <div style={styles.chartBox}>
               <h4 style={styles.chartTitle}>변경 후</h4>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={data.category_dist} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <BarChart data={sortedDist} layout="vertical" margin={{ left: 20, right: 48 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" domain={[0, distMax]} tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis dataKey="category" type="category" tick={{ fontSize: 11 }} width={72} />
                   <Tooltip formatter={v => `${v.toLocaleString()}건`} />
                   <Bar dataKey="after" radius={[0, 4, 4, 0]}>
-                    {data.category_dist.map((c, i) => <Cell key={i} fill={categoryColor(c.category, i)} />)}
+                    {sortedDist.map((c, i) => <Cell key={i} fill={categoryColor(c.category, i)} />)}
+                    <LabelList dataKey="after" position="right" content={({ x, y, width, height, value, index }) => {
+                      if (sortedDist[index]?.category !== '기타' || !value) return null
+                      return <text x={x + width + 4} y={y + height / 2} dy="0.35em" fontSize={11} fill="#555">{value}건</text>
+                    }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
