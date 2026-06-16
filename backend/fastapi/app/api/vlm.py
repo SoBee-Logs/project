@@ -9,7 +9,7 @@ from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 from google import genai
 from google.genai import types
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 
 from app.core.config import settings
 from app.core.prompt_store import register, get_prompt
@@ -290,9 +290,18 @@ async def analyze_image(filename: str, image_bytes: bytes, exif: dict = None) ->
 
 
 @router.post("/analyze")
-async def analyze_image_endpoint(image: UploadFile = File(...)):
+async def analyze_image_endpoint(
+    image: UploadFile = File(...),
+    latitude: float = Form(None),   # ← 추가
+    longitude: float = Form(None),  # ← 추가
+):
     image_bytes = await image.read()
     filename = image.filename or "image.jpg"
     image_bytes, filename = _convert_to_jpeg_if_needed(filename, image_bytes)
     exif = extract_exif(image_bytes)
+
+    # 프론트에서 GPS 받았으면 덮어씀 (리사이즈로 EXIF GPS 날아간 경우 대비)
+    if latitude is not None and longitude is not None:
+        exif["gps"] = {"latitude": latitude, "longitude": longitude}
+
     return await analyze_image(filename, image_bytes, exif)
