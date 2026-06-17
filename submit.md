@@ -1,10 +1,10 @@
 # [우리FISA 6기] AI 엔지니어링 과정 5팀 
 
 ## 1\. 프로젝트 개요
-  * **주제** : 결제•이미지 데이터 기반 페르소나 도출 및 LLM 맞춤 금융 추천•소비 일기 제공
+  * **주제** : 결제•이미지 데이터 기반 페르소나 도출 및 LLM 맞춤 금융 상품 제안•소비 일기 제공
   * **프로젝트 기획 배경** :  
     - 기존 금융 앱은 결제 내역을 단순 통계로만 보여줘 사용자가 자신의 소비 패턴과 생애주기를 직관적으로 파악하기 어렵습니다.  
-    - 이를 해결하기 위해 결제·사진 데이터를 기반으로 개인화된 페르소나와 소비 일기를 생성하고, 이를 바탕으로 맞춤 금융 상품까지 추천해주는 서비스를 기획했습니다.
+    - 이를 해결하기 위해 결제·사진 데이터를 기반으로 개인화된 페르소나와 소비 일기를 생성하고, 이를 바탕으로 맞춤 금융 상품까지 제안하는 서비스를 기획했습니다.
   * **기술 스택** :
     - **Frontend** : React, React Router
     - **Backend** : FastAPI, Airflow, Spring
@@ -15,13 +15,20 @@
 ## 2\. 아키텍쳐
 
 ### 2-1. 시스템 아키텍쳐
-(다이어그램, 도식화 등을 활용하여 시스템의 구성을 확인할 수 있는 이미지를 첨부해 주세요.)
+![alt text](sys_architecture.png)
 
 ### 설명
-(첨부한 시스템 아키텍처 이미지를 간략하게 설명해 주세요.)
+AWS Cloud(ap-northeast-2) 위에 VPC를 구성하여 퍼블릭/프라이빗 서브넷으로 역할을 분리했습니다.
+
+- **CI/CD** : GitHub에 Push하면 GitHub Actions가 Docker 이미지 빌드 → 보안 스캔 → ECR 푸시까지 자동 수행하고, SSH를 통해 EC2에 배포합니다.
+- **퍼블릭 서브넷** : Bastion EC2(Nginx Reverse Proxy)가 HTTPS(443)로 외부 요청을 받아 React(80)·Spring Boot(8082)로 라우팅합니다. FastAPI-Airflow EC2는 FastAPI(8000)·Airflow(8082)·Dashboard(5174)를 Docker Compose로 실행합니다.
+- **프라이빗 서브넷** : Spring-React EC2에서 React(3000)·Spring Boot(8080)·Elasticsearch(9200)를 Docker Compose로 운영하며, MySQL RDS(3306)와 REST API로 통신합니다.
+- **스토리지** : Amazon S3는 VPC Endpoint(S3 Gateway)를 통해 내부에서 직접 접근하여 데이터 및 정책 파일을 저장합니다.
 
 ### 2-2. AI 에이전트 워크플로우 (AI 엔지니어링 과정만 해당)
-![alt text](AI_workflow.png)
+![alt text](ai_workflow_1.png)
+![alt text](ai_workflow_2.png)
+![alt text](ai_workflow_3.png)
 
 ### 설명
 AI 에이전트 워크플로우는 3개의 파이프라인으로 구성됩니다.
@@ -116,7 +123,7 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
   - 코드 링크(스크립트 링크) : `backend/fastapi/app/api/diary_generate.py`
 
 #### [기능5. 맞춤 금융 상품 검색]
-  - 기능 설명 : 자연어 검색어를 LLM으로 파싱해 조건을 추출하고, Elasticsearch 검색 결과와 병합·필터링하여 맞춤 금융 상품을 추천합니다.
+  - 기능 설명 : 자연어 검색어를 LLM으로 파싱해 조건을 추출하고, Elasticsearch 검색 결과와 병합·필터링하여 맞춤 금융 상품을 보여줍니다.
   - 핵심 코드(스크립트) :
 ```java
 @Cacheable(value = "searchCache", key = "#request.search_input.trim().toLowerCase()")
