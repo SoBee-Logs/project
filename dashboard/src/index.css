@@ -44,6 +44,8 @@ button { white-space: nowrap; }
   .dash-bar-label { width: 64px !important; font-size: 11px !important; }
   .dash-bar-val { width: 56px !important; font-size: 11px !important; }
 
+  .dash-chart-box { padding: 12px !important; }
+
   /* 표 가로 스크롤 힌트 — 오른쪽 끝에 흐려지는 그라데이션으로 "더 있음" 표시 */
   .dash-scroll-wrap { position: relative; }
   .dash-scroll-wrap::after {

@@ -436,8 +436,8 @@ export default function VlmStats() {
       </div>
 
       <div className="dash-charts-1col" style={styles.charts}>
-        <div style={styles.chartBox}>
-          <h3 style={styles.subheading}>
+        <div className="dash-chart-box" style={styles.chartBox}>
+          <h3 style={{ ...styles.subheading, marginBottom: 12 }}>
             VLM 분석 카테고리 분포
             <span style={styles.clickHint}>· 막대 클릭 시 상세</span>
           </h3>
@@ -454,7 +454,7 @@ export default function VlmStats() {
           </ResponsiveContainer>
         </div>
 
-        <div style={styles.chartBox}>
+        <div className="dash-chart-box" style={styles.chartBox}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
             <h3 style={styles.subheading}>
               전체 소비 카테고리 분포
