@@ -13,9 +13,9 @@ const KEY_LABELS = {
 
 const PROMPT_META = {
   vlm_extraction: { location: 'VLM 분석 파이프라인', input: '이미지', output: 'JSON', model: 'gemini-3.5-flash' },
-  diary_system: { location: '일기 생성 > 시스템 프롬프트', input: '사용자 데이터', output: '텍스트', model: 'gemini-2.5-flash' },
-  diary_user_matched: { location: '일기 생성 > 매핑됨', input: '결제 + VLM 결과', output: '텍스트', model: 'gemini-2.5-flash' },
-  diary_user_unmatched: { location: '일기 생성 > 미매핑', input: '결제 데이터', output: '텍스트', model: 'gemini-2.5-flash' },
+  diary_system: { location: '일기 생성 > 시스템 프롬프트', input: '사용자 데이터', output: '텍스트', model: 'gemini-3.5-flash' },
+  diary_user_matched: { location: '일기 생성 > 매핑됨', input: '결제 + VLM 결과', output: '텍스트', model: 'gemini-3.5-flash' },
+  diary_user_unmatched: { location: '일기 생성 > 미매핑', input: '결제 데이터', output: '텍스트', model: 'gemini-3.5-flash' },
   group_mapping: { location: '사진·일기 매핑 > 결제 후보 선택', input: 'VLM 분석 결과 + 결제 내역 후보', output: 'JSON', model: 'gemini-3.5-flash' },
   avatar_image: { location: '아바타 생성 > 이미지 프롬프트', input: '사용자 프로필', output: '텍스트', model: 'gpt-image-2' },
   avatar_analysis: { location: '아바타 생성 > VLM 분석', input: '사용자 이미지 + VLM', output: 'JSON', model: 'gemini-3.5-flash' },
