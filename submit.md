@@ -37,7 +37,7 @@ AI 에이전트 워크플로우는 3개의 파이프라인으로 구성됩니다
 유저별 결제 내역을 수집해 LLM으로 카테고리를 통일하고, 주 1회 사진·결제 데이터가 있는 유저를 대상으로 LLM 분석(페르소나)과 이미지 생성(아바타)을 수행해 저장합니다.
 
 **2) 사진 업로드 (실시간)**
-업로드된 사진을 전처리(EXIF·리사이즈)한 뒤 VLM으로 카테고리·품목·가격을 추출하고, 소비와 무관한 사진은 제외한 뒤 결과를 저장합니다. 결제와의 매핑은 일기 생성 시점으로 지연됩니다.
+업로드된 사진은 EXIF 추출 및 리사이징한 뒤 VLM으로 카테고리·품목·가격을 추출합니다. 이때 소비와 무관한 사진(풍경, 자연 등)은 is_valid=0으로 표시하여 매핑 후보군에서 제외하고, 이후 매핑 정확도 저하나 불필요한 매핑 API 호출을 방지합니다. 결제 내역과의 실제 매핑은 일기 생성 시점에 일괄 처리됩니다.
 
 **3) 일기 생성 (실시간, Spring 트리거)**
 사진 그룹과 결제 후보를 LLM으로 매핑한 뒤, 매핑 여부에 따라 다른 프롬프트로 LLM이 일기(제목+본문)를 생성·저장합니다.
@@ -54,23 +54,39 @@ AI 에이전트 워크플로우는 3개의 파이프라인으로 구성됩니다
 ### 3-3. 세부 기능 소개
 
 #### [기능1. 개인별 페르소나 생성]
-  - 기능 설명 : 최근 결제 내역, 사진(VLM) 분석 결과, 감정 이모지를 기반으로 소비 패턴을 추출하고, LLM으로 캐릭터 페르소나를 생성한 뒤 이미지 모델로 아바타를 만듭니다.
+  - 기능 설명 : 최근 결제 내역, 사진(VLM) 분석 결과, 감정 이모지를 기반으로 소비 패턴(대표 카테고리·활동 시간대·소비 아이템)을 추출하고, 이를 입력으로 LLM 페르소나 분석(칭호·설명)과 이미지 아바타 생성을 병렬로 수행합니다.
   - 핵심 코드(스크립트) :
 ```python
-def _extract_persona_elements(transactions, vlm_items, emoji) -> dict:
-    top_category = max(category_spend, key=lambda k: category_spend[k]) if category_spend else "기타"
-    dominant_slot = max(slot_count, key=lambda k: slot_count[k]) if slot_count else "심야"
-    return {"top_category": top_category, "dominant_slot": dominant_slot,
-            "props_hint": _get_props_hint(top_category), "emoji": emoji or "😊"}
-
-async def _analyze_persona(summary, emoji_input, top_category, dominant_slot, ...):
-    response = await client.aio.models.generate_content(
-        model="gemini-3.5-flash", contents=prompt,
-        config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
+async def _generate_and_save_avatar(user_id, start_date, end_date) -> AvatarResponse:
+    # 1. DB 병렬 조회 (결제내역·VLM매핑·감정사진·생애주기)
+    transactions, mapped, photo_emotions, life_stage = await asyncio.gather(
+        get_transactions_by_date_range(user_id, start_date, end_date),
+        get_mapped_transactions_with_vlm(user_id, start_date, end_date),
+        get_photo_emotions_by_payment_date(user_id, start_date, end_date),
+        get_user_life_stage(user_id),
     )
-    return json.loads(text)
+
+    # 2. VLM 아이템 + 대표 감정 이모지 추출
+    vlm_items = list(dict.fromkeys(r["vlm_item_name"] for r in mapped if r.get("vlm_item_name")))
+    emoji = MOOD_NAME_TO_EMOJI.get(pick_top_mood_name(photo_emotions))
+
+    # 3. 소비 패턴 추출 → 이미지 프롬프트 직접 조립
+    elements = _extract_persona_elements(transactions, vlm_items, emoji or "")
+    top_items = " & ".join(vlm_items[:2]) if vlm_items else elements["top_category"]
+    image_prompt = get_prompt("avatar_image").format(top_items=top_items, **elements)
+
+    # 4. LLM 페르소나 분석 + 이미지 생성 '병렬' 실행
+    analysis, image_bytes = await asyncio.gather(
+        _analyze_persona(summary, emoji, top_category, dominant_slot, top_items, ...),
+        _generate_image(image_prompt),
+    )
+
+    # 5. S3 업로드 + DB 저장 후 응답 반환
+    avatar_image_url = _upload_to_s3(image_bytes, user_id)
+    await update_user_avatar(user_id, analysis["title"], analysis["description"], avatar_image_url, ...)
+    return AvatarResponse(avatar_title=analysis["title"], avatar_image=avatar_image_url, ...)
 ```
-  - 코드 링크(스크립트 링크) : `backend/fastapi/app/services/avatar_service.py`
+  - 코드 링크(스크립트 링크) : https://github.com/SoBee-Logs/project/blob/develop/backend/fastapi/app/services/avatar_service.py
 
 #### [기능2. 생애주기 예측]
   - 기능 설명 : LightGBM 모델로 카테고리별 지출 비율을 학습해 생애주기를 예측하고, 결제 장소·시간대·나이 정보로 확률을 보정합니다.
@@ -87,6 +103,7 @@ def predict_from_transactions(self, user_transactions: list, age: int = 0) -> di
     return {"lifecycle_code": pred_label, "confidence": round(float(proba.max()), 3), "top3_candidates": top3}
 ```
   - 코드 링크(스크립트 링크) : `backend/fastapi/ml/lifecycle_model.py`
+  > ⚠️ 해당 모델은 우리카드 데이터셋으로 학습하였기 때문에 GitHub에 업로드되지 않았습니다. (외부 반출 금지)
 
 #### [기능3. VLM 사진-결제 매핑]
   - 기능 설명 : 업로드된 사진을 VLM으로 분석해 소비 정보를 추출하고, 결제 후보와 시간·위치·가게명을 비교해 LLM이 1:1로 매칭합니다.
@@ -103,7 +120,7 @@ def match_photo_to_transaction(req: MappingRequest):
         data = json.loads(content)
         payment_id = data.get("payment_id")
 ```
-  - 코드 링크(스크립트 링크) : `backend/fastapi/app/api/vlm.py`, `backend/fastapi/app/api/mapping.py`
+  - 코드 링크(스크립트 링크) : https://github.com/SoBee-Logs/project/blob/docs%2Fsubmit/backend/fastapi/app/api/vlm.py, https://github.com/SoBee-Logs/project/blob/docs%2Fsubmit/backend/fastapi/app/api/mapping.py
 
 #### [기능4. LLM 소비 일기 생성]
   - 기능 설명 : 매핑된 결제·사진·감정 정보를 조합해 LLM으로 소비 일기를 자동 생성합니다.
@@ -120,7 +137,7 @@ async def generate_diary(req: DiaryRequest) -> DiaryResponse:
     data = json.loads(content)
     return DiaryResponse(title=data["title"], diary_lines=data["diary_lines"], tags=req.tags or [])
 ```
-  - 코드 링크(스크립트 링크) : `backend/fastapi/app/api/diary_generate.py`
+  - 코드 링크(스크립트 링크) : https://github.com/SoBee-Logs/project/blob/docs%2Fsubmit/backend/fastapi/app/api/diary_generate.py
 
 #### [기능5. 맞춤 금융 상품 검색]
   - 기능 설명 : 자연어 검색어를 LLM으로 파싱해 조건을 추출하고, Elasticsearch 검색 결과와 병합·필터링하여 맞춤 금융 상품을 보여줍니다.
@@ -135,4 +152,4 @@ public SearchResponseDto search(SearchRequestDto request) {
     return SearchResponseDto.builder().AI_text(aiText).products(products).matched_cate_names(matchedCateNames).build();
 }
 ```
-  - 코드 링크(스크립트 링크) : `backend/spring/src/main/java/com/sobee/sobee/domain/product/service/SearchService.java`, `backend/fastapi/app/services/search_parse_service.py`
+  - 코드 링크(스크립트 링크) : https://github.com/SoBee-Logs/project/blob/docs%2Fsubmit/backend/spring/src/main/java/com/sobee/sobee/domain/product/service/SearchService.java, https://github.com/SoBee-Logs/project/blob/docs%2Fsubmit/backend/fastapi/app/services/search_parse_service.py
