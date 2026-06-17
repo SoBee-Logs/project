@@ -443,7 +443,6 @@ const s = {
     background: '#fff', borderRadius: 12, padding: 8,
     boxShadow: '0 2px 8px rgba(0,0,0,.06)',
     display: 'flex', flexDirection: 'column', gap: 2,
-    position: 'sticky', top: 16,
   },
   item: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -478,10 +477,11 @@ const s = {
   metaCardTop: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14,
   },
-  metaTitle: { fontSize: 17, fontWeight: 700, color: '#1a1a1a' },
+  metaTitle: { fontSize: 17, fontWeight: 700, color: '#1a1a1a', whiteSpace: 'nowrap' },
   badgeUsing: {
     fontSize: 11, background: '#dcfce7', color: '#16a34a',
     borderRadius: 6, padding: '3px 8px', fontWeight: 600,
+    whiteSpace: 'nowrap',
   },
   metaRow: {
     display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)',

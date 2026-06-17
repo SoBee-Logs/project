@@ -48,6 +48,7 @@ services:
       context: ./dashboard
     ports:
       - "5174:80"
+    restart: unless-stopped
     depends_on:
       - fastapi
     networks:
