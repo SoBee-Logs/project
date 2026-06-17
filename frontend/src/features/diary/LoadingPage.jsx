@@ -121,14 +121,14 @@ export default function LoadingPage() {
       } catch {}
     
       // 1. sync — 최신 결제 내역 업데이트
-      // try {
-      //   await fetch('/api/diary/sync', {
-      //     method: 'POST',
-      //     headers: { Authorization: `Bearer ${token}` },
-      //   })
-      // } catch {
-      //   // sync 실패해도 계속 진행
-      // }
+      try {
+        await fetch('/api/diary/sync', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      } catch {
+        // sync 실패해도 계속 진행
+      }
     
       // 2. mapping — 미매핑 사진 매핑
       // 일기는 하루 1회만 생성되므로, 오늘 날짜로만 필터링하면 그 이후 올라온 사진이나
