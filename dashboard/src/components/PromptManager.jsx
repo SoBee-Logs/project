@@ -476,8 +476,9 @@ const s = {
   },
   metaCardTop: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14,
+    flexWrap: 'wrap', rowGap: 8,
   },
-  metaTitle: { fontSize: 17, fontWeight: 700, color: '#1a1a1a', whiteSpace: 'nowrap' },
+  metaTitle: { fontSize: 17, fontWeight: 700, color: '#1a1a1a' },
   badgeUsing: {
     fontSize: 11, background: '#dcfce7', color: '#16a34a',
     borderRadius: 6, padding: '3px 8px', fontWeight: 600,
